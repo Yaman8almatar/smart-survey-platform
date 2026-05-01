@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:15
+    container_name: smart_survey_db
+    restart: always
+    environment:
+      POSTGRES_DB: smart_survey_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - smart_survey_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  smart_survey_postgres_data:
