@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Respondent workspace</div>
+                <h1>Respondent dashboard</h1>
+                <p class="section-subtitle mb-0">
+                    Manage your demographic profile and find surveys available to you.
+                </p>
+            </div>
+            <div class="page-actions">
+                <a
+                    class="btn btn-outline-secondary"
+                    href="{% url 'responses:demographic_profile' %}"
+                >
+                    <i class="bi bi-person-vcard me-1"></i>
+                    Manage profile
+                </a>
+                <a
+                    class="btn btn-primary"
+                    href="{% url 'responses:eligible_surveys' %}"
+                >
+                    <i class="bi bi-ui-checks-grid me-1"></i>
+                    View eligible surveys
+                </a>
+                <a
+                    class="btn btn-outline-secondary"
+                    href="{% url 'responses:answered_surveys' %}"
+                >
+                    <i class="bi bi-check2-square me-1"></i>
+                    Answered surveys
+                </a>
+            </div>
+        </div>
+
+        <!-- Dashboard cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="metric-card">
+                    <span>Profile completion</span>
+                    {% if profile_complete %}
+                        <strong>Complete</strong>
+                    {% else %}
+                        <strong>Incomplete</strong>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="metric-card">
+                    <span>Eligible surveys</span>
+                    <strong>{{ eligible_surveys_count }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Respondent actions -->
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <h2 class="section-title">Demographic profile</h2>
+                        <p class="item-subtitle">
+                            Keep your demographic details current so available
+                            surveys are matched to your account.
+                        </p>
+                        <a
+                            class="btn btn-outline-secondary"
+                            href="{% url 'responses:demographic_profile' %}"
+                        >
+                            <i class="bi bi-person-vcard me-1"></i>
+                            Manage Demographic Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <h2 class="section-title">Survey participation</h2>
+                        <p class="item-subtitle">
+                            Browse surveys that are currently available for your
+                            profile and submit responses.
+                        </p>
+                        <a
+                            class="btn btn-primary"
+                            href="{% url 'responses:eligible_surveys' %}"
+                        >
+                            <i class="bi bi-ui-checks-grid me-1"></i>
+                            View Eligible Surveys
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <h2 class="section-title">Answered surveys</h2>
+                        <p class="item-subtitle">
+                            Review surveys you have already submitted. Completed
+                            surveys do not include a submit action.
+                        </p>
+                        <a
+                            class="btn btn-outline-secondary"
+                            href="{% url 'responses:answered_surveys' %}"
+                        >
+                            <i class="bi bi-check2-square me-1"></i>
+                            View Answered Surveys
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

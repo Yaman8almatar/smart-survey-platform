@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header page-header-narrow">
+            <div>
+                <div class="page-kicker">Survey response</div>
+                <h1>{{ survey.title }}</h1>
+                <p class="section-subtitle mb-0">
+                    Complete the questions below and submit your response.
+                </p>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Response submission form -->
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% if questions %}
+                        <div class="question-list">
+                            {% for question in questions %}
+                                <div class="response-question">
+                                    <div class="d-flex justify-content-between gap-3 mb-3">
+                                        <div>
+                                            <h2 class="section-title mb-1">
+                                                {{ question.text }}
+                                            </h2>
+                                            <div class="item-subtitle">
+                                                {{ question.type_label }}
+                                                - {{ question.required_label }}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {% if question.is_open_text %}
+                                        <textarea
+                                            class="form-control"
+                                            name="{{ question.answer_name }}"
+                                            rows="4"
+                                        ></textarea>
+                                    {% endif %}
+
+                                    {% if question.is_rating_scale %}
+                                        <select
+                                            class="form-select response-rating"
+                                            name="{{ question.rating_name }}"
+                                        >
+                                            <option value="">Select rating</option>
+                                            {% for rating in question.rating_values %}
+                                                <option value="{{ rating }}">
+                                                    {{ rating }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    {% endif %}
+
+                                    {% if question.is_multiple_choice %}
+                                        <div class="answer-options">
+                                            {% for option in question.options %}
+                                                <div class="form-check">
+                                                    <input
+                                                        class="form-check-input"
+                                                        type="radio"
+                                                        name="{{ question.option_name }}"
+                                                        id="option-{{ option.id }}"
+                                                        value="{{ option.id }}"
+                                                    >
+                                                    <label
+                                                        class="form-check-label"
+                                                        for="option-{{ option.id }}"
+                                                    >
+                                                        {{ option.text }}
+                                                    </label>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="form-actions mt-4">
+                            <a
+                                class="btn btn-outline-secondary"
+                                href="{% url 'responses:eligible_surveys' %}"
+                            >
+                                <i class="bi bi-arrow-left me-1"></i>
+                                Back
+                            </a>
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-send-check me-1"></i>
+                                Submit response
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No questions are available.</div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

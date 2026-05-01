@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="auth-shell auth-shell-compact">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-7 col-lg-5">
+                <!-- Logout confirmation form -->
+                <div class="card auth-card text-center">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="logout-icon">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </div>
+                        <div class="page-kicker">Session</div>
+                        <h1 class="auth-title">Log out?</h1>
+                        <p class="auth-description mb-4">
+                            Confirm that you want to end your current session.
+                        </p>
+                        <form method="post" class="d-grid gap-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="bi bi-box-arrow-right me-1"></i>
+                                Logout
+                            </button>
+                            <a class="btn btn-outline-secondary" href="/">
+                                <i class="bi bi-x-circle me-1"></i>
+                                Cancel
+                            </a>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
