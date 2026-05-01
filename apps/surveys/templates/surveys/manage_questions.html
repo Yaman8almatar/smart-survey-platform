@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Question setup</div>
+                <h1>{{ survey.title }}</h1>
+                <p class="section-subtitle mb-0">
+                    Add survey questions and multiple-choice options.
+                </p>
+            </div>
+            <a class="btn btn-outline-secondary" href="{% url 'surveys:survey_list' %}">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back to surveys
+            </a>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <!-- Existing questions -->
+                <div class="card table-card">
+                    <div class="card-body">
+                        <h2 class="section-title">Existing questions</h2>
+                        {% if questions %}
+                            <div class="question-list">
+                                {% for question in questions %}
+                                    <div class="question-item">
+                                        <div class="d-flex justify-content-between gap-3">
+                                            <div>
+                                                <div class="item-title">
+                                                    {{ question.order_index }}.
+                                                    {{ question.text }}
+                                                </div>
+                                                <div class="item-subtitle">
+                                                    {{ question.type_label }}
+                                                    - {{ question.required_label }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% if question.options %}
+                                            <div class="option-list">
+                                                {% for option in question.options %}
+                                                    <span class="option-pill">
+                                                        {{ option.option_text }}
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">No questions added yet.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <!-- Question management form -->
+                <div class="card auth-card">
+                    <div class="card-body p-4">
+                        <h2 class="section-title">Add question</h2>
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label
+                                    class="form-label"
+                                    for="{{ form.question_text.id_for_label }}"
+                                >
+                                    Question text
+                                </label>
+                                {{ form.question_text }}
+                                {% for error in form.question_text.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.question_type.id_for_label }}"
+                                    >
+                                        Question type
+                                    </label>
+                                    {{ form.question_type }}
+                                    {% for error in form.question_type.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-5">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.order_index.id_for_label }}"
+                                    >
+                                        Order
+                                    </label>
+                                    {{ form.order_index }}
+                                    {% for error in form.order_index.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="form-check my-3">
+                                {{ form.is_required }}
+                                <label
+                                    class="form-check-label"
+                                    for="{{ form.is_required.id_for_label }}"
+                                >
+                                    Required question
+                                </label>
+                            </div>
+
+                            <div class="mb-4 option-builder" data-option-builder>
+                                <div
+                                    class="d-flex flex-column flex-sm-row justify-content-between gap-2 mb-2"
+                                >
+                                    <div>
+                                        <label class="form-label mb-1">
+                                            Multiple-choice options
+                                        </label>
+                                        <div class="form-text mt-0">
+                                            Add one option per row for multiple-choice questions.
+                                        </div>
+                                    </div>
+                                    <button
+                                        class="btn btn-sm btn-outline-secondary align-self-sm-start"
+                                        type="button"
+                                        data-option-add
+                                    >
+                                        <i class="bi bi-plus-circle me-1"></i>
+                                        Add option
+                                    </button>
+                                </div>
+                                <div
+                                    class="option-builder-list"
+                                    data-option-list
+                                ></div>
+                                <div
+                                    class="option-source-wrap"
+                                    data-option-source-wrap
+                                >
+                                    {{ form.options }}
+                                </div>
+                                <div class="form-text">{{ form.options.help_text }}</div>
+                                {% for error in form.options.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <button class="btn btn-primary w-100" type="submit">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Add question
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

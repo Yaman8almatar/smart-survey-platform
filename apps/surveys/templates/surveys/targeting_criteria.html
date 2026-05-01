@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header page-header-narrow">
+            <div>
+                <div class="page-kicker">Audience targeting</div>
+                <h1>{{ survey.title }}</h1>
+                <p class="section-subtitle mb-0">
+                    Empty fields mean no restriction for that criterion.
+                </p>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-7">
+                <!-- Targeting criteria form -->
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="alert alert-info">
+                            Leave any field blank when the survey should be open
+                            across that criterion.
+                        </div>
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.gender.id_for_label }}"
+                                    >
+                                        Gender
+                                    </label>
+                                    {{ form.gender }}
+                                    {% for error in form.gender.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.region.id_for_label }}"
+                                    >
+                                        Region
+                                    </label>
+                                    {{ form.region }}
+                                    {% for error in form.region.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.age_min.id_for_label }}"
+                                    >
+                                        Minimum age
+                                    </label>
+                                    {{ form.age_min }}
+                                    {% for error in form.age_min.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.age_max.id_for_label }}"
+                                    >
+                                        Maximum age
+                                    </label>
+                                    {{ form.age_max }}
+                                    {% for error in form.age_max.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="form-actions mt-4">
+                                <a
+                                    class="btn btn-outline-secondary"
+                                    href="{% url 'surveys:survey_list' %}"
+                                >
+                                    <i class="bi bi-arrow-left me-1"></i>
+                                    Back
+                                </a>
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-check2-circle me-1"></i>
+                                    Save targeting
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
