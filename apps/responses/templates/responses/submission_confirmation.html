@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6">
+                <!-- Submission confirmation -->
+                <div class="card auth-card text-center">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="confirmation-icon">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                        <div class="page-kicker">Submitted</div>
+                        <h1 class="auth-title">Response received</h1>
+                        <p class="auth-description mb-4">
+                            Your survey response has been recorded successfully.
+                        </p>
+                        <div class="d-grid gap-2">
+                            <a
+                                class="btn btn-primary"
+                                href="{% url 'responses:eligible_surveys' %}"
+                            >
+                                <i class="bi bi-ui-checks-grid me-1"></i>
+                                View eligible surveys
+                            </a>
+                            <a
+                                class="btn btn-outline-secondary"
+                                href="{% url 'responses:respondent_dashboard' %}"
+                            >
+                                <i class="bi bi-speedometer2 me-1"></i>
+                                Respondent dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Admin panel</div>
+                <h1>System reports</h1>
+                <p class="section-subtitle mb-0">
+                    Generate aggregate counts for a selected reporting period.
+                </p>
+            </div>
+            <a
+                class="btn btn-outline-secondary"
+                href="{% url 'admin_panel:admin_dashboard' %}"
+            >
+                <i class="bi bi-speedometer2 me-1"></i>
+                Dashboard
+            </a>
+        </div>
+
+        <!-- Report filters -->
+        <div class="card table-card mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label" for="date_from">Date from</label>
+                        <input
+                            class="form-control"
+                            type="date"
+                            id="date_from"
+                            name="date_from"
+                            value="{{ date_from }}"
+                        >
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="date_to">Date to</label>
+                        <input
+                            class="form-control"
+                            type="date"
+                            id="date_to"
+                            name="date_to"
+                            value="{{ date_to }}"
+                        >
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-primary w-100" type="submit">
+                            <i class="bi bi-clipboard-data me-1"></i>
+                            Generate report
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if report %}
+            <!-- Admin reports -->
+            <div class="report-dashboard" data-system-report="true">
+                {{ report.users_by_type|json_script:"users-by-type-data" }}
+                {{ report.surveys_by_status|json_script:"surveys-by-status-data" }}
+                {{ report.responses_over_time|json_script:"responses-over-time-data" }}
+                {{ report.user_growth_over_time|json_script:"user-growth-data" }}
+                {{ report.most_active_surveys|json_script:"most-active-surveys-data" }}
+
+                <!-- Dashboard cards -->
+                <div class="row g-3">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="metric-card">
+                            <span>Total users</span>
+                            <strong>{{ report.total_users }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="metric-card">
+                            <span>Total surveys</span>
+                            <strong>{{ report.total_surveys }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="metric-card">
+                            <span>Total responses</span>
+                            <strong>{{ report.total_responses }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="metric-card">
+                            <span>Active surveys</span>
+                            <strong>{{ report.active_surveys }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Report charts -->
+                <div class="row g-4 mt-1">
+                    <div class="col-lg-6 d-flex">
+                        <article class="report-card w-100">
+                            <div class="report-card-header">
+                                <div>
+                                    <h2 class="section-title mb-1">Users by type</h2>
+                                    <p class="item-subtitle mb-0">
+                                        Account distribution across platform roles.
+                                    </p>
+                                </div>
+                                <span class="badge text-bg-light">
+                                    <i class="bi bi-people me-1"></i>Users
+                                </span>
+                            </div>
+                            <div class="report-card-body">
+                                <div class="report-values">
+                                    <div class="report-value-item">
+                                        <span>Service Providers</span>
+                                        <strong>{{ report.users_by_type.SERVICE_PROVIDER }}</strong>
+                                    </div>
+                                    <div class="report-value-item">
+                                        <span>Respondents</span>
+                                        <strong>{{ report.users_by_type.RESPONDENT }}</strong>
+                                    </div>
+                                    <div class="report-value-item">
+                                        <span>Admins</span>
+                                        <strong>{{ report.users_by_type.ADMIN }}</strong>
+                                    </div>
+                                </div>
+                                {% if report.has_users_by_type_data %}
+                                    <div class="report-chart-wrap">
+                                        <canvas id="usersByTypeChart"></canvas>
+                                    </div>
+                                {% else %}
+                                    <div class="empty-state report-empty-state">
+                                        No user data is available.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="col-lg-6 d-flex">
+                        <article class="report-card w-100">
+                            <div class="report-card-header">
+                                <div>
+                                    <h2 class="section-title mb-1">Surveys by status</h2>
+                                    <p class="item-subtitle mb-0">
+                                        Draft, published, and closed survey inventory.
+                                    </p>
+                                </div>
+                                <span class="badge text-bg-light">
+                                    <i class="bi bi-ui-checks-grid me-1"></i>Surveys
+                                </span>
+                            </div>
+                            <div class="report-card-body">
+                                <div class="report-values">
+                                    <div class="report-value-item">
+                                        <span>Draft</span>
+                                        <strong>{{ report.surveys_by_status.DRAFT }}</strong>
+                                    </div>
+                                    <div class="report-value-item">
+                                        <span>Published</span>
+                                        <strong>{{ report.surveys_by_status.PUBLISHED }}</strong>
+                                    </div>
+                                    <div class="report-value-item">
+                                        <span>Closed</span>
+                                        <strong>{{ report.surveys_by_status.CLOSED }}</strong>
+                                    </div>
+                                </div>
+                                {% if report.has_surveys_by_status_data %}
+                                    <div class="report-chart-wrap">
+                                        <canvas id="surveysByStatusChart"></canvas>
+                                    </div>
+                                {% else %}
+                                    <div class="empty-state report-empty-state">
+                                        No survey data is available.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="col-lg-6 d-flex">
+                        <article class="report-card w-100">
+                            <div class="report-card-header">
+                                <div>
+                                    <h2 class="section-title mb-1">Responses over time</h2>
+                                    <p class="item-subtitle mb-0">
+                                        Submitted responses within the selected range.
+                                    </p>
+                                </div>
+                                <span class="badge text-bg-light">
+                                    <i class="bi bi-activity me-1"></i>Trend
+                                </span>
+                            </div>
+                            <div class="report-card-body">
+                                {% if report.has_responses_over_time_data %}
+                                    <div class="report-data-list">
+                                        {% for row in report.responses_over_time %}
+                                            <div class="report-data-row">
+                                                <span>{{ row.date }}</span>
+                                                <strong>{{ row.count }}</strong>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="report-chart-wrap">
+                                        <canvas id="responsesOverTimeChart"></canvas>
+                                    </div>
+                                {% else %}
+                                    <div class="empty-state report-empty-state">
+                                        No responses were submitted in the selected range.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="col-lg-6 d-flex">
+                        <article class="report-card w-100">
+                            <div class="report-card-header">
+                                <div>
+                                    <h2 class="section-title mb-1">User growth over time</h2>
+                                    <p class="item-subtitle mb-0">
+                                        New user accounts created within the selected range.
+                                    </p>
+                                </div>
+                                <span class="badge text-bg-light">
+                                    <i class="bi bi-person-plus me-1"></i>Growth
+                                </span>
+                            </div>
+                            <div class="report-card-body">
+                                {% if report.has_user_growth_data %}
+                                    <div class="report-data-list">
+                                        {% for row in report.user_growth_over_time %}
+                                            <div class="report-data-row">
+                                                <span>{{ row.date }}</span>
+                                                <strong>{{ row.count }}</strong>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="report-chart-wrap">
+                                        <canvas id="userGrowthChart"></canvas>
+                                    </div>
+                                {% else %}
+                                    <div class="empty-state report-empty-state">
+                                        No new users were created in the selected range.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </article>
+                    </div>
+                </div>
+
+                <article class="report-card report-card-full mt-4">
+                    <div class="report-card-header">
+                        <div>
+                            <h2 class="section-title mb-1">Most active surveys</h2>
+                            <p class="item-subtitle mb-0">
+                                Top surveys ranked by submitted response count.
+                            </p>
+                        </div>
+                        <span class="badge text-bg-light">
+                            <i class="bi bi-bar-chart me-1"></i>Top 5
+                        </span>
+                    </div>
+                    <div class="report-card-body">
+                        {% if report.has_most_active_surveys_data %}
+                            <div class="report-ranked-list">
+                                {% for survey in report.most_active_surveys %}
+                                    <div class="report-ranked-item">
+                                        <span class="report-rank-number">
+                                            #{{ forloop.counter }}
+                                        </span>
+                                        <div class="report-ranked-main">
+                                            <strong>{{ survey.title }}</strong>
+                                            <small>Survey {{ survey.survey_id }}</small>
+                                        </div>
+                                        <span class="badge text-bg-primary">
+                                            {{ survey.response_count }} responses
+                                        </span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <div class="report-chart-wrap report-chart-wrap-wide">
+                                <canvas id="mostActiveSurveysChart"></canvas>
+                            </div>
+                        {% else %}
+                            <div class="empty-state report-empty-state">
+                                No survey activity is available for the selected range.
+                            </div>
+                        {% endif %}
+                    </div>
+                </article>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                Select a valid date range to generate a system report.
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

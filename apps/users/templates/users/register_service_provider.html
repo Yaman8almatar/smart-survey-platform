@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="auth-shell">
+    <div class="container">
+        <div class="row align-items-center justify-content-center g-4">
+            <div class="col-lg-5">
+                <div class="auth-copy">
+                    <span class="brand-badge">
+                        <i class="bi bi-briefcase"></i>
+                        Service provider
+                    </span>
+                    <h1>Create surveys with a dedicated provider account</h1>
+                    <p class="section-subtitle">
+                        Register your provider profile to start building and
+                        managing opinion surveys.
+                    </p>
+                    <div class="auth-note">
+                        <i class="bi bi-lock"></i>
+                        Account passwords are handled through Django authentication.
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8 col-lg-5">
+                <!-- Provider registration form -->
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="page-kicker">Provider registration</div>
+                        <h2 class="auth-title">Create provider account</h2>
+                        <p class="auth-description">
+                            Use an email address that identifies your provider account.
+                        </p>
+
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ form.name.id_for_label }}">
+                                    Full name
+                                </label>
+                                {{ form.name }}
+                                {% for error in form.name.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ form.email.id_for_label }}">
+                                    Email address
+                                </label>
+                                {{ form.email }}
+                                {% for error in form.email.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.password.id_for_label }}"
+                                    >
+                                        Password
+                                    </label>
+                                    {{ form.password }}
+                                    {% for error in form.password.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.confirm_password.id_for_label }}"
+                                    >
+                                        Confirm password
+                                    </label>
+                                    {{ form.confirm_password }}
+                                    {% for error in form.confirm_password.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            {% for error in form.non_field_errors %}
+                                <div class="alert alert-danger mt-3">{{ error }}</div>
+                            {% endfor %}
+
+                            <button type="submit" class="btn btn-primary btn-lg w-100 mt-4">
+                                <i class="bi bi-briefcase me-1"></i>
+                                Create provider account
+                            </button>
+                        </form>
+
+                        <div class="auth-links">
+                            <span>Already registered?</span>
+                            <a href="{% url 'users:login' %}">
+                                <i class="bi bi-arrow-left me-1"></i>
+                                Back to login
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

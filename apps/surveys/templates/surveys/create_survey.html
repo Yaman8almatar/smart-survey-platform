@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header page-header-narrow">
+            <div>
+                <div class="page-kicker">Create survey</div>
+                <h1>Start a new survey</h1>
+                <p class="section-subtitle mb-0">
+                    Create the survey shell, then add questions and targeting criteria.
+                </p>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-7">
+                <!-- Survey form -->
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-md-5">
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ form.title.id_for_label }}">
+                                    Survey title
+                                </label>
+                                {{ form.title }}
+                                {% for error in form.title.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-4">
+                                <label
+                                    class="form-label"
+                                    for="{{ form.description.id_for_label }}"
+                                >
+                                    Description
+                                </label>
+                                {{ form.description }}
+                                <div class="form-text">
+                                    Keep this concise for participants and reviewers.
+                                </div>
+                                {% for error in form.description.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="form-actions">
+                                <a
+                                    class="btn btn-outline-secondary"
+                                    href="{% url 'surveys:survey_list' %}"
+                                >
+                                    <i class="bi bi-x-circle me-1"></i>
+                                    Cancel
+                                </a>
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-plus-circle me-1"></i>
+                                    Create and add questions
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

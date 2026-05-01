@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Survey management</div>
+                <h1>Provider surveys</h1>
+                <p class="section-subtitle mb-0">
+                    Manage survey setup, targeting, publication, and closure.
+                </p>
+            </div>
+            <a class="btn btn-primary" href="{% url 'surveys:create_survey' %}">
+                <i class="bi bi-plus-circle me-1"></i>
+                Create survey
+            </a>
+        </div>
+
+        <!-- Survey management table -->
+        <div class="card table-card">
+            <div class="card-body">
+                {% if surveys %}
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Survey</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for survey in surveys %}
+                                    {% url 'surveys:edit_survey' survey.id as edit_url %}
+                                    {% url 'surveys:manage_questions' survey.id as questions_url %}
+                                    {% url 'surveys:targeting_criteria' survey.id as targeting_url %}
+                                    {% url 'surveys:publish_survey' survey.id as publish_url %}
+                                    {% url 'surveys:close_survey' survey.id as close_url %}
+                                    {% url 'surveys:delete_survey' survey.id as delete_url %}
+                                    {% url 'analysis:analytics_dashboard' survey.id as analytics_url %}
+                                    <tr>
+                                        <td>
+                                            <div class="item-title">{{ survey.title }}</div>
+                                            <div class="item-subtitle">
+                                                {{ survey.description|default:"No description" }}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge {{ survey.status_badge }}">
+                                                {{ survey.status_label }}
+                                            </span>
+                                        </td>
+                                        <td>{{ survey.created_at|date:"M d, Y" }}</td>
+                                        <td>
+                                            <div class="action-group justify-content-end">
+                                                {% if survey.can_edit %}
+                                                    <a
+                                                        class="btn btn-sm btn-outline-secondary"
+                                                        href="{{ edit_url }}"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-1"></i>
+                                                        Edit
+                                                    </a>
+                                                {% endif %}
+                                                {% if survey.can_manage_questions %}
+                                                    <a
+                                                        class="btn btn-sm btn-outline-secondary"
+                                                        href="{{ questions_url }}"
+                                                    >
+                                                        <i class="bi bi-ui-checks-grid me-1"></i>
+                                                        Manage Questions
+                                                    </a>
+                                                {% endif %}
+                                                {% if survey.can_manage_targeting %}
+                                                    <a
+                                                        class="btn btn-sm btn-outline-secondary"
+                                                        href="{{ targeting_url }}"
+                                                    >
+                                                        <i class="bi bi-bullseye me-1"></i>
+                                                        Targeting Criteria
+                                                    </a>
+                                                {% endif %}
+                                                {% if survey.can_view_analytics %}
+                                                    <a
+                                                        class="btn btn-sm btn-outline-primary"
+                                                        href="{{ analytics_url }}"
+                                                    >
+                                                        <i class="bi bi-bar-chart-line me-1"></i>
+                                                        Analytics
+                                                    </a>
+                                                {% endif %}
+                                                {% if survey.can_publish %}
+                                                    <form
+                                                        method="post"
+                                                        action="{{ publish_url }}"
+                                                    >
+                                                        {% csrf_token %}
+                                                        <button
+                                                            class="btn btn-sm btn-primary"
+                                                            type="submit"
+                                                        >
+                                                            <i class="bi bi-send-check me-1"></i>
+                                                            Publish
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                {% if survey.can_close %}
+                                                    <form
+                                                        method="post"
+                                                        action="{{ close_url }}"
+                                                    >
+                                                        {% csrf_token %}
+                                                        <button
+                                                            class="btn btn-sm btn-outline-primary"
+                                                            type="submit"
+                                                        >
+                                                            <i class="bi bi-stop-circle me-1"></i>
+                                                            Close
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                {% if survey.can_delete %}
+                                                    <a
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        href="{{ delete_url }}"
+                                                    >
+                                                        <i class="bi bi-trash me-1"></i>
+                                                        Delete
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        No surveys created yet.
+                        <a href="{% url 'surveys:create_survey' %}">
+                            Create your first survey.
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

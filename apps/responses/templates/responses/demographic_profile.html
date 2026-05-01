@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header page-header-narrow">
+            <div>
+                <div class="page-kicker">Profile</div>
+                <h1>Demographic profile</h1>
+                <p class="section-subtitle mb-0">
+                    These details are used by the survey eligibility workflow.
+                </p>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-7">
+                <!-- Profile management form -->
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-md-5">
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="{{ form.age.id_for_label }}">
+                                        Age
+                                    </label>
+                                    {{ form.age }}
+                                    {% for error in form.age.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.gender.id_for_label }}"
+                                    >
+                                        Gender
+                                    </label>
+                                    {{ form.gender }}
+                                    {% for error in form.gender.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-12">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.region.id_for_label }}"
+                                    >
+                                        Region
+                                    </label>
+                                    {{ form.region }}
+                                    {% for error in form.region.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-12">
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.interests.id_for_label }}"
+                                    >
+                                        Interests
+                                    </label>
+                                    {{ form.interests }}
+                                    <div class="form-text">
+                                        Add the topics you prefer to answer surveys about.
+                                    </div>
+                                    {% for error in form.interests.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="form-actions mt-4">
+                                <a
+                                    class="btn btn-outline-secondary"
+                                    href="{% url 'responses:respondent_dashboard' %}"
+                                >
+                                    <i class="bi bi-arrow-left me-1"></i>
+                                    Back
+                                </a>
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-check2-circle me-1"></i>
+                                    Save profile
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
