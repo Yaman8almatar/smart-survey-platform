@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="home-shell">
+    <div class="container">
+        {% if is_personal_home %}
+            <!-- Account summary -->
+            <div class="home-header">
+                <div>
+                    <p class="page-kicker">Home</p>
+                    <h1>Welcome back, {{ user_name }}</h1>
+                    <p class="section-subtitle mb-0">{{ welcome_message }}</p>
+                </div>
+            </div>
+
+            <div class="row g-4 align-items-stretch">
+                <div class="col-lg-4">
+                    <article class="account-summary-card h-100">
+                        <div class="account-avatar">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <h2>{{ user_name }}</h2>
+                        <p>{{ user_email }}</p>
+                        <div class="account-badge-row">
+                            <span class="badge {{ role_badge_class }}">{{ role_label }}</span>
+                            <span class="badge {{ status_badge_class }}">{{ account_status_label }}</span>
+                        </div>
+                        <div class="account-detail-grid">
+                            <div>
+                                <span>User type</span>
+                                <strong>{{ user_type }}</strong>
+                            </div>
+                            <div>
+                                <span>Account status</span>
+                                <strong>{{ account_status }}</strong>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="col-lg-8">
+                    <!-- Quick actions -->
+                    <article class="table-card h-100">
+                        <div class="card-body p-4 p-lg-5">
+                            <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+                                <div>
+                                    <p class="page-kicker">Quick actions</p>
+                                    <h2 class="section-title mb-1">Continue your workflow</h2>
+                                    <p class="item-subtitle mb-0">
+                                        Open the main areas available to your account.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="quick-action-grid">
+                                {% for action in quick_actions %}
+                                    <a class="quick-action-card" href="{{ action.url }}">
+                                        <span class="quick-action-icon">
+                                            <i class="bi {{ action.icon }}"></i>
+                                        </span>
+                                        <span>
+                                            <strong>{{ action.title }}</strong>
+                                            <small>{{ action.description }}</small>
+                                        </span>
+                                        <i class="bi bi-arrow-right-short quick-action-arrow"></i>
+                                    </a>
+                                {% empty %}
+                                    <div class="empty-state">
+                                        No quick actions are available for this account.
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        {% else %}
+            <!-- Public home actions -->
+            <div class="public-home-grid align-items-center">
+                <div class="auth-copy">
+                    <span class="brand-badge">
+                        <i class="bi bi-bar-chart-line"></i>
+                        Smart Survey Platform
+                    </span>
+                    <h1>Smart Survey Platform</h1>
+                    <p class="auth-description mb-4">
+                        A role-based survey platform for building questionnaires, collecting
+                        targeted responses, and reviewing analytics in one clean workspace.
+                    </p>
+                    <div class="public-home-actions">
+                        {% for action in public_actions %}
+                            <a class="btn {{ action.button_class }} btn-lg" href="{{ action.url }}">
+                                <i class="bi {{ action.icon }} me-2"></i>{{ action.title }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <article class="public-home-panel">
+                    <div class="public-home-icon">
+                        <i class="bi bi-grid-1x2"></i>
+                    </div>
+                    <h2>One platform for every role</h2>
+                    <p>
+                        Service providers manage surveys and analytics, respondents answer
+                        eligible surveys, and administrators monitor activity.
+                    </p>
+                </article>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

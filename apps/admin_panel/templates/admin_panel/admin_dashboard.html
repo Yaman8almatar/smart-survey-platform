@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Admin panel</div>
+                <h1>Administration dashboard</h1>
+                <p class="section-subtitle mb-0">
+                    Manage platform accounts and review aggregate system reports.
+                </p>
+            </div>
+        </div>
+
+        <!-- Admin dashboard cards -->
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <div class="admin-card-icon">
+                            <i class="bi bi-people"></i>
+                        </div>
+                        <h2 class="section-title">User Management</h2>
+                        <p class="item-subtitle">
+                            Activate, suspend, or soft delete platform user accounts.
+                        </p>
+                        <a
+                            class="btn btn-primary"
+                            href="{% url 'admin_panel:user_management' %}"
+                        >
+                            <i class="bi bi-people me-1"></i>
+                            User Management
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <div class="admin-card-icon">
+                            <i class="bi bi-clipboard-data"></i>
+                        </div>
+                        <h2 class="section-title">System Reports</h2>
+                        <p class="item-subtitle">
+                            Generate totals for users, surveys, responses, and active surveys.
+                        </p>
+                        <a
+                            class="btn btn-primary"
+                            href="{% url 'admin_panel:system_reports' %}"
+                        >
+                            <i class="bi bi-clipboard-data me-1"></i>
+                            System Reports
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

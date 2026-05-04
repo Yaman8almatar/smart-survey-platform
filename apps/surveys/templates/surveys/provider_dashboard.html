@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Provider workspace</div>
+                <h1>Survey dashboard</h1>
+                <p class="section-subtitle mb-0">
+                    Review survey activity and continue building your drafts.
+                </p>
+            </div>
+            <div class="page-actions">
+                <a
+                    class="btn btn-outline-secondary"
+                    href="{% url 'surveys:survey_list' %}"
+                >
+                    <i class="bi bi-list-check me-1"></i>
+                    My Surveys
+                </a>
+                <a class="btn btn-primary" href="{% url 'surveys:create_survey' %}">
+                    <i class="bi bi-plus-circle me-1"></i>
+                    Create Survey
+                </a>
+            </div>
+        </div>
+
+        <!-- Dashboard cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Total surveys</span>
+                    <strong>{{ metrics.total }}</strong>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Draft</span>
+                    <strong>{{ metrics.draft }}</strong>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Published</span>
+                    <strong>{{ metrics.published }}</strong>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Closed</span>
+                    <strong>{{ metrics.closed }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent surveys -->
+        <div class="card table-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="section-title mb-0">Recent surveys</h2>
+                    <a
+                        href="{% url 'surveys:create_survey' %}"
+                        class="btn btn-sm btn-primary"
+                    >
+                        <i class="bi bi-plus-circle me-1"></i>
+                        New survey
+                    </a>
+                </div>
+
+                {% if recent_surveys %}
+                    <div class="list-group list-group-flush">
+                        {% for survey in recent_surveys %}
+                            {% url 'surveys:manage_questions' survey.id as questions_url %}
+                            {% url 'surveys:targeting_criteria' survey.id as targeting_url %}
+                            {% url 'analysis:analytics_dashboard' survey.id as analytics_url %}
+                            <div class="list-group-item px-0">
+                                <div
+                                    class="d-flex flex-column flex-lg-row justify-content-between gap-3"
+                                >
+                                    <div>
+                                        <h3 class="item-title">{{ survey.title }}</h3>
+                                        <p class="item-subtitle mb-0">
+                                            {{ survey.description|default:"No description" }}
+                                        </p>
+                                    </div>
+                                    <div class="text-lg-end">
+                                        <span class="badge {{ survey.status_badge }} mb-2">
+                                            {{ survey.status_label }}
+                                        </span>
+                                        <div class="action-group justify-content-lg-end">
+                                            {% if survey.can_manage_questions %}
+                                                <a
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    href="{{ questions_url }}"
+                                                >
+                                                    <i class="bi bi-ui-checks-grid me-1"></i>
+                                                    Manage Questions
+                                                </a>
+                                            {% endif %}
+                                            {% if survey.can_manage_targeting %}
+                                                <a
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    href="{{ targeting_url }}"
+                                                >
+                                                    <i class="bi bi-bullseye me-1"></i>
+                                                    Targeting Criteria
+                                                </a>
+                                            {% endif %}
+                                            {% if survey.can_view_analytics %}
+                                                <a
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    href="{{ analytics_url }}"
+                                                >
+                                                    <i class="bi bi-bar-chart-line me-1"></i>
+                                                    Analytics
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">No surveys created yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

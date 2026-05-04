@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Analytics</div>
+                <h1>{{ survey.title }}</h1>
+                <p class="section-subtitle mb-0">
+                    Sentiment summary and response activity for survey
+                    #{{ results.survey_id }}.
+                </p>
+            </div>
+            <a class="btn btn-outline-secondary" href="{% url 'surveys:survey_list' %}">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back to surveys
+            </a>
+        </div>
+
+        <!-- Analytics summary cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Responses</span>
+                    <strong>{{ results.response_count }}</strong>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Positive</span>
+                    <strong>{{ results.positive_count }}</strong>
+                    <small>{{ results.positive_rate_label }}</small>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Neutral</span>
+                    <strong>{{ results.neutral_count }}</strong>
+                    <small>{{ results.neutral_rate_label }}</small>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="metric-card">
+                    <span>Negative</span>
+                    <strong>{{ results.negative_count }}</strong>
+                    <small>{{ results.negative_rate_label }}</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics charts -->
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="section-title mb-0">
+                                Sentiment distribution
+                            </h2>
+                            <span class="badge text-bg-light">
+                                <i class="bi bi-pie-chart me-1"></i>Chart.js
+                            </span>
+                        </div>
+                        {% if has_responses %}
+                            {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
+                            <div class="chart-panel">
+                                <canvas id="sentimentDistributionChart"></canvas>
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                No responses have been submitted for this survey yet.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <h2 class="section-title">Analytics summary</h2>
+                        <p class="item-subtitle">
+                            Rates reflect completed sentiment analysis for submitted
+                            open-text answers.
+                        </p>
+                        <div class="analytics-list">
+                            <div>
+                                <span>Positive rate</span>
+                                <strong>{{ results.positive_rate_label }}</strong>
+                            </div>
+                            <div>
+                                <span>Neutral rate</span>
+                                <strong>{{ results.neutral_rate_label }}</strong>
+                            </div>
+                            <div>
+                                <span>Negative rate</span>
+                                <strong>{{ results.negative_rate_label }}</strong>
+                            </div>
+                            <div>
+                                <span>Total responses</span>
+                                <strong>{{ results.response_count }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if has_responses %}
+            <!-- Question analytics -->
+            <div class="mt-4">
+                <div class="page-header mb-3">
+                    <div>
+                        <div class="page-kicker">Answer insights</div>
+                        <h2 class="section-title mb-0">Question results</h2>
+                    </div>
+                </div>
+
+                {% if results.question_summaries %}
+                    <div class="answer-insights-list">
+                        {% for question in results.question_summaries %}
+                            <div class="card table-card answer-question-card">
+                                <div class="card-body">
+                                    <div class="answer-question-header">
+                                        <span class="answer-question-index">
+                                            {{ forloop.counter }}
+                                        </span>
+                                        <div>
+                                            <h3 class="section-title mb-1">
+                                                {{ question.question_text }}
+                                            </h3>
+                                            <div class="item-subtitle">
+                                                Question response summary
+                                            </div>
+                                        </div>
+                                        <span class="badge text-bg-light answer-type-badge">
+                                            {{ question.question_type }}
+                                        </span>
+                                    </div>
+
+                                    {% if question.chart_type == "text" %}
+                                        {% if question.text_answers %}
+                                            <h4 class="answer-section-label">
+                                                Submitted text answers
+                                            </h4>
+                                            <div class="text-answer-list">
+                                                {% for answer in question.text_answers %}
+                                                    <div class="text-answer-item">
+                                                        <i class="bi bi-chat-left-text me-2"></i>
+                                                        {{ answer }}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <div class="empty-state">
+                                                No text answers submitted yet.
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="row g-3 align-items-stretch">
+                                            <div class="col-lg-8">
+                                                <div class="answer-chart-panel h-100">
+                                                    <canvas
+                                                        id="{{ question.chart_id }}"
+                                                    ></canvas>
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-4">
+                                                <div class="answer-label-card h-100">
+                                                    <h4 class="answer-section-label">
+                                                        Chart labels
+                                                    </h4>
+                                                    {% if question.labels %}
+                                                        <div class="answer-label-strip">
+                                                            {% for label in question.labels %}
+                                                                <span class="answer-label-pill">
+                                                                    {{ label }}
+                                                                </span>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="empty-state">
+                                                            No chart labels are available.
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">No answer data is available.</div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+{% if has_responses %}
+    {{ question_chart_data|json_script:"question-chart-data" }}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_responses %}
+    <script>
+        if (typeof Chart === "undefined") {
+            console.warn("Analytics dashboard: Chart.js is not available.");
+            document
+                .querySelectorAll(".chart-panel canvas, .answer-chart-panel canvas")
+                .forEach((canvas) => {
+                    canvas.style.display = "none";
+                    const notice = document.createElement("div");
+                    notice.className = "empty-state";
+                    notice.textContent = "Charts are unavailable right now.";
+                    canvas.parentNode.appendChild(notice);
+                });
+        } else {
+        /* Render the sentiment distribution doughnut only when at least one
+           completed result exists. An all-zero dataset renders as a plain
+           grey ring and gives no information to the provider. */
+        const sentimentDataEl = document.getElementById("sentiment-chart-data");
+        if (sentimentDataEl) {
+            const chartPayload = JSON.parse(sentimentDataEl.textContent);
+            const totalCompleted = chartPayload.values.reduce((a, b) => a + b, 0);
+            const sentimentCanvas = document.getElementById("sentimentDistributionChart");
+
+            if (sentimentCanvas && totalCompleted > 0) {
+                new Chart(sentimentCanvas.getContext("2d"), {
+                    type: "doughnut",
+                    data: {
+                        labels: chartPayload.labels,
+                        datasets: [{
+                            data: chartPayload.values,
+                            backgroundColor: ["#0f766e", "#64748b", "#b42318"],
+                            borderColor: "#ffffff",
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: "bottom"
+                            }
+                        }
+                    }
+                });
+            } else if (sentimentCanvas && totalCompleted === 0) {
+                /* Responses exist but no sentiment analysis has completed yet. */
+                sentimentCanvas.style.display = "none";
+                const notice = document.createElement("div");
+                notice.className = "empty-state";
+                notice.textContent = "Sentiment analysis results are not yet available.";
+                sentimentCanvas.parentNode.appendChild(notice);
+            }
+        }
+
+        /* Render a bar chart for every multiple-choice and rating question.
+           Both "bar" and "rating" chart_type values are rendered as bar charts
+           because Chart.js has no native rating type. */
+        const questionCharts = JSON.parse(
+            document.getElementById("question-chart-data").textContent
+        );
+
+        questionCharts.forEach((payload) => {
+            const chartElement = document.getElementById(payload.chart_id);
+            if (!chartElement) {
+                return;
+            }
+
+            new Chart(chartElement.getContext("2d"), {
+                type: "bar",
+                data: {
+                    labels: payload.labels,
+                    datasets: [{
+                        label: "Responses",
+                        data: payload.values,
+                        backgroundColor: "#12355b",
+                        borderColor: "#0b2239",
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        });
+        }
+    </script>
+{% endif %}
+{% endblock %}

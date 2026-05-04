@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6">
+                <!-- Survey deletion confirmation form -->
+                <div class="card auth-card text-center">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="logout-icon text-danger">
+                            <i class="bi bi-trash"></i>
+                        </div>
+                        <div class="page-kicker">Delete survey</div>
+                        <h1 class="auth-title">{{ survey.title }}</h1>
+                        <p class="auth-description mb-4">
+                            Confirm that you want to delete this survey.
+                            Published surveys cannot be deleted from this workflow.
+                        </p>
+                        <form method="post" class="d-grid gap-2">
+                            {% csrf_token %}
+                            <button class="btn btn-danger btn-lg" type="submit">
+                                <i class="bi bi-trash me-1"></i>
+                                Delete survey
+                            </button>
+                            <a
+                                class="btn btn-outline-secondary"
+                                href="{% url 'surveys:survey_list' %}"
+                            >
+                                <i class="bi bi-x-circle me-1"></i>
+                                Cancel
+                            </a>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
