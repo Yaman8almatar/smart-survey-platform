@@ -11,3 +11,18 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
+
+
+# Local Codex / AI working files
+AGENTS.md
+AGENTS.override.md
+.codex/
+docs/
+Docs/
+*_codex_*.md
+codex_*.md
+
+# Temporary Office files
+~$*.docx
+~WRL*.tmp
+*.tmp
