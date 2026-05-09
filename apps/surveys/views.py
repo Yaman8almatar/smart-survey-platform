@@ -139,6 +139,22 @@ def manage_questions(request, survey_id):
     return render(request, "surveys/manage_questions.html", context)
 
 
+@require_POST
+def delete_question(request, survey_id, question_id):
+    """Delete a draft-survey question through QuestionService."""
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return response
+
+    try:
+        QuestionService().delete_question(request.user, question_id)
+    except SmartSurveyException as error:
+        _show_service_error(request, error)
+    else:
+        messages.success(request, "Question deleted successfully.")
+    return redirect("surveys:manage_questions", survey_id)
+
+
 def targeting_criteria(request, survey_id):
     """Render Targeting criteria and delegate changes to TargetingService."""
     surveys, response = _load_provider_surveys_or_redirect(request)
@@ -309,6 +325,8 @@ def _survey_row(survey):
         "created_at": survey.created_at,
         "published_at": survey.published_at,
         "closed_at": survey.closed_at,
+        "can_edit": survey.can_edit(),
+        "can_delete": survey.can_delete(),
     }
 
 

@@ -55,11 +55,11 @@ class SurveyService:
         return self.survey_repository.update(survey)
 
     def delete_survey(self, provider_user, survey_id):
-        """Delete an owned draft survey."""
+        """Delete an owned draft or closed survey."""
         survey = self._get_owned_survey(provider_user, survey_id)
 
         if not survey.can_delete():
-            raise NotEditable("Only draft surveys can be deleted.")
+            raise NotEditable("Only draft or closed surveys can be deleted.")
 
         return self.survey_repository.delete(survey.survey_id)
 
@@ -172,7 +172,7 @@ class SurveyService:
 
         return {
             "can_edit": is_draft,
-            "can_delete": is_draft,
+            "can_delete": survey.can_delete(),
             "can_publish": is_draft,
             "can_close": is_published,
             "can_manage_questions": is_draft,

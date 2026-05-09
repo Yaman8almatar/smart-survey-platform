@@ -56,7 +56,7 @@ class Survey(models.Model):
 
     def can_delete(self):
         """Return whether the survey can still be deleted."""
-        return self.status == SurveyStatus.DRAFT
+        return self.status in {SurveyStatus.DRAFT, SurveyStatus.CLOSED}
 
     def can_accept_responses(self):
         """Return whether respondents can submit answers."""

@@ -38,6 +38,22 @@
                                                     - {{ question.required_label }}
                                                 </div>
                                             </div>
+                                            {% if survey.can_edit %}
+                                                <form
+                                                    method="post"
+                                                    action="{% url 'surveys:delete_question' survey.id question.id %}"
+                                                    onsubmit="return confirm('Delete this question?');"
+                                                >
+                                                    {% csrf_token %}
+                                                    <button
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        type="submit"
+                                                    >
+                                                        <i class="bi bi-trash me-1"></i>
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            {% endif %}
                                         </div>
                                         {% if question.options %}
                                             <div class="option-list">

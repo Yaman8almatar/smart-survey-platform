@@ -15,6 +15,11 @@ urlpatterns = [
         name="manage_questions",
     ),
     path(
+        "<int:survey_id>/questions/<int:question_id>/delete/",
+        views.delete_question,
+        name="delete_question",
+    ),
+    path(
         "<int:survey_id>/targeting/",
         views.targeting_criteria,
         name="targeting_criteria",

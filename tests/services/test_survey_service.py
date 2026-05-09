@@ -178,6 +178,20 @@ def test_provider_can_delete_own_draft_survey(survey_service):
 
 
 @pytest.mark.django_db
+def test_provider_can_delete_own_closed_survey(survey_service):
+    provider = create_user("provider-delete-closed@example.com", UserType.SERVICE_PROVIDER)
+    survey = survey_service.create_survey(provider, "Survey", "Description")
+    add_question(survey)
+    add_targeting(survey)
+    survey_service.publish_survey(provider, survey.survey_id)
+    survey_service.close_survey(provider, survey.survey_id)
+
+    survey_service.delete_survey(provider, survey.survey_id)
+
+    assert SurveyRepository().find_by_id(survey.survey_id) is None
+
+
+@pytest.mark.django_db
 def test_provider_cannot_delete_published_survey(survey_service):
     provider = create_user(
         "provider-delete-published@example.com",
@@ -190,6 +204,16 @@ def test_provider_cannot_delete_published_survey(survey_service):
 
     with pytest.raises(NotEditable):
         survey_service.delete_survey(provider, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_provider_cannot_delete_another_providers_survey(survey_service):
+    owner = create_user("owner-delete@example.com", UserType.SERVICE_PROVIDER)
+    other_provider = create_user("other-delete@example.com", UserType.SERVICE_PROVIDER)
+    survey = survey_service.create_survey(owner, "Survey", "Description")
+
+    with pytest.raises(UnauthorizedAction):
+        survey_service.delete_survey(other_provider, survey.survey_id)
 
 
 @pytest.mark.django_db
@@ -295,7 +319,7 @@ def test_closed_survey_action_flags_are_correct(survey_service):
 
     assert action_flags(items[0]) == {
         "can_edit": False,
-        "can_delete": False,
+        "can_delete": True,
         "can_publish": False,
         "can_close": False,
         "can_manage_questions": False,

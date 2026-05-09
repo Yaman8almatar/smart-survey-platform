@@ -34,6 +34,11 @@ def publish_survey(survey):
     return SurveyRepository().update(survey)
 
 
+def close_survey(survey):
+    survey.close()
+    return SurveyRepository().update(survey)
+
+
 def add_question(
     service,
     provider,
@@ -504,3 +509,45 @@ def test_provider_can_delete_question_in_own_draft_survey(question_service):
     question_service.delete_question(provider, question.question_id)
 
     assert QuestionRepository().find_by_id(question.question_id) is None
+
+
+@pytest.mark.django_db
+def test_provider_cannot_delete_question_in_published_survey(question_service):
+    provider = create_user(
+        "provider-delete-question-published@example.com",
+        UserType.SERVICE_PROVIDER,
+    )
+    survey = create_survey(provider)
+    question = add_question(question_service, provider, survey)
+    publish_survey(survey)
+
+    with pytest.raises(NotEditable):
+        question_service.delete_question(provider, question.question_id)
+
+
+@pytest.mark.django_db
+def test_provider_cannot_delete_question_in_closed_survey(question_service):
+    provider = create_user(
+        "provider-delete-question-closed@example.com",
+        UserType.SERVICE_PROVIDER,
+    )
+    survey = create_survey(provider)
+    question = add_question(question_service, provider, survey)
+    close_survey(publish_survey(survey))
+
+    with pytest.raises(NotEditable):
+        question_service.delete_question(provider, question.question_id)
+
+
+@pytest.mark.django_db
+def test_provider_cannot_delete_another_providers_question(question_service):
+    owner = create_user("owner-delete-question@example.com", UserType.SERVICE_PROVIDER)
+    other_provider = create_user(
+        "other-delete-question@example.com",
+        UserType.SERVICE_PROVIDER,
+    )
+    survey = create_survey(owner)
+    question = add_question(question_service, owner, survey)
+
+    with pytest.raises(UnauthorizedAction):
+        question_service.delete_question(other_provider, question.question_id)
