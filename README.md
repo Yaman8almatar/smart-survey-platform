@@ -218,82 +218,77 @@ These reports provide an operational overview of the platform.
 
 ---
 
+## Project Structure
+
+The repository is a monorepo. The Django backend lives in `backend/`; the Flutter client will be added
+as `frontend/` in Sprint 1.
+
+```text
+smart-survey-platform/
+├── backend/                  Django project (run all Python commands from here)
+│   ├── manage.py
+│   ├── config/               settings, URLs, ASGI/WSGI
+│   ├── apps/                 Django apps: views, forms, URLs, models, migrations
+│   ├── core/                 shared enums and exceptions
+│   ├── services/             business rules and workflows
+│   ├── repositories/         database access (Django ORM)
+│   ├── infrastructure/       external integrations (Hugging Face API)
+│   ├── templates/  static/
+│   ├── tests/                service-layer tests (pytest)
+│   ├── requirements.txt  pytest.ini  .env.example
+├── diagrams/                 PlantUML sources (*.puml) and exported PNGs
+├── documentation/
+│   ├── junior/               junior project documents
+│   └── graduation-1/         Graduation 1 report and slides
+├── planning/                 status, audits, sprint plans
+├── .github/workflows/        CI (Django CI)
+├── docker-compose.yml        PostgreSQL 15 for local development
+├── CONTRIBUTING.md           branching and commit rules
+└── README.md
+```
+
+---
+
 ## Local Setup
 
-### 1. Clone the Repository
+Commands are for Windows PowerShell. Requirements: Python 3.11, Docker Desktop, Git.
 
-```bash
-git clone https://github.com/your-username/smart-survey-platform.git
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/Yaman8almatar/smart-survey-platform.git
 cd smart-survey-platform
 ```
 
-Replace the repository URL with your actual GitHub repository URL.
+### 2. Create the virtual environment (repository root)
 
-### 2. Create and Activate Virtual Environment
-
-```bash
+```powershell
 python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r backend\requirements.txt
 ```
 
-Windows:
+### 3. Configure environment variables
 
-```bash
-.venv\\Scripts\\activate
+```powershell
+copy backend\.env.example backend\.env
 ```
 
-Linux / macOS:
+Edit `backend\.env` and set `SECRET_KEY` and `HF_API_TOKEN`. The database values already match
+`docker-compose.yml` (`DB_HOST=127.0.0.1`, `DB_PORT=5432`). Never commit `backend\.env`.
 
-```bash
-source .venv/bin/activate
-```
+### 4. Start PostgreSQL (repository root)
 
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure Environment Variables
-
-Create a `.env` file based on `.env.example`.
-
-Example:
-
-```env
-SECRET_KEY=replace-this-secret-key
-DEBUG=True
-
-DB_NAME=smart_survey_db
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=127.0.0.1
-DB_PORT=5432
-
-HF_API_TOKEN=your_huggingface_token
-HF_SENTIMENT_MODEL_URL=https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest
-```
-
-### 5. Start PostgreSQL with Docker
-
-```bash
+```powershell
 docker compose up -d
 ```
 
-### 6. Apply Migrations
+### 5. Migrate, seed and run (from backend)
 
-```bash
+```powershell
+cd backend
 python manage.py migrate
-```
-
-### 7. Seed Demo Data
-
-```bash
 python manage.py seed_demo_data
-```
-
-### 8. Run the Development Server
-
-```bash
 python manage.py runserver
 ```
 
@@ -302,6 +297,7 @@ Open:
 ```text
 http://127.0.0.1:8000/
 ```
+
 
 ---
 
@@ -325,7 +321,8 @@ respondent@demo.com / DemoPass123!
 Run service-layer tests:
 
 ```bash
-pytest tests/services
+cd backend
+python -m pytest tests/services -q
 ```
 
 Run Django checks:
