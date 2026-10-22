@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.venv/**)",
+      "Read(./Smart_Survey_Project_Documentation/**)"
+    ]
+  }
+}
