@@ -58,7 +58,7 @@ Never add Claude or AI co-author trailers to commits or PRs.
 - K-03 Region targeting is an exact string comparison on free text.
 - K-04 RespondentProfile.interests is collected but never used by targeting.
 - K-06 .gitignore ignores docs/ — planning files live in planning/.
-- K-11 .env.example uses DB_PORT=5432 but docker-compose.yml publishes 5433.
+- K-11 (fixed) .env.example used DB_PORT=5432 but docker-compose.yml published 5433; compose now publishes 5432.
 - K-12 Ownership and role checks for analytics live in views, not services (audit F-09) — must move to
   services before any REST API endpoint is written.
 
