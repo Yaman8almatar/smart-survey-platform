@@ -101,7 +101,7 @@ Run from `backend/` with the virtual environment active and the database up:
 
 ```powershell
 python manage.py check
-python -m pytest tests/services -q
+python -m pytest tests -q
 ```
 
 Never commit `backend/.env`, tokens or other secrets.

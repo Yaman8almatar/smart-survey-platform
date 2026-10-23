@@ -59,7 +59,7 @@ class TargetingService:
         if criteria is None:
             return False
 
-        return self._matches_profile(criteria, profile)
+        return self.profile_matches_criteria(criteria, profile)
 
     def get_criteria_initial(self, provider_user, survey_id):
         """Return targeting criteria values for pre-filling the targeting form."""
@@ -126,8 +126,8 @@ class TargetingService:
         if type(age) is not int or age < 0 or age > self.MAX_AGE:
             raise ValidationError(f"{field_name} must be a realistic non-negative integer.")
 
-    def _matches_profile(self, criteria, profile):
-        """Return whether a profile matches stored targeting criteria."""
+    def profile_matches_criteria(self, criteria, profile):
+        """Return whether a profile matches stored targeting criteria (single matching rule)."""
         if (
             criteria.gender
             and criteria.gender != Gender.ANY
@@ -138,6 +138,12 @@ class TargetingService:
             return False
         if criteria.age_max is not None and profile.age > criteria.age_max:
             return False
-        if criteria.region and criteria.region != profile.region:
+        if criteria.region and self._normalized_region(
+            criteria.region
+        ) != self._normalized_region(profile.region):
             return False
         return True
+
+    def _normalized_region(self, region):
+        """Normalize free-text regions so spacing and letter case do not block a match."""
+        return (region or "").strip().casefold()

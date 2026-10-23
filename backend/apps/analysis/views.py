@@ -14,7 +14,7 @@ def analytics_dashboard(request, survey_id):
 
     try:
         survey = SurveyService().get_provider_survey(request.user, survey_id)
-        results = AnalysisService().get_survey_results(survey_id)
+        results = AnalysisService().get_survey_results(request.user, survey_id)
     except SmartSurveyException as error:
         messages.error(request, str(error), extra_tags="danger")
         return redirect("surveys:provider_dashboard")

@@ -64,5 +64,5 @@ jobs:
       - name: Run Django system checks
         run: python manage.py check
 
-      - name: Run service tests
-        run: python -m pytest tests/services -q
+      - name: Run tests
+        run: python -m pytest tests -q

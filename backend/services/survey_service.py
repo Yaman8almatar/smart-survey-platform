@@ -1,5 +1,5 @@
 from apps.core.models import Survey
-from core.enums import Gender, SurveyStatus, UserType
+from core.enums import QuestionType, SurveyStatus, UserType
 from core.exceptions import (
     NotEditable,
     SurveyNotFound,
@@ -12,10 +12,13 @@ from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
+from services.targeting_service import TargetingService
 
 
 class SurveyService:
     """Handles Survey management workflows and eligibility decisions."""
+
+    MIN_CHOICE_OPTIONS = 2
 
     def __init__(
         self,
@@ -24,13 +27,15 @@ class SurveyService:
         targeting_repository=None,
         response_repository=None,
         profile_repository=None,
+        targeting_service=None,
     ):
-        """Wire repositories used by survey workflows and eligibility checks."""
+        """Wire repositories and services used by survey workflows and eligibility checks."""
         self.survey_repository = survey_repository or SurveyRepository()
         self.question_repository = question_repository or QuestionRepository()
         self.targeting_repository = targeting_repository or TargetingRepository()
         self.response_repository = response_repository or ResponseRepository()
         self.profile_repository = profile_repository or ProfileRepository()
+        self.targeting_service = targeting_service or TargetingService()
 
     def create_survey(self, provider_user, title, description):
         """Create a draft survey for a service provider."""
@@ -72,8 +77,22 @@ class SurveyService:
             raise NotEditable("Only draft surveys can be published.")
 
         # Published surveys must have at least one question.
-        if not self.question_repository.find_by_survey_id(survey.survey_id).exists():
+        questions = self.question_repository.find_by_survey_id(survey.survey_id)
+        if not questions.exists():
             raise ValidationError("A survey must have at least one question.")
+
+        # Every multiple-choice question must offer a real choice to be answerable.
+        for question in questions:
+            if (
+                question.question_type == QuestionType.MULTIPLE_CHOICE
+                and self.question_repository.find_options_by_question_id(
+                    question.question_id
+                ).count()
+                < self.MIN_CHOICE_OPTIONS
+            ):
+                raise ValidationError(
+                    "Multiple-choice questions need at least two options before publishing."
+                )
 
         if self.targeting_repository.find_by_survey_id(survey.survey_id) is None:
             raise TargetingCriteriaNotFound("Survey targeting criteria is required.")
@@ -127,7 +146,7 @@ class SurveyService:
                 continue
 
             # UC-15 keeps targeting and duplicate-response filtering in the service layer.
-            if not self._matches_criteria(criteria, profile):
+            if not self.targeting_service.profile_matches_criteria(criteria, profile):
                 continue
 
             if self.response_repository.has_response_for_survey(
@@ -179,19 +198,3 @@ class SurveyService:
             "can_manage_targeting": is_draft,
             "can_view_analytics": is_published or is_closed,
         }
-
-    def _matches_criteria(self, criteria, profile):
-        """Return whether a respondent profile satisfies survey criteria."""
-        if (
-            criteria.gender
-            and criteria.gender != Gender.ANY
-            and criteria.gender != profile.gender
-        ):
-            return False
-        if criteria.age_min is not None and profile.age < criteria.age_min:
-            return False
-        if criteria.age_max is not None and profile.age > criteria.age_max:
-            return False
-        if criteria.region and criteria.region != profile.region:
-            return False
-        return True

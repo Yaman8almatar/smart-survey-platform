@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import requests
 from django.utils import timezone
@@ -18,7 +20,11 @@ from core.enums import (
     SentimentLabel,
     UserType,
 )
-from core.exceptions import ExternalAnalysisServiceError
+from core.exceptions import (
+    ExternalAnalysisServiceError,
+    SurveyNotFound,
+    UnauthorizedAction,
+)
 from infrastructure.huggingface_client import HuggingFaceClient
 from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
@@ -381,7 +387,7 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
     survey = create_survey(provider)
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary == {
         "survey_id": survey.survey_id,
@@ -401,7 +407,7 @@ def test_get_survey_results_calculates_positive_neutral_and_negative_counts():
     survey = create_completed_sentiment_results()
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_count"] == 1
     assert summary["neutral_count"] == 1
@@ -413,7 +419,7 @@ def test_get_survey_results_calculates_sentiment_rates_correctly():
     survey = create_completed_sentiment_results()
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_rate"] == pytest.approx(1 / 3)
     assert summary["neutral_rate"] == pytest.approx(1 / 3)
@@ -428,7 +434,7 @@ def test_positive_sentiment_result_linked_to_survey_is_counted():
     create_sentiment_result(answer, SentimentLabel.POSITIVE)
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_count"] == 1
     assert summary["neutral_count"] == 0
@@ -443,7 +449,7 @@ def test_neutral_sentiment_result_linked_to_survey_is_counted():
     create_sentiment_result(answer, SentimentLabel.NEUTRAL)
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_count"] == 0
     assert summary["neutral_count"] == 1
@@ -458,7 +464,7 @@ def test_negative_sentiment_result_linked_to_survey_is_counted():
     create_sentiment_result(answer, SentimentLabel.NEGATIVE)
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_count"] == 0
     assert summary["neutral_count"] == 0
@@ -487,7 +493,7 @@ def test_sentiment_labels_are_counted_when_stored_as_mixed_case_strings():
 
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_count"] == 1
     assert summary["neutral_count"] == 1
@@ -506,7 +512,7 @@ def test_completed_status_enum_style_string_is_counted():
     )
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary["positive_count"] == 1
     assert summary["neutral_count"] == 0
@@ -535,7 +541,7 @@ def test_multiple_choice_question_summary_returns_option_selection_counts():
 
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
 
     assert question_summary["chart_type"] == "bar"
@@ -559,7 +565,7 @@ def test_rating_scale_question_summary_returns_rating_counts():
 
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
 
     assert question_summary["chart_type"] == "rating"
@@ -583,7 +589,7 @@ def test_open_text_question_summary_returns_submitted_text_answers():
 
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
 
     assert question_summary["chart_type"] == "text"
@@ -597,7 +603,7 @@ def test_get_survey_results_returns_question_summaries():
     question = create_question(survey, QuestionType.OPEN_TEXT)
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    summary = service.get_survey_results(survey.survey_id)
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert "question_summaries" in summary
     assert summary["question_summaries"][0]["question_id"] == question.question_id
@@ -633,7 +639,7 @@ def test_single_completed_positive_result_with_score_is_counted():
     )
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    result = service.get_survey_results(survey.survey_id)
+    result = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert result["positive_count"] == 1
     assert result["neutral_count"] == 0
@@ -665,7 +671,7 @@ def test_single_completed_neutral_result_with_score_is_counted():
     )
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    result = service.get_survey_results(survey.survey_id)
+    result = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert result["positive_count"] == 0
     assert result["neutral_count"] == 1
@@ -697,7 +703,7 @@ def test_single_completed_negative_result_with_score_is_counted():
     )
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    result = service.get_survey_results(survey.survey_id)
+    result = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert result["positive_count"] == 0
     assert result["neutral_count"] == 0
@@ -730,7 +736,7 @@ def test_pending_sentiment_result_is_not_counted():
     )
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    result = service.get_survey_results(survey.survey_id)
+    result = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert result["positive_count"] == 0
     assert result["neutral_count"] == 0
@@ -763,7 +769,7 @@ def test_failed_sentiment_result_is_not_counted():
     )
     service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
 
-    result = service.get_survey_results(survey.survey_id)
+    result = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert result["positive_count"] == 0
     assert result["neutral_count"] == 0
@@ -793,3 +799,92 @@ def create_completed_sentiment_results():
         service.analyze_open_text_answers(response.response_id)
 
     return survey
+
+
+class FailingSecondUpdateAnalysisRepository(AnalysisRepository):
+    def __init__(self):
+        self.update_calls = 0
+
+    def update(self, result):
+        self.update_calls += 1
+        if self.update_calls == 2:
+            raise RuntimeError("Result storage failed.")
+        return super().update(result)
+
+
+@pytest.mark.django_db
+def test_analyze_open_text_answers_rolls_back_all_results_when_a_write_fails():
+    survey, response = create_survey_response()
+    first_question = create_question(survey, QuestionType.OPEN_TEXT)
+    second_question = create_question(survey, QuestionType.OPEN_TEXT)
+    create_answer(response, first_question, answer_value="Great service")
+    create_answer(response, second_question, answer_value="Slow delivery")
+    service = AnalysisService(
+        analysis_repository=FailingSecondUpdateAnalysisRepository(),
+        huggingface_client=FakeHuggingFaceClient(
+            responses=[
+                {"label": "positive", "score": 0.9},
+                {"label": "negative", "score": 0.8},
+            ]
+        ),
+    )
+
+    with pytest.raises(RuntimeError):
+        service.analyze_open_text_answers(response.response_id)
+
+    assert not SentimentAnalysisResult.objects.filter(
+        answer__response=response,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_get_survey_results_rejects_provider_who_does_not_own_survey():
+    survey, _ = create_survey_response()
+    other_provider = create_user("other-provider@example.com", UserType.SERVICE_PROVIDER)
+    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+
+    with pytest.raises(UnauthorizedAction):
+        service.get_survey_results(other_provider, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_get_survey_results_rejects_non_provider():
+    survey, response = create_survey_response()
+    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+
+    with pytest.raises(UnauthorizedAction):
+        service.get_survey_results(response.respondent, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_get_survey_results_rejects_missing_survey():
+    provider = create_user("provider-missing-results@example.com", UserType.SERVICE_PROVIDER)
+    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+
+    with pytest.raises(SurveyNotFound):
+        service.get_survey_results(provider, 999999)
+
+
+class FakeHttpErrorResponse:
+    status_code = 402
+
+    def raise_for_status(self):
+        raise requests.HTTPError("402 Client Error: Payment Required", response=self)
+
+
+def test_huggingface_client_reports_http_status_code(monkeypatch, caplog):
+    monkeypatch.setattr(
+        "infrastructure.huggingface_client.requests.post",
+        lambda *args, **kwargs: FakeHttpErrorResponse(),
+    )
+    client = HuggingFaceClient(
+        api_token="test-token",
+        model_url="https://example.com/model",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="infrastructure.huggingface_client"):
+        with pytest.raises(ExternalAnalysisServiceError) as error:
+            client.analyze_sentiment("The service was excellent")
+
+    assert "402" in str(error.value)
+    assert "402" in caplog.text

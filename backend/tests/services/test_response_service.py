@@ -417,6 +417,7 @@ def test_selected_option_from_another_question_is_rejected(response_service):
 def test_open_text_response_triggers_analysis_service(
     response_service,
     fake_analysis_service,
+    django_capture_on_commit_callbacks,
 ):
     provider = create_user(
         "provider-analysis-trigger@example.com",
@@ -430,11 +431,12 @@ def test_open_text_response_triggers_analysis_service(
     survey = create_survey(provider)
     question = create_question(survey, QuestionType.OPEN_TEXT)
 
-    response = response_service.submit_response(
-        respondent,
-        survey.survey_id,
-        [open_text_answer(question)],
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        response = response_service.submit_response(
+            respondent,
+            survey.survey_id,
+            [open_text_answer(question)],
+        )
 
     assert fake_analysis_service.calls == [response.response_id]
 
@@ -443,6 +445,7 @@ def test_open_text_response_triggers_analysis_service(
 def test_response_without_open_text_answers_does_not_trigger_analysis_service(
     response_service,
     fake_analysis_service,
+    django_capture_on_commit_callbacks,
 ):
     provider = create_user("provider-no-analysis@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-no-analysis@example.com", UserType.RESPONDENT)
@@ -450,13 +453,73 @@ def test_response_without_open_text_answers_does_not_trigger_analysis_service(
     survey = create_survey(provider)
     question = create_question(survey, QuestionType.RATING_SCALE)
 
-    response_service.submit_response(
-        respondent,
-        survey.survey_id,
-        [rating_answer(question, 5)],
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        response_service.submit_response(
+            respondent,
+            survey.survey_id,
+            [rating_answer(question, 5)],
+        )
 
     assert fake_analysis_service.calls == []
+
+
+@pytest.mark.django_db
+def test_analysis_runs_only_after_response_commit(
+    response_service,
+    fake_analysis_service,
+    django_capture_on_commit_callbacks,
+):
+    provider = create_user("provider-after-commit@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-after-commit@example.com", UserType.RESPONDENT)
+    create_profile(respondent)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT)
+
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        response = response_service.submit_response(
+            respondent,
+            survey.survey_id,
+            [open_text_answer(question)],
+        )
+        assert fake_analysis_service.calls == []
+
+    assert len(callbacks) == 1
+    callbacks[0]()
+    assert fake_analysis_service.calls == [response.response_id]
+
+
+class FailingAnswerResponseRepository(ResponseRepository):
+    def save_answer(self, answer):
+        raise RuntimeError("Answer storage failed.")
+
+
+@pytest.mark.django_db
+def test_submit_response_rolls_back_when_answer_save_fails(fake_analysis_service):
+    provider = create_user("provider-rollback@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-rollback@example.com", UserType.RESPONDENT)
+    create_profile(respondent)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT)
+    failing_service = ResponseService(
+        response_repository=FailingAnswerResponseRepository(),
+        analysis_service=fake_analysis_service,
+    )
+
+    with pytest.raises(RuntimeError):
+        failing_service.submit_response(
+            respondent,
+            survey.survey_id,
+            [open_text_answer(question)],
+        )
+
+    assert not Response.objects.filter(survey=survey, respondent=respondent).exists()
+
+    response = ResponseService(analysis_service=fake_analysis_service).submit_response(
+        respondent,
+        survey.survey_id,
+        [open_text_answer(question)],
+    )
+    assert response.response_id is not None
 
 
 @pytest.mark.django_db

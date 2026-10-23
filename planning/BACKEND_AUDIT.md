@@ -180,3 +180,41 @@ Roles come from the `_ensure_*` guards. "none" = no role check inside the servic
 | F-15 | Low | `config/settings.py:11` falls back to `SECRET_KEY="replace-this-secret-key"` | Fail startup if `SECRET_KEY` is unset in non-debug mode |
 | F-16 | Low | `GET users:logout` returned 200 for all four roles | Confirm logout is POST-only |
 | F-17 | Low | `huggingface_client.py:54-55` hides the HTTP status in `__cause__` | Include the status code in the exception |
+
+## Logic review (Task 04, Phase B)
+All files in `backend/services/` and `backend/repositories/`, reviewed for logic errors only. New IDs continue from F-17.
+| ID | Severity | Location | Scenario that breaks | Status |
+|---|---|---|---|---|
+| F-18 | High | `apps/core/models/user.py:66-81`, reached from `admin_service.py:29-43` | Admin suspends or deletes a logged-in user; only `account_status` changes, `is_active` stays true, so the user keeps full access until the session expires | Fixed |
+| F-19 | Medium | `services/survey_service.py:195` (before fix) | After F-08, a respondent with region " damascus " can submit but never sees the survey in the eligible list, because SurveyService kept its own exact-match copy of the targeting rule | Fixed |
+| F-20 | Medium | `services/survey_service.py:74-79` (before fix) | A multiple-choice question created with `add_question` has no options; its survey still publishes and can never be answered | Fixed (new publish rule approved by the team; update the report's FR text) |
+| F-21 | Low | `services/admin_service.py:29-43` | No state check: suspending a DELETED account turns it into SUSPENDED (the UI flags hide the button) | Listed |
+| F-22 | Low | `services/admin_service.py:120` | Self-protection compares ids with `==`; a string id such as "5" from a future API skips it (the web view casts to int) | Listed |
+| F-23 | Low | `services/profile_service.py:44` | `isinstance(age, int)` accepts `True`, stored as age 1 | Listed |
+| F-24 | Low | `services/question_service.py:33-53` | `question_type` is not validated; an unknown type is saved and submission later fails with "Unsupported question type" | Listed |
+| F-25 | Low | `services/question_service.py:236-243` | Creating a multiple-choice question accepts one option; publishing now rejects it (F-20), so the error appears late | Listed |
+| F-26 | Low | `services/authentication_service.py:75` | Email uniqueness is case-sensitive: "A@x.com" and "a@x.com" become two accounts | Listed |
+| F-27 | Low | `services/response_service.py:59` | Two parallel submits both pass the duplicate check; the DB constraint `unique_response_per_survey_respondent` raises IntegrityError (HTTP 500) instead of DuplicateResponse | Listed |
+| F-28 | Low | `services/admin_service.py:89-91` | `total_users` counts deleted accounts; `total_responses` ignores the date range that the charts use | Listed |
+| F-29 | Low | `services/survey_service.py:40-60` | `create_survey` / `update_survey` accept a blank title at service level (the web form validates it) | Listed |
+| F-30 | Low | `apps/core/models/targeting_criteria.py:32` | Unused `TargetingCriteria.matches` is a third copy of the targeting rule with the old exact region match | Listed |
+
+## Fix log (Task 04)
+Branch `fix/backend-logic`. Each test below failed on `develop` and passes on the branch.
+| ID | Commit | Test(s) |
+|---|---|---|
+| F-01 / K-01 | 3ae3e46 | `tests/services/test_response_service.py::test_submit_response_rolls_back_when_answer_save_fails`, `::test_analysis_runs_only_after_response_commit` |
+| F-02 | 87f0098 | `tests/services/test_authentication_service.py::test_respondent_registration_rolls_back_user_when_profile_save_fails` |
+| F-07 | 4683f62 | `tests/services/test_analysis_service.py::test_analyze_open_text_answers_rolls_back_all_results_when_a_write_fails`, `tests/services/test_question_service.py::test_add_question_options_rolls_back_all_options_when_a_write_fails` |
+| F-09 / K-12 | e090ae8 | `tests/services/test_analysis_service.py::test_get_survey_results_rejects_provider_who_does_not_own_survey` (+ `_non_provider`, `_missing_survey`), `tests/services/test_question_service.py::test_get_response_form_questions_rejects_respondent_not_matching_targeting` (+ `_draft_survey`, `_missing_survey`, `_non_respondent`) |
+| F-08 / K-03 | 8be4e40 | `tests/services/test_targeting_service.py::test_region_match_ignores_case_and_surrounding_spaces` |
+| F-14 | d8701b6 | `tests/repositories/test_repository_definitions.py::test_repository_classes_define_each_method_once[user_repository.py]` |
+| F-15 | d04c238 | `tests/config/test_settings.py::test_missing_secret_key_fails_startup_when_debug_is_false` |
+| F-16 | 84366d4 | `tests/views/test_logout_view.py::test_logout_get_is_rejected_and_keeps_session`, `::test_navigation_logout_is_a_post_form` |
+| F-17 | 3594db9 | `tests/services/test_analysis_service.py::test_huggingface_client_reports_http_status_code` |
+| F-18 | a44da6f | `tests/views/test_account_status_session.py::test_suspended_or_deleted_user_loses_existing_session[suspend_account]`, `[delete_account]` |
+| F-19 | 8b2fce0 | `tests/services/test_survey_service.py::test_eligible_surveys_match_region_ignoring_case_and_spaces` |
+| F-20 | a81e03c | `tests/services/test_survey_service.py::test_publish_survey_rejects_multiple_choice_question_with_fewer_than_two_options[0]`, `[1]` |
+
+Supporting commit: 3d5fd13 `ci: run the whole test suite` (CI and docs run `python -m pytest tests -q`).
+Notes: F-03 is only partly done; analysis runs after commit but still synchronously in the request. F-18 does not change rows suspended before the fix, which keep `is_active=true` (demo data only).

@@ -1,14 +1,20 @@
 from collections import Counter, defaultdict
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import SentimentAnalysisResult
-from core.enums import AnalysisStatus, QuestionType, SentimentLabel
-from core.exceptions import ExternalAnalysisServiceError
+from core.enums import AnalysisStatus, QuestionType, SentimentLabel, UserType
+from core.exceptions import (
+    ExternalAnalysisServiceError,
+    SurveyNotFound,
+    UnauthorizedAction,
+)
 from infrastructure.huggingface_client import HuggingFaceClient
 from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
+from repositories.survey_repository import SurveyRepository
 
 
 class AnalysisService:
@@ -22,13 +28,16 @@ class AnalysisService:
         analysis_repository=None,
         question_repository=None,
         huggingface_client=None,
+        survey_repository=None,
     ):
         """Wire repositories and infrastructure used by analytics workflows."""
         self.response_repository = response_repository or ResponseRepository()
         self.analysis_repository = analysis_repository or AnalysisRepository()
         self.question_repository = question_repository or QuestionRepository()
         self.huggingface_client = huggingface_client or HuggingFaceClient()
+        self.survey_repository = survey_repository or SurveyRepository()
 
+    @transaction.atomic
     def analyze_open_text_answers(self, response_id):
         """Run sentiment analysis for open-text answers through the infrastructure client."""
         results = []
@@ -55,8 +64,10 @@ class AnalysisService:
 
         return results
 
-    def get_survey_results(self, survey_id):
+    def get_survey_results(self, provider_user, survey_id):
         """Build survey analytics including sentiment counts and question-level summaries."""
+        self._ensure_survey_owner(provider_user, survey_id)
+
         responses = self.response_repository.find_by_survey_id(survey_id)
         sentiment_results = self.analysis_repository.find_by_survey_id(survey_id)
         questions = self.question_repository.find_by_survey_id(survey_id)
@@ -92,6 +103,18 @@ class AnalysisService:
             "negative_rate": self._rate(negative_count, completed_count),
             "question_summaries": self._build_question_summaries(questions, answers),
         }
+
+    def _ensure_survey_owner(self, provider_user, survey_id):
+        """Ensure only the provider who owns the survey can read its analytics."""
+        if provider_user.user_type != UserType.SERVICE_PROVIDER:
+            raise UnauthorizedAction("Only service providers can view survey analytics.")
+
+        survey = self.survey_repository.find_by_id(survey_id)
+        if survey is None:
+            raise SurveyNotFound("Survey not found.")
+
+        if survey.provider_id != provider_user.user_id:
+            raise UnauthorizedAction("Only the survey owner can view survey analytics.")
 
     def _get_or_create_pending_result(self, answer):
         """Prepare a pending sentiment result before external analysis runs."""

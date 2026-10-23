@@ -1,3 +1,5 @@
+from django.db import transaction
+
 from apps.core.models import RespondentProfile, User
 from core.enums import AccountStatus, Gender, UserType
 from core.exceptions import InvalidCredentials, ValidationError
@@ -41,16 +43,19 @@ class AuthenticationService:
             account_status=AccountStatus.ACTIVE,
         )
         user.set_password(password)
-        saved_user = self.user_repository.save(user)
 
-        profile = RespondentProfile(
-            user=saved_user,
-            age=age,
-            gender=gender,
-            region=region,
-            interests=interests,
-        )
-        self.profile_repository.save(profile)
+        with transaction.atomic():
+            # A respondent account is never stored without its profile.
+            saved_user = self.user_repository.save(user)
+
+            profile = RespondentProfile(
+                user=saved_user,
+                age=age,
+                gender=gender,
+                region=region,
+                interests=interests,
+            )
+            self.profile_repository.save(profile)
         return saved_user
 
     def authenticate_user(self, email, password):

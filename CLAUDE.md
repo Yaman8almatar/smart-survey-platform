@@ -27,7 +27,7 @@ Run docker compose from the repository root; run every Django and pytest command
 docker compose up -d
 cd backend
 python manage.py check
-python -m pytest tests/services -q
+python -m pytest tests -q
 python manage.py runserver
 ```
 

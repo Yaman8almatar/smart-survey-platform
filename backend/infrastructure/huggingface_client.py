@@ -1,8 +1,11 @@
+import logging
 import os
 
 import requests
 
 from core.exceptions import ExternalAnalysisServiceError
+
+logger = logging.getLogger(__name__)
 
 
 class HuggingFaceClient:
@@ -51,6 +54,12 @@ class HuggingFaceClient:
                 timeout=self.timeout,
             )
             response.raise_for_status()
+        except requests.HTTPError as exc:
+            status_code = getattr(exc.response, "status_code", None)
+            logger.warning("Hugging Face request failed with HTTP %s.", status_code)
+            raise ExternalAnalysisServiceError(
+                f"Hugging Face request failed with HTTP {status_code}."
+            ) from exc
         except requests.RequestException as exc:
             raise ExternalAnalysisServiceError("Hugging Face request failed.") from exc
 

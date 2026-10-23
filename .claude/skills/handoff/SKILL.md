@@ -11,7 +11,7 @@ description: Write the end-of-task status to planning/STATUS.md and print it. Us
    - `git diff --stat` for uncommitted work; if this task committed, also `git diff --stat develop...HEAD`
 2. Verify (activate .venv first, then run both commands from backend/):
    - `python manage.py check` and keep its last line.
-   - If any .py file changed in step 1, run `python -m pytest tests/services -q` and keep the final summary line.
+   - If any .py file changed in step 1, run `python -m pytest tests -q` and keep the final summary line.
      Otherwise write `skipped (no Python changes)`. If the database is not running, write the error type instead.
 3. Overwrite planning/STATUS.md with exactly this block (max 15 lines):
 
