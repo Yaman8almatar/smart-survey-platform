@@ -5,6 +5,8 @@ import '../../theme/tokens.dart';
 import '../surveys/eligible_surveys_screen.dart';
 import '../surveys/surveys_repository.dart';
 import 'auth_repository.dart';
+import 'form_message.dart';
+import 'register_screen.dart';
 
 final RegExp _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -102,6 +104,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  void _openRegister() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RegisterScreen(
+          authRepository: widget.authRepository,
+          surveysRepository: widget.surveysRepository,
+        ),
+      ),
+    );
+  }
+
   String? _fieldError(String name) => _fieldErrors[name]?.join(' ');
 
   @override
@@ -134,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: SsSpace.s6),
                   if (notice != null) ...[
-                    _Message(text: notice, color: SsColors.inkMuted),
+                    FormMessage(text: notice, color: SsColors.inkMuted),
                     const SizedBox(height: SsSpace.s4),
                   ],
                   TextFormField(
@@ -186,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: SsSpace.s4),
-                    _Message(text: _error!, color: theme.colorScheme.error),
+                    FormMessage(text: _error!, color: theme.colorScheme.error),
                   ],
                   const SizedBox(height: SsSpace.s6),
                   FilledButton(
@@ -201,29 +214,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text('Log in'),
                   ),
+                  const SizedBox(height: SsSpace.s2),
+                  TextButton(
+                    onPressed: _submitting ? null : _openRegister,
+                    child: const Text('Create account'),
+                  ),
                 ],
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({required this.text, required this.color});
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: color),
       ),
     );
   }
