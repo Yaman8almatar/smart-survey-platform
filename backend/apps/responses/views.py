@@ -96,7 +96,11 @@ def submit_survey_response(request, survey_id):
         )
         return redirect("responses:eligible_surveys")
 
-    questions = QuestionService().get_response_form_questions(survey_id)
+    try:
+        questions = QuestionService().get_response_form_questions(request.user, survey_id)
+    except SmartSurveyException as error:
+        _show_service_error(request, error)
+        return redirect("responses:eligible_surveys")
 
     if request.method == "POST":
         try:

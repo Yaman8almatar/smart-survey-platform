@@ -1,10 +1,17 @@
 import pytest
 
-from apps.core.models import QuestionOption, Survey, User
-from core.enums import AccountStatus, QuestionType, UserType
-from core.exceptions import NotEditable, UnauthorizedAction, ValidationError
+from apps.core.models import QuestionOption, RespondentProfile, Survey, User
+from core.enums import AccountStatus, Gender, QuestionType, SurveyStatus, UserType
+from core.exceptions import (
+    NotEditable,
+    SurveyNotFound,
+    UnauthorizedAction,
+    ValidationError,
+)
+from repositories.profile_repository import ProfileRepository
 from repositories.question_repository import QuestionRepository
 from repositories.survey_repository import SurveyRepository
+from repositories.targeting_repository import TargetingRepository
 from services.question_service import QuestionService
 
 
@@ -32,6 +39,25 @@ def create_survey(provider, title="Survey"):
 def publish_survey(survey):
     survey.publish()
     return SurveyRepository().update(survey)
+
+
+def make_survey_answerable(survey, target_gender=Gender.ANY):
+    TargetingRepository().create_or_update(survey=survey, gender=target_gender)
+    publish_survey(survey)
+    respondent = create_user(
+        f"respondent-form-{survey.survey_id}@example.com",
+        UserType.RESPONDENT,
+    )
+    ProfileRepository().save(
+        RespondentProfile(
+            user=respondent,
+            age=30,
+            gender=Gender.FEMALE,
+            region="Damascus",
+            interests="Technology",
+        )
+    )
+    return respondent
 
 
 def close_survey(survey):
@@ -269,7 +295,9 @@ def test_get_response_form_questions_returns_open_text_question_data(question_se
         order_index=2,
     )
 
-    questions = question_service.get_response_form_questions(survey.survey_id)
+    respondent = make_survey_answerable(survey)
+
+    questions = question_service.get_response_form_questions(respondent, survey.survey_id)
 
     assert questions[0]["question_id"] == question.question_id
     assert questions[0]["question_text"] == "Tell us about your experience."
@@ -292,7 +320,9 @@ def test_get_response_form_questions_returns_rating_scale_question_data(question
         order_index=1,
     )
 
-    questions = question_service.get_response_form_questions(survey.survey_id)
+    respondent = make_survey_answerable(survey)
+
+    questions = question_service.get_response_form_questions(respondent, survey.survey_id)
 
     assert questions[0]["question_id"] == question.question_id
     assert questions[0]["question_text"] == "Rate the service."
@@ -321,7 +351,9 @@ def test_get_response_form_questions_returns_multiple_choice_question_with_optio
         ["Yes", "No"],
     )
 
-    questions = question_service.get_response_form_questions(survey.survey_id)
+    respondent = make_survey_answerable(survey)
+
+    questions = question_service.get_response_form_questions(respondent, survey.survey_id)
 
     assert questions[0]["question_id"] == question.question_id
     assert questions[0]["question_type"] == QuestionType.MULTIPLE_CHOICE
@@ -362,7 +394,9 @@ def test_response_form_questions_are_ordered_by_order_index(question_service):
         order_index=1,
     )
 
-    questions = question_service.get_response_form_questions(survey.survey_id)
+    respondent = make_survey_answerable(survey)
+
+    questions = question_service.get_response_form_questions(respondent, survey.survey_id)
 
     assert [question["question_id"] for question in questions] == [
         first.question_id,
@@ -387,7 +421,9 @@ def test_response_form_options_are_ordered_by_order_index(question_service):
         QuestionOption(question=question, option_text="First", order_index=1)
     )
 
-    questions = question_service.get_response_form_questions(survey.survey_id)
+    respondent = make_survey_answerable(survey)
+
+    questions = question_service.get_response_form_questions(respondent, survey.survey_id)
 
     assert [option["option_id"] for option in questions[0]["options"]] == [
         first.option_id,
@@ -575,3 +611,48 @@ def test_add_question_options_rolls_back_all_options_when_a_write_fails():
         service.add_question_options(provider, question.question_id, ["Good", "Poor"])
 
     assert not QuestionOption.objects.filter(question_id=question.question_id).exists()
+
+
+@pytest.mark.django_db
+def test_get_response_form_questions_rejects_respondent_not_matching_targeting(
+    question_service,
+):
+    provider = create_user("provider-form-target@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey)
+    respondent = make_survey_answerable(survey, target_gender=Gender.MALE)
+
+    with pytest.raises(UnauthorizedAction):
+        question_service.get_response_form_questions(respondent, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_get_response_form_questions_rejects_draft_survey(question_service):
+    provider = create_user("provider-form-draft@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey)
+    respondent = make_survey_answerable(survey)
+    survey.status = SurveyStatus.DRAFT
+    SurveyRepository().update(survey)
+
+    with pytest.raises(NotEditable):
+        question_service.get_response_form_questions(respondent, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_get_response_form_questions_rejects_missing_survey(question_service):
+    respondent = create_user("respondent-form-missing@example.com", UserType.RESPONDENT)
+
+    with pytest.raises(SurveyNotFound):
+        question_service.get_response_form_questions(respondent, 999999)
+
+
+@pytest.mark.django_db
+def test_get_response_form_questions_rejects_non_respondent(question_service):
+    provider = create_user("provider-form-role@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey)
+    make_survey_answerable(survey)
+
+    with pytest.raises(UnauthorizedAction):
+        question_service.get_response_form_questions(provider, survey.survey_id)
