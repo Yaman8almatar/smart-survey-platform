@@ -318,11 +318,11 @@ respondent@demo.com / DemoPass123!
 
 ## Testing
 
-Run service-layer tests:
+Run all tests (services, repositories, settings and views):
 
 ```bash
 cd backend
-python -m pytest tests/services -q
+python -m pytest tests -q
 ```
 
 Run Django checks:
