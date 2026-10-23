@@ -551,3 +551,27 @@ def test_provider_cannot_delete_another_providers_question(question_service):
 
     with pytest.raises(UnauthorizedAction):
         question_service.delete_question(other_provider, question.question_id)
+
+
+class FailingSecondOptionQuestionRepository(QuestionRepository):
+    def __init__(self):
+        self.option_saves = 0
+
+    def save_option(self, option):
+        self.option_saves += 1
+        if self.option_saves == 2:
+            raise RuntimeError("Option storage failed.")
+        return super().save_option(option)
+
+
+@pytest.mark.django_db
+def test_add_question_options_rolls_back_all_options_when_a_write_fails():
+    service = QuestionService(question_repository=FailingSecondOptionQuestionRepository())
+    provider = create_user("provider-options-rollback@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    question = add_question(service, provider, survey, QuestionType.MULTIPLE_CHOICE)
+
+    with pytest.raises(RuntimeError):
+        service.add_question_options(provider, question.question_id, ["Good", "Poor"])
+
+    assert not QuestionOption.objects.filter(question_id=question.question_id).exists()

@@ -1,5 +1,6 @@
 from collections import Counter, defaultdict
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import SentimentAnalysisResult
@@ -29,6 +30,7 @@ class AnalysisService:
         self.question_repository = question_repository or QuestionRepository()
         self.huggingface_client = huggingface_client or HuggingFaceClient()
 
+    @transaction.atomic
     def analyze_open_text_answers(self, response_id):
         """Run sentiment analysis for open-text answers through the infrastructure client."""
         results = []

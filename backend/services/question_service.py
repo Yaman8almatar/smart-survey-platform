@@ -92,13 +92,15 @@ class QuestionService:
         self._validate_options(options)
 
         saved_options = []
-        for index, option_text in enumerate(options):
-            option = QuestionOption(
-                question=question,
-                option_text=option_text,
-                order_index=index,
-            )
-            saved_options.append(self.question_repository.save_option(option))
+        with transaction.atomic():
+            # All options of a question are stored together or not at all.
+            for index, option_text in enumerate(options):
+                option = QuestionOption(
+                    question=question,
+                    option_text=option_text,
+                    order_index=index,
+                )
+                saved_options.append(self.question_repository.save_option(option))
         return saved_options
 
     def update_question(self, provider_user, question_id, text, is_required, order_index):

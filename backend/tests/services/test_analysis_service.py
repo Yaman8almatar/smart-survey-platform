@@ -793,3 +793,39 @@ def create_completed_sentiment_results():
         service.analyze_open_text_answers(response.response_id)
 
     return survey
+
+
+class FailingSecondUpdateAnalysisRepository(AnalysisRepository):
+    def __init__(self):
+        self.update_calls = 0
+
+    def update(self, result):
+        self.update_calls += 1
+        if self.update_calls == 2:
+            raise RuntimeError("Result storage failed.")
+        return super().update(result)
+
+
+@pytest.mark.django_db
+def test_analyze_open_text_answers_rolls_back_all_results_when_a_write_fails():
+    survey, response = create_survey_response()
+    first_question = create_question(survey, QuestionType.OPEN_TEXT)
+    second_question = create_question(survey, QuestionType.OPEN_TEXT)
+    create_answer(response, first_question, answer_value="Great service")
+    create_answer(response, second_question, answer_value="Slow delivery")
+    service = AnalysisService(
+        analysis_repository=FailingSecondUpdateAnalysisRepository(),
+        huggingface_client=FakeHuggingFaceClient(
+            responses=[
+                {"label": "positive", "score": 0.9},
+                {"label": "negative", "score": 0.8},
+            ]
+        ),
+    )
+
+    with pytest.raises(RuntimeError):
+        service.analyze_open_text_answers(response.response_id)
+
+    assert not SentimentAnalysisResult.objects.filter(
+        answer__response=response,
+    ).exists()
