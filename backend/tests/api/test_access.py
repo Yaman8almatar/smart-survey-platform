@@ -11,6 +11,8 @@ PROTECTED_ENDPOINTS = [
     ("put", "/api/v1/me/profile/"),
     ("get", "/api/v1/surveys/eligible/"),
     ("get", "/api/v1/surveys/1/"),
+    ("post", "/api/v1/surveys/1/responses/"),
+    ("get", "/api/v1/me/responses/"),
 ]
 
 

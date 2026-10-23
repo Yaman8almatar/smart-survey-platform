@@ -86,3 +86,54 @@ class SurveyDetailSerializer(serializers.Serializer):
     title = serializers.CharField(source="survey.title")
     description = serializers.CharField(source="survey.description")
     questions = QuestionSerializer(many=True)
+
+
+class AnswerSerializer(serializers.Serializer):
+    """One submitted answer; type rules per question are checked by ResponseService."""
+
+    question_id = serializers.IntegerField()
+    answer_value = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True, trim_whitespace=False
+    )
+    rating_value = serializers.IntegerField(required=False, allow_null=True)
+    selected_option_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class SubmitResponseSerializer(serializers.Serializer):
+    """Body of a survey submission."""
+
+    answers = AnswerSerializer(many=True)
+
+
+class ResponseCreatedSerializer(serializers.Serializer):
+    """Receipt of a stored response."""
+
+    id = serializers.IntegerField(source="response_id")
+    survey_id = serializers.IntegerField()
+    submitted_at = serializers.DateTimeField()
+
+
+class AnsweredSurveySerializer(serializers.Serializer):
+    """One row of the answered survey history."""
+
+    survey_id = serializers.IntegerField()
+    title = serializers.CharField(source="survey_title")
+    description = serializers.CharField(source="survey_description")
+    submitted_at = serializers.DateTimeField()
+
+
+class ErrorBodySerializer(serializers.Serializer):
+    """Error details shared by every endpoint."""
+
+    code = serializers.CharField()
+    message = serializers.CharField()
+    fields = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        required=False,
+    )
+
+
+class ErrorSerializer(serializers.Serializer):
+    """Error envelope returned for every failed request."""
+
+    error = ErrorBodySerializer()

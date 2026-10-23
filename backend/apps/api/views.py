@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
@@ -10,12 +10,17 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from services.authentication_service import AuthenticationService
 from services.profile_service import ProfileService
 from services.question_service import QuestionService
+from services.response_service import ResponseService
 from services.survey_service import SurveyService
 
 from .serializers import (
+    AnsweredSurveySerializer,
     EligibleSurveySerializer,
+    ErrorSerializer,
     ProfileSerializer,
     RegisterSerializer,
+    ResponseCreatedSerializer,
+    SubmitResponseSerializer,
     SurveyDetailSerializer,
     TokenPairSerializer,
     TokenRequestSerializer,
@@ -147,10 +152,84 @@ class EligibleSurveysView(APIView):
 class SurveyDetailView(APIView):
     @extend_schema(
         tags=SURVEY_TAG,
-        responses={200: SurveyDetailSerializer},
+        responses={
+            200: SurveyDetailSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
         summary="Survey with its questions and options",
     )
     def get(self, request, survey_id):
         """Return the response form through QuestionService."""
         form = QuestionService().get_response_form(request.user, survey_id)
         return Response(SurveyDetailSerializer(form).data)
+
+
+SUBMIT_REQUEST_EXAMPLE = OpenApiExample(
+    "Answer a choice, a rating and an open-text question",
+    value={
+        "answers": [
+            {"question_id": 1, "selected_option_id": 2},
+            {"question_id": 2, "rating_value": 4},
+            {"question_id": 3, "answer_value": "Clear and quick."},
+        ]
+    },
+    request_only=True,
+)
+SUBMIT_RESPONSE_EXAMPLE = OpenApiExample(
+    "Stored response",
+    value={"id": 17, "survey_id": 5, "submitted_at": "2026-10-23T09:30:00Z"},
+    response_only=True,
+    status_codes=["201"],
+)
+SUBMIT_ERROR_EXAMPLE = OpenApiExample(
+    "Missing required answer",
+    value={
+        "error": {
+            "code": "validation_error",
+            "message": "Required questions must have answers.",
+        }
+    },
+    response_only=True,
+    status_codes=["400"],
+)
+
+
+class SubmitResponseView(APIView):
+    @extend_schema(
+        tags=SURVEY_TAG,
+        request=SubmitResponseSerializer,
+        responses={
+            201: ResponseCreatedSerializer,
+            400: ErrorSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        examples=[SUBMIT_REQUEST_EXAMPLE, SUBMIT_RESPONSE_EXAMPLE, SUBMIT_ERROR_EXAMPLE],
+        summary="Submit answers to a survey",
+    )
+    def post(self, request, survey_id):
+        """Validate and store the submission through ResponseService."""
+        serializer = SubmitResponseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        answers = [dict(answer) for answer in serializer.validated_data["answers"]]
+
+        response = ResponseService().submit_response(request.user, survey_id, answers)
+        return Response(
+            ResponseCreatedSerializer(response).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AnsweredSurveysView(APIView):
+    @extend_schema(
+        tags=ME_TAG,
+        responses={200: AnsweredSurveySerializer(many=True)},
+        summary="Surveys the respondent already answered",
+    )
+    def get(self, request):
+        """List answered survey history through ResponseService."""
+        rows = ResponseService().get_answered_surveys(request.user)
+        return Response(AnsweredSurveySerializer(rows, many=True).data)

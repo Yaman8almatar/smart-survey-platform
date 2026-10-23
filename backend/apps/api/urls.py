@@ -13,4 +13,10 @@ urlpatterns = [
     path("me/profile/", views.ProfileView.as_view(), name="profile"),
     path("surveys/eligible/", views.EligibleSurveysView.as_view(), name="surveys-eligible"),
     path("surveys/<int:survey_id>/", views.SurveyDetailView.as_view(), name="survey-detail"),
+    path(
+        "surveys/<int:survey_id>/responses/",
+        views.SubmitResponseView.as_view(),
+        name="survey-submit",
+    ),
+    path("me/responses/", views.AnsweredSurveysView.as_view(), name="me-responses"),
 ]
