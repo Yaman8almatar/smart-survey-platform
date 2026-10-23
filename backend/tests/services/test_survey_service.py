@@ -1,6 +1,6 @@
 import pytest
 
-from apps.core.models import Question, RespondentProfile, Response, User
+from apps.core.models import Question, QuestionOption, RespondentProfile, Response, User
 from core.enums import AccountStatus, Gender, QuestionType, SurveyStatus, UserType
 from core.exceptions import (
     NotEditable,
@@ -414,3 +414,52 @@ def test_eligible_surveys_match_region_ignoring_case_and_spaces(survey_service):
     surveys = survey_service.get_eligible_surveys(respondent)
 
     assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
+
+
+def add_choice_question(survey, option_count):
+    question = QuestionRepository().save(
+        Question(
+            survey=survey,
+            question_text="Would you recommend us?",
+            question_type=QuestionType.MULTIPLE_CHOICE,
+            is_required=True,
+            order_index=2,
+        )
+    )
+    for index in range(option_count):
+        QuestionRepository().save_option(
+            QuestionOption(question=question, option_text=f"Option {index}", order_index=index)
+        )
+    return question
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("option_count", [0, 1])
+def test_publish_survey_rejects_multiple_choice_question_with_fewer_than_two_options(
+    survey_service,
+    option_count,
+):
+    provider = create_user(
+        f"provider-choice-publish-{option_count}@example.com",
+        UserType.SERVICE_PROVIDER,
+    )
+    survey = survey_service.create_survey(provider, "Choice", "Description")
+    add_choice_question(survey, option_count)
+    add_targeting(survey)
+
+    with pytest.raises(ValidationError):
+        survey_service.publish_survey(provider, survey.survey_id)
+
+    assert SurveyRepository().find_by_id(survey.survey_id).status == SurveyStatus.DRAFT
+
+
+@pytest.mark.django_db
+def test_publish_survey_accepts_multiple_choice_question_with_two_options(survey_service):
+    provider = create_user("provider-choice-publish-ok@example.com", UserType.SERVICE_PROVIDER)
+    survey = survey_service.create_survey(provider, "Choice", "Description")
+    add_choice_question(survey, 2)
+    add_targeting(survey)
+
+    published = survey_service.publish_survey(provider, survey.survey_id)
+
+    assert published.status == SurveyStatus.PUBLISHED

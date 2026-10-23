@@ -1,5 +1,5 @@
 from apps.core.models import Survey
-from core.enums import SurveyStatus, UserType
+from core.enums import QuestionType, SurveyStatus, UserType
 from core.exceptions import (
     NotEditable,
     SurveyNotFound,
@@ -17,6 +17,8 @@ from services.targeting_service import TargetingService
 
 class SurveyService:
     """Handles Survey management workflows and eligibility decisions."""
+
+    MIN_CHOICE_OPTIONS = 2
 
     def __init__(
         self,
@@ -75,8 +77,22 @@ class SurveyService:
             raise NotEditable("Only draft surveys can be published.")
 
         # Published surveys must have at least one question.
-        if not self.question_repository.find_by_survey_id(survey.survey_id).exists():
+        questions = self.question_repository.find_by_survey_id(survey.survey_id)
+        if not questions.exists():
             raise ValidationError("A survey must have at least one question.")
+
+        # Every multiple-choice question must offer a real choice to be answerable.
+        for question in questions:
+            if (
+                question.question_type == QuestionType.MULTIPLE_CHOICE
+                and self.question_repository.find_options_by_question_id(
+                    question.question_id
+                ).count()
+                < self.MIN_CHOICE_OPTIONS
+            ):
+                raise ValidationError(
+                    "Multiple-choice questions need at least two options before publishing."
+                )
 
         if self.targeting_repository.find_by_survey_id(survey.survey_id) is None:
             raise TargetingCriteriaNotFound("Survey targeting criteria is required.")
