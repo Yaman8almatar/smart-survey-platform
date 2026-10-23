@@ -35,6 +35,31 @@ class AuthRepository {
     await _tokens.saveRefresh(json['refresh'] as String);
   }
 
+  /// Creates the respondent and profile. The API returns no tokens; call [login] next.
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+    required int age,
+    required String gender,
+    required String region,
+    required String interests,
+  }) async {
+    await _api.post(
+      'auth/register/',
+      body: {
+        'name': name,
+        'email': email,
+        'password': password,
+        'age': age,
+        'gender': gender,
+        'region': region,
+        'interests': interests,
+      },
+      authenticated: false,
+    );
+  }
+
   /// Throws [NotRespondentException] (and clears the tokens) on a 403.
   Future<AppUser> currentUser() async {
     try {
