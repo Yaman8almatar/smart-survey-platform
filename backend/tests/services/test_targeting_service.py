@@ -274,3 +274,14 @@ def test_incomplete_respondent_profile_returns_false(targeting_service):
     targeting_service.save_criteria(provider, survey.survey_id, gender=Gender.ANY)
 
     assert not targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_region_match_ignores_case_and_surrounding_spaces(targeting_service):
+    provider = create_user("provider-region-casefold@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-region-casefold@example.com", UserType.RESPONDENT)
+    survey = create_survey(provider)
+    create_profile(respondent, age=30, gender=Gender.FEMALE, region=" damascus ")
+    targeting_service.save_criteria(provider, survey.survey_id, region="Damascus")
+
+    assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id) is True

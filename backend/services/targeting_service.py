@@ -138,6 +138,12 @@ class TargetingService:
             return False
         if criteria.age_max is not None and profile.age > criteria.age_max:
             return False
-        if criteria.region and criteria.region != profile.region:
+        if criteria.region and self._normalized_region(
+            criteria.region
+        ) != self._normalized_region(profile.region):
             return False
         return True
+
+    def _normalized_region(self, region):
+        """Normalize free-text regions so spacing and letter case do not block a match."""
+        return (region or "").strip().casefold()
