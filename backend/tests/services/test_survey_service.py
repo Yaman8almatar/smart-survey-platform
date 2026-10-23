@@ -391,3 +391,26 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
     surveys = survey_service.get_eligible_surveys(respondent)
 
     assert [survey.survey_id for survey in surveys] == [eligible.survey_id]
+
+
+@pytest.mark.django_db
+def test_eligible_surveys_match_region_ignoring_case_and_spaces(survey_service):
+    provider = create_user("provider-eligible-region@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-eligible-region@example.com", UserType.RESPONDENT)
+    ProfileRepository().save(
+        RespondentProfile(
+            user=respondent,
+            age=30,
+            gender=Gender.FEMALE,
+            region=" damascus ",
+            interests="Technology",
+        )
+    )
+    survey = survey_service.create_survey(provider, "Regional", "Description")
+    add_question(survey)
+    add_targeting(survey, region="Damascus")
+    survey_service.publish_survey(provider, survey.survey_id)
+
+    surveys = survey_service.get_eligible_surveys(respondent)
+
+    assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
