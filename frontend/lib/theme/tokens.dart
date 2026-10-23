@@ -25,6 +25,14 @@ abstract final class SsSpace {
   static const double s6 = 24;
 }
 
+/// Smart Survey layout and control sizes in logical pixels.
+abstract final class SsLayout {
+  static const double contentMaxWidth = 640;
+  static const double formMaxWidth = 420;
+  static const double indicatorSize = 20;
+  static const double indicatorStroke = 2;
+}
+
 /// Smart Survey corner radii in logical pixels.
 abstract final class SsRadius {
   static const double sm = 6;
