@@ -159,6 +159,18 @@ class SurveyService:
 
         return eligible_surveys
 
+    def get_eligible_survey_items(self, respondent_user):
+        """Return eligible surveys with their question counts."""
+        return [
+            {
+                "survey": survey,
+                "question_count": self.question_repository.find_by_survey_id(
+                    survey.survey_id
+                ).count(),
+            }
+            for survey in self.get_eligible_surveys(respondent_user)
+        ]
+
     def _get_owned_survey(self, provider_user, survey_id):
         """Return a survey after validating provider ownership."""
         self._ensure_service_provider(provider_user)

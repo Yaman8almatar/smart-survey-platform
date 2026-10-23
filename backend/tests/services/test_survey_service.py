@@ -463,3 +463,53 @@ def test_publish_survey_accepts_multiple_choice_question_with_two_options(survey
     published = survey_service.publish_survey(provider, survey.survey_id)
 
     assert published.status == SurveyStatus.PUBLISHED
+
+
+@pytest.mark.django_db
+def test_eligible_survey_items_include_question_count_for_eligible_surveys_only(
+    survey_service,
+):
+    provider = create_user("provider-items@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-items@example.com", UserType.RESPONDENT)
+    ProfileRepository().save(
+        RespondentProfile(
+            user=respondent,
+            age=30,
+            gender=Gender.FEMALE,
+            region="Damascus",
+            interests="Technology",
+        )
+    )
+
+    eligible = survey_service.create_survey(provider, "Eligible", "Description")
+    add_question(eligible)
+    QuestionRepository().save(
+        Question(
+            survey=eligible,
+            question_text="Second question",
+            question_type=QuestionType.OPEN_TEXT,
+            is_required=False,
+            order_index=2,
+        )
+    )
+    add_targeting(eligible, gender=Gender.FEMALE)
+    survey_service.publish_survey(provider, eligible.survey_id)
+
+    wrong_target = survey_service.create_survey(provider, "Wrong Target", "Description")
+    add_question(wrong_target)
+    add_targeting(wrong_target, gender=Gender.MALE)
+    survey_service.publish_survey(provider, wrong_target.survey_id)
+
+    items = survey_service.get_eligible_survey_items(respondent)
+
+    assert [(item["survey"].survey_id, item["question_count"]) for item in items] == [
+        (eligible.survey_id, 2)
+    ]
+
+
+@pytest.mark.django_db
+def test_non_respondent_cannot_get_eligible_survey_items(survey_service):
+    provider = create_user("provider-items-denied@example.com", UserType.SERVICE_PROVIDER)
+
+    with pytest.raises(UnauthorizedAction):
+        survey_service.get_eligible_survey_items(provider)

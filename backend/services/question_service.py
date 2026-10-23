@@ -127,13 +127,20 @@ class QuestionService:
 
     def get_response_form_questions(self, respondent_user, survey_id):
         """Return ordered question and option data for an eligible respondent."""
-        self._ensure_respondent_can_answer(respondent_user, survey_id)
+        return self.get_response_form(respondent_user, survey_id)["questions"]
+
+    def get_response_form(self, respondent_user, survey_id):
+        """Return the survey and its ordered questions for an eligible respondent."""
+        survey = self._ensure_respondent_can_answer(respondent_user, survey_id)
 
         questions = sorted(
             self.question_repository.find_by_survey_id(survey_id),
             key=lambda question: (question.order_index, question.question_id),
         )
-        return [self._response_form_question(question) for question in questions]
+        return {
+            "survey": survey,
+            "questions": [self._response_form_question(question) for question in questions],
+        }
 
     def get_survey_question_rows(self, provider_user, survey_id):
         """Return ordered survey questions and options for the management page."""
@@ -174,7 +181,7 @@ class QuestionService:
         return survey
 
     def _ensure_respondent_can_answer(self, respondent_user, survey_id):
-        """Ensure the respondent may open the response form of this survey."""
+        """Return the survey after checking the respondent may open its response form."""
         if respondent_user.user_type != UserType.RESPONDENT:
             raise UnauthorizedAction("Only respondents can open survey response forms.")
 
@@ -187,6 +194,8 @@ class QuestionService:
 
         if not self.targeting_service.match_respondent_to_survey(respondent_user, survey_id):
             raise UnauthorizedAction("Respondent is not eligible for this survey.")
+
+        return survey
 
     def _ensure_service_provider(self, user):
         """Ensure only service providers can manage questions."""
