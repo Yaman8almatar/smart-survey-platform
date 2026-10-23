@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from core.enums import Gender
@@ -43,3 +44,45 @@ class TokenPairSerializer(serializers.Serializer):
 
     access = serializers.CharField()
     refresh = serializers.CharField()
+
+
+class EligibleSurveySerializer(serializers.Serializer):
+    """One eligible survey row with its question count."""
+
+    id = serializers.IntegerField(source="survey.survey_id")
+    title = serializers.CharField(source="survey.title")
+    description = serializers.CharField(source="survey.description")
+    question_count = serializers.IntegerField()
+
+
+class OptionSerializer(serializers.Serializer):
+    """One answer choice of a multiple-choice question."""
+
+    id = serializers.IntegerField(source="option_id")
+    text = serializers.CharField(source="option_text")
+
+
+class QuestionSerializer(serializers.Serializer):
+    """One question of the response form."""
+
+    id = serializers.IntegerField(source="question_id")
+    text = serializers.CharField(source="question_text")
+    type = serializers.CharField(source="question_type")
+    is_required = serializers.BooleanField()
+    order_index = serializers.IntegerField()
+    options = OptionSerializer(many=True)
+    rating_values = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
+    def get_rating_values(self, question):
+        """Offer rating values only for rating-scale questions."""
+        return question["rating_values"] if question["is_rating_scale"] else []
+
+
+class SurveyDetailSerializer(serializers.Serializer):
+    """Survey header with its ordered response-form questions."""
+
+    id = serializers.IntegerField(source="survey.survey_id")
+    title = serializers.CharField(source="survey.title")
+    description = serializers.CharField(source="survey.description")
+    questions = QuestionSerializer(many=True)

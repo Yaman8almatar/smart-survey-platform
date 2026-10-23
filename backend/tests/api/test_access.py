@@ -4,14 +4,13 @@ import pytest
 
 pytestmark = pytest.mark.django_db
 
-# (method, path) pairs; ids are filled in by the test for survey routes.
+# (method, path) pairs; the permission check runs before any id lookup.
 PROTECTED_ENDPOINTS = [
     ("get", "/api/v1/me/"),
     ("get", "/api/v1/me/profile/"),
-    (
-        "put",
-        "/api/v1/me/profile/",
-    ),
+    ("put", "/api/v1/me/profile/"),
+    ("get", "/api/v1/surveys/eligible/"),
+    ("get", "/api/v1/surveys/1/"),
 ]
 
 

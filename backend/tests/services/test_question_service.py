@@ -656,3 +656,40 @@ def test_get_response_form_questions_rejects_non_respondent(question_service):
 
     with pytest.raises(UnauthorizedAction):
         question_service.get_response_form_questions(provider, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_get_response_form_returns_survey_with_ordered_questions(question_service):
+    provider = create_user("provider-form-full@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider, title="Full form")
+    second = add_question(question_service, provider, survey, text="Second", order_index=2)
+    first = add_question(question_service, provider, survey, text="First", order_index=1)
+    respondent = make_survey_answerable(survey)
+
+    form = question_service.get_response_form(respondent, survey.survey_id)
+
+    assert form["survey"].survey_id == survey.survey_id
+    assert form["survey"].title == "Full form"
+    assert [q["question_id"] for q in form["questions"]] == [
+        first.question_id,
+        second.question_id,
+    ]
+
+
+@pytest.mark.django_db
+def test_get_response_form_rejects_respondent_not_matching_targeting(question_service):
+    provider = create_user("provider-form-full-target@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey)
+    respondent = make_survey_answerable(survey, target_gender=Gender.MALE)
+
+    with pytest.raises(UnauthorizedAction):
+        question_service.get_response_form(respondent, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_get_response_form_rejects_missing_survey(question_service):
+    respondent = create_user("respondent-form-missing@example.com", UserType.RESPONDENT)
+
+    with pytest.raises(SurveyNotFound):
+        question_service.get_response_form(respondent, 999999)

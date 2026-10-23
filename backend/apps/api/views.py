@@ -9,10 +9,14 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from services.authentication_service import AuthenticationService
 from services.profile_service import ProfileService
+from services.question_service import QuestionService
+from services.survey_service import SurveyService
 
 from .serializers import (
+    EligibleSurveySerializer,
     ProfileSerializer,
     RegisterSerializer,
+    SurveyDetailSerializer,
     TokenPairSerializer,
     TokenRequestSerializer,
     UserSerializer,
@@ -20,6 +24,7 @@ from .serializers import (
 
 AUTH_TAG = ["auth"]
 ME_TAG = ["me"]
+SURVEY_TAG = ["surveys"]
 
 
 class PublicAPIView(APIView):
@@ -125,3 +130,27 @@ class ProfileView(APIView):
             data["interests"],
         )
         return Response(ProfileSerializer(profile).data)
+
+
+class EligibleSurveysView(APIView):
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={200: EligibleSurveySerializer(many=True)},
+        summary="Surveys matching the respondent profile that are not answered yet",
+    )
+    def get(self, request):
+        """List eligible surveys through SurveyService."""
+        items = SurveyService().get_eligible_survey_items(request.user)
+        return Response(EligibleSurveySerializer(items, many=True).data)
+
+
+class SurveyDetailView(APIView):
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={200: SurveyDetailSerializer},
+        summary="Survey with its questions and options",
+    )
+    def get(self, request, survey_id):
+        """Return the response form through QuestionService."""
+        form = QuestionService().get_response_form(request.user, survey_id)
+        return Response(SurveyDetailSerializer(form).data)

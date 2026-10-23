@@ -11,4 +11,6 @@ urlpatterns = [
     path("auth/token/refresh/", views.TokenRefresh.as_view(), name="token-refresh"),
     path("me/", views.MeView.as_view(), name="me"),
     path("me/profile/", views.ProfileView.as_view(), name="profile"),
+    path("surveys/eligible/", views.EligibleSurveysView.as_view(), name="surveys-eligible"),
+    path("surveys/<int:survey_id>/", views.SurveyDetailView.as_view(), name="survey-detail"),
 ]
