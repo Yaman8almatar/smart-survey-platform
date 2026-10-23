@@ -29,6 +29,7 @@ codex_*.md
 ~WRL*.tmp
 *.tmp
 
-# Flutter (reserved for frontend/, Sprint 1)
-# build/
-# .dart_tool/
+# Flutter (frontend/)
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins*

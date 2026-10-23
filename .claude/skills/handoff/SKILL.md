@@ -28,4 +28,8 @@ Open questions: <none, or a short list>
 Next: <one line>
 ```
 
-4. Print the same block in the chat, then stop. Do not commit unless the task said so.
+4. Commit the status file:
+   - On a task branch (feature/, fix/, chore/, docs/, test/): add planning/STATUS.md to the task's final commit
+     (or amend it into that commit before pushing), so the status never stays uncommitted.
+   - On main or develop: do not commit; leave it for the next task branch.
+5. Print the same block in the chat, then stop.
