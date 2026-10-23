@@ -1,11 +1,76 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch --show-current)",
+      "Bash(git branch --list *)",
+      "Bash(git branch -a)",
+      "Bash(git branch -vv)",
+      "Bash(python manage.py check *)",
+      "Bash(python -m pytest *)",
+      "Bash(python manage.py showmigrations *)",
+      "Bash(../.venv/Scripts/python.exe manage.py check *)",
+      "Bash(../.venv/Scripts/python.exe -m pytest *)",
+      "Bash(../.venv/Scripts/python.exe manage.py showmigrations *)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter test *)",
+      "Bash(dart format *)",
+      "Bash(flutter pub get *)",
+      "PowerShell(git status *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git log *)",
+      "PowerShell(git branch --show-current)",
+      "PowerShell(git branch --list *)",
+      "PowerShell(git branch -a)",
+      "PowerShell(git branch -vv)",
+      "PowerShell(python manage.py check *)",
+      "PowerShell(python -m pytest *)",
+      "PowerShell(python manage.py showmigrations *)",
+      "PowerShell(flutter analyze *)",
+      "PowerShell(flutter test *)",
+      "PowerShell(dart format *)",
+      "PowerShell(flutter pub get *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr merge *)",
+      "Bash(docker *)",
+      "Bash(docker-compose *)",
+      "PowerShell(git push *)",
+      "PowerShell(gh pr merge *)",
+      "PowerShell(docker *)",
+      "PowerShell(docker-compose *)"
+    ],
     "deny": [
       "Read(./backend/.env)",
       "Read(./.env)",
       "Read(./.venv/**)",
       "Read(./documentation/junior/**)",
-      "Read(./docs/**)"
+      "Read(./docs/**)",
+      "Edit(./backend/.env)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/format-dart.ps1"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }

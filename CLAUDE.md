@@ -77,6 +77,11 @@ Never add Claude or AI co-author trailers to commits or PRs.
 - K-12 Ownership and role checks for analytics live in views, not services (audit F-09) — must move to
   services before any REST API endpoint is written.
 
+## Project skills (.claude/skills/)
+- handoff — end-of-task status: writes planning/STATUS.md and prints it.
+- api-endpoint — add a REST endpoint under /api/v1/: test first, thin view, existing service, shared error handler, docs.
+- flutter-screen — add a Flutter screen: feature folder, Ss* tokens only, one repository, three states, widget test.
+
 ## Planning files
 - planning/STATUS.md — current state, written by /handoff.
 - Requirement IDs follow the report: FR-xx, UC-xx, TC-xx.
