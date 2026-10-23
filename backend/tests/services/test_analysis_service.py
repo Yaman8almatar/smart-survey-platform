@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import requests
 from django.utils import timezone
@@ -861,3 +863,28 @@ def test_get_survey_results_rejects_missing_survey():
 
     with pytest.raises(SurveyNotFound):
         service.get_survey_results(provider, 999999)
+
+
+class FakeHttpErrorResponse:
+    status_code = 402
+
+    def raise_for_status(self):
+        raise requests.HTTPError("402 Client Error: Payment Required", response=self)
+
+
+def test_huggingface_client_reports_http_status_code(monkeypatch, caplog):
+    monkeypatch.setattr(
+        "infrastructure.huggingface_client.requests.post",
+        lambda *args, **kwargs: FakeHttpErrorResponse(),
+    )
+    client = HuggingFaceClient(
+        api_token="test-token",
+        model_url="https://example.com/model",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="infrastructure.huggingface_client"):
+        with pytest.raises(ExternalAnalysisServiceError) as error:
+            client.analyze_sentiment("The service was excellent")
+
+    assert "402" in str(error.value)
+    assert "402" in caplog.text
