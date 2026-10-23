@@ -3,6 +3,7 @@ from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
 from django.shortcuts import redirect, render
 from django.urls import NoReverseMatch, reverse
+from django.views.decorators.http import require_POST
 
 from core.enums import UserType
 from core.exceptions import SmartSurveyException
@@ -111,14 +112,12 @@ def login_view(request):
     return render(request, "users/login.html", {"form": form})
 
 
+@require_POST
 def logout_view(request):
-    """Render logout confirmation and end the active Django session."""
-    if request.method == "POST":
-        django_logout(request)
-        messages.success(request, "Logged out successfully.")
-        return redirect("users:login")
-
-    return render(request, "users/logout_confirm.html")
+    """End the active Django session; only a CSRF-protected POST may log out."""
+    django_logout(request)
+    messages.success(request, "Logged out successfully.")
+    return redirect("users:login")
 
 
 def _dashboard_url_for(user):
