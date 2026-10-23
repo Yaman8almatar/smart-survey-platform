@@ -128,3 +128,26 @@ def test_respondent_registration_rejects_gender_any(auth_service):
             region="Damascus",
             interests="Technology",
         )
+
+
+class FailingProfileRepository(ProfileRepository):
+    def save(self, profile):
+        raise RuntimeError("Profile storage failed.")
+
+
+@pytest.mark.django_db
+def test_respondent_registration_rolls_back_user_when_profile_save_fails():
+    service = AuthenticationService(profile_repository=FailingProfileRepository())
+
+    with pytest.raises(RuntimeError):
+        service.register_respondent(
+            name="Respondent User",
+            email="respondent-rollback@example.com",
+            password="strong-password",
+            age=30,
+            gender=Gender.FEMALE,
+            region="Damascus",
+            interests="Technology",
+        )
+
+    assert not UserRepository().email_exists("respondent-rollback@example.com")
