@@ -31,6 +31,19 @@ python -m pytest tests -q
 python manage.py runserver
 ```
 
+## Frontend (Flutter)
+Flutter SDK: `C:\SRC\flutter` (stable). Run every command from frontend/.
+```
+cd frontend
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d chrome
+flutter build web
+```
+Android: SDK at `%LOCALAPPDATA%\Android\sdk`, licenses accepted; no emulator image or AVD yet.
+sdkmanager crashes with the Arabic system locale; prefix it with `set SDKMANAGER_OPTS=-Duser.language=en -Duser.country=US`.
+
 ## Git rules
 - Never work on main. Branch from develop: feature/<name>, fix/<name>, chore/<name>.
 - Never commit or push unless the task explicitly says so.
@@ -59,6 +72,8 @@ Never add Claude or AI co-author trailers to commits or PRs.
 - K-04 RespondentProfile.interests is collected but never used by targeting.
 - K-06 .gitignore ignores docs/ — planning files live in planning/.
 - K-11 (fixed) .env.example used DB_PORT=5432 but docker-compose.yml published 5433; compose now publishes 5432.
+- F-11 (fixed) `flutter --version` hang from the audit: not reproducible (2-4 s); `flutter doctor` OK for Flutter,
+  Android toolchain and Chrome.
 - K-12 Ownership and role checks for analytics live in views, not services (audit F-09) — must move to
   services before any REST API endpoint is written.
 
