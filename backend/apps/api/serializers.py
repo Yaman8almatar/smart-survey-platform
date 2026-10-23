@@ -32,7 +32,7 @@ class RegisterSerializer(ProfileSerializer):
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
-class TokenRequestSerializer(serializers.Serializer):
+class LoginSerializer(serializers.Serializer):
     """Email and password login input."""
 
     email = serializers.EmailField()

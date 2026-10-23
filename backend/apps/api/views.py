@@ -23,7 +23,7 @@ from .serializers import (
     SubmitResponseSerializer,
     SurveyDetailSerializer,
     TokenPairSerializer,
-    TokenRequestSerializer,
+    LoginSerializer,
     UserSerializer,
 )
 
@@ -67,13 +67,13 @@ class RegisterView(PublicAPIView):
 class TokenView(PublicAPIView):
     @extend_schema(
         tags=AUTH_TAG,
-        request=TokenRequestSerializer,
+        request=LoginSerializer,
         responses={200: TokenPairSerializer},
         summary="Exchange email and password for access and refresh tokens",
     )
     def post(self, request):
         """Authenticate through AuthenticationService, then issue a JWT pair."""
-        serializer = TokenRequestSerializer(data=request.data)
+        serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = AuthenticationService().authenticate_user(
