@@ -14,16 +14,21 @@ class UserSerializer(serializers.Serializer):
     role = serializers.CharField(source="user_type", read_only=True)
 
 
-class RegisterSerializer(serializers.Serializer):
+class ProfileSerializer(serializers.Serializer):
+    """Demographic profile used for survey targeting (read and update)."""
+
+    age = serializers.IntegerField(min_value=1, max_value=120)
+    gender = serializers.ChoiceField(choices=REGISTRATION_GENDERS)
+    region = serializers.CharField(max_length=255)
+    interests = serializers.CharField()
+
+
+class RegisterSerializer(ProfileSerializer):
     """Respondent registration input; business rules stay in AuthenticationService."""
 
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
-    age = serializers.IntegerField(min_value=1, max_value=120)
-    gender = serializers.ChoiceField(choices=REGISTRATION_GENDERS)
-    region = serializers.CharField(max_length=255)
-    interests = serializers.CharField()
 
 
 class TokenRequestSerializer(serializers.Serializer):
