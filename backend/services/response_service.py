@@ -1,3 +1,5 @@
+from django.db import transaction
+
 from apps.core.models import Answer, Response
 from core.enums import QuestionType, UserType
 from core.exceptions import (
@@ -64,22 +66,28 @@ class ResponseService:
         self._validate_required_answers(questions, answer_map)
         self._validate_all_answer_data(question_map, answer_map)
 
-        response = self.response_repository.save(
-            Response(survey=survey, respondent=respondent_user)
-        )
+        with transaction.atomic():
+            # Response and answers are stored together or not at all.
+            response = self.response_repository.save(
+                Response(survey=survey, respondent=respondent_user)
+            )
 
-        for answer_data in answer_map.values():
-            question = question_map.get(answer_data.get("question_id"))
-            if question is None:
-                raise QuestionNotFound("Question does not belong to this survey.")
+            for answer_data in answer_map.values():
+                question = question_map.get(answer_data.get("question_id"))
+                if question is None:
+                    raise QuestionNotFound("Question does not belong to this survey.")
 
-            answer = self._build_answer(response, question, answer_data)
-            if answer is not None:
-                self.response_repository.save_answer(answer)
+                answer = self._build_answer(response, question, answer_data)
+                if answer is not None:
+                    self.response_repository.save_answer(answer)
 
-        if response.has_open_text_answers():
-            # Sentiment analysis is triggered only after open-text answers are stored.
-            self.analysis_service.analyze_open_text_answers(response.response_id)
+            if response.has_open_text_answers():
+                # Sentiment analysis runs only after the submission is committed.
+                response_id = response.response_id
+                transaction.on_commit(
+                    lambda: self.analysis_service.analyze_open_text_answers(response_id),
+                    robust=True,
+                )
 
         return response
 
