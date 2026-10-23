@@ -66,11 +66,15 @@ class User(AbstractUser):
     def activate(self):
         """Mark the account as active."""
         self.account_status = AccountStatus.ACTIVE
+        self.is_active = True
 
     def suspend(self):
         """Mark the account as suspended."""
+        # is_active=False makes Django drop the user's existing sessions.
         self.account_status = AccountStatus.SUSPENDED
+        self.is_active = False
 
     def mark_deleted(self):
         """Soft-delete the account by changing its status."""
         self.account_status = AccountStatus.DELETED
+        self.is_active = False
