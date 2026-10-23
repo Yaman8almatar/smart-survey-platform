@@ -7,11 +7,6 @@ from apps.core.models import User
 class UserRepository:
     """Provides database access for user accounts and account report metrics."""
 
-    def save(self, user):
-        """Persist a user account."""
-        user.save()
-        return user
-
     def find_by_id(self, user_id):
         """Return a user account by its primary key."""
         return User.objects.filter(user_id=user_id).first()
