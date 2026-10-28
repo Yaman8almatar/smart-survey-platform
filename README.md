@@ -23,6 +23,22 @@ Smart Survey Platform addresses these limitations by providing:
 
 ---
 
+## Graduation 1 (in progress)
+
+Graduation 1 (October 2026 to January 2027) extends the platform with a Flutter mobile app for respondents,
+richer targeting, a response-quality engine, and sentiment analysis of Arabic (MSA) and English open answers.
+The team works in Scrum with two-week sprints starting 2026-11-02.
+
+- Built so far: the respondent REST API (`/api/v1/`, JWT) and the Flutter respondent app with login,
+  registration, the eligible-survey list and logout. How to run it: [`frontend/README.md`](frontend/README.md).
+- Planned: requirements FR-01..FR-20, tracked as issues in the
+  [Product Backlog](https://github.com/users/Yaman8almatar/projects/1).
+- Seminar 1 slides: [`documentation/graduation-1/`](documentation/graduation-1/).
+- Diagrams: [`diagrams/`](diagrams/README.md).
+- Releases: `v1.0-junior-final` (junior project), `v1.1-iteration0` (Iteration 0, Seminar 1).
+
+---
+
 ## Main User Roles
 
 ### Service Provider
@@ -220,8 +236,7 @@ These reports provide an operational overview of the platform.
 
 ## Project Structure
 
-The repository is a monorepo. The Django backend lives in `backend/`; the Flutter client will be added
-as `frontend/` in Sprint 1.
+The repository is a monorepo: the Django backend lives in `backend/` and the Flutter respondent app in `frontend/`.
 
 ```text
 smart-survey-platform/
@@ -236,12 +251,13 @@ smart-survey-platform/
 │   ├── templates/  static/
 │   ├── tests/                service-layer tests (pytest)
 │   ├── requirements.txt  pytest.ini  .env.example
-├── diagrams/                 PlantUML sources (*.puml) and exported PNGs
+├── frontend/                 Flutter respondent app (Android and web)
+├── diagrams/                 Diagram exports (PNG): class diagram, use case diagrams
 ├── documentation/
 │   ├── junior/               junior project documents
 │   └── graduation-1/         Graduation 1 report and slides
 ├── planning/                 status, audits, sprint plans
-├── .github/workflows/        CI (Django CI)
+├── .github/workflows/        CI (Django CI, Flutter CI)
 ├── docker-compose.yml        PostgreSQL 15 for local development
 ├── CONTRIBUTING.md           branching and commit rules
 └── README.md

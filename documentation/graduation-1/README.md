@@ -1,5 +1,12 @@
 # Graduation 1 documentation
 
-This folder holds the Graduation 1 deliverables: the final report and the presentation slides, added as
-they are produced during the sprints. The junior project documents are kept unchanged in
-`documentation/junior/`, and the diagrams used here come from `diagrams/`.
+Graduation 1 deliverables, added as they are produced. The junior project documents stay unchanged in
+`documentation/junior/`; the diagrams are in `diagrams/`.
+
+| File | Content | For |
+|---|---|---|
+| `Smart Survey Platform - Graduation 1 - Seminar 1.pptx` | Seminar 1 slides (Arabic) | Seminar 1, 2026-11-01 |
+| `Smart Survey Platform - Graduation 1 - Seminar 1.pdf` | The same slides as PDF | Seminar 1, 2026-11-01 |
+| `Smart Survey Platform - Graduation 1 - Report (Chapters 1-3, draft).docx` | Graduation 1 report, chapters 1-3 (draft) | Supervisor review, October 2026 |
+
+Still to come: Seminar 2 slides and the complete Graduation 1 report (January 2027).
