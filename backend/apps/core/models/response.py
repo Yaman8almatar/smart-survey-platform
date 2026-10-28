@@ -28,6 +28,10 @@ class Response(models.Model):
                 name="unique_response_per_survey_respondent",
             )
         ]
+        indexes = [
+            models.Index(fields=["submitted_at"], name="responses_sub_at_idx"),
+            models.Index(fields=["respondent", "submitted_at"], name="responses_resp_sub_idx"),
+        ]
 
     def __str__(self):
         """Return a readable response label."""

@@ -55,16 +55,32 @@ class ResponseRepository:
 
     def count_submitted_by_date(self, date_from, date_to):
         """Return response counts grouped by submission date."""
+        import datetime
+        from django.utils import timezone
+
+        if isinstance(date_from, datetime.date) and not isinstance(date_from, datetime.datetime):
+            start_dt = timezone.make_aware(datetime.datetime.combine(date_from, datetime.time.min))
+        else:
+            start_dt = date_from
+
+        if isinstance(date_to, datetime.date) and not isinstance(date_to, datetime.datetime):
+            end_dt = timezone.make_aware(datetime.datetime.combine(date_to, datetime.time.max))
+        else:
+            end_dt = date_to
+
         return (
             Response.objects.filter(
-                submitted_at__date__gte=date_from,
-                submitted_at__date__lte=date_to,
+                submitted_at__range=(start_dt, end_dt),
             )
             .annotate(submitted_date=TruncDate("submitted_at"))
             .values("submitted_date")
             .annotate(count=Count("response_id"))
             .order_by("submitted_date")
         )
+
+    def total_responses(self):
+        """Return total number of submitted responses across all surveys."""
+        return Response.objects.count()
 
     def count_by_survey(self):
         """Return response counts grouped by survey."""

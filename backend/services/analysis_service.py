@@ -222,7 +222,7 @@ class AnalysisService:
             answer.answer_value.strip()
             for answer in answers
             if isinstance(answer.answer_value, str) and answer.answer_value.strip()
-        ]
+        ][:50]
         return summary
 
     def _normalized_value(self, value):

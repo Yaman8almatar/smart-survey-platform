@@ -1,3 +1,5 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -21,7 +23,7 @@ class ProfileSerializer(serializers.Serializer):
     age = serializers.IntegerField(min_value=1, max_value=120)
     gender = serializers.ChoiceField(choices=REGISTRATION_GENDERS)
     region = serializers.CharField(max_length=255)
-    interests = serializers.CharField()
+    interests = serializers.CharField(max_length=1000)
 
 
 class RegisterSerializer(ProfileSerializer):
@@ -30,6 +32,14 @@ class RegisterSerializer(ProfileSerializer):
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_password(self, value):
+        """Validate password complexity against Django password validators."""
+        try:
+            validate_password(value)
+        except DjangoValidationError as err:
+            raise serializers.ValidationError(err.messages)
+        return value
 
 
 class LoginSerializer(serializers.Serializer):
@@ -93,10 +103,20 @@ class AnswerSerializer(serializers.Serializer):
 
     question_id = serializers.IntegerField()
     answer_value = serializers.CharField(
-        required=False, allow_null=True, allow_blank=True, trim_whitespace=False
+        max_length=2000,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        trim_whitespace=False,
     )
     rating_value = serializers.IntegerField(required=False, allow_null=True)
     selected_option_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class LogoutSerializer(serializers.Serializer):
+    """Refresh token payload for blacklisting on logout."""
+
+    refresh = serializers.CharField()
 
 
 class SubmitResponseSerializer(serializers.Serializer):

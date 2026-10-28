@@ -1,4 +1,6 @@
-from django.db import transaction
+import os
+from django.conf import settings
+from django.db import IntegrityError, transaction
 
 from apps.core.models import Answer, Response
 from core.enums import QuestionType, UserType
@@ -22,6 +24,7 @@ class ResponseService:
 
     MIN_RATING = 1
     MAX_RATING = 5
+    MAX_OPEN_TEXT_LENGTH = 2000
 
     def __init__(
         self,
@@ -66,30 +69,51 @@ class ResponseService:
         self._validate_required_answers(questions, answer_map)
         self._validate_all_answer_data(question_map, answer_map)
 
-        with transaction.atomic():
-            # Response and answers are stored together or not at all.
-            response = self.response_repository.save(
-                Response(survey=survey, respondent=respondent_user)
-            )
-
-            for answer_data in answer_map.values():
-                question = question_map.get(answer_data.get("question_id"))
-                if question is None:
-                    raise QuestionNotFound("Question does not belong to this survey.")
-
-                answer = self._build_answer(response, question, answer_data)
-                if answer is not None:
-                    self.response_repository.save_answer(answer)
-
-            if response.has_open_text_answers():
-                # Sentiment analysis runs only after the submission is committed.
-                response_id = response.response_id
-                transaction.on_commit(
-                    lambda: self.analysis_service.analyze_open_text_answers(response_id),
-                    robust=True,
+        try:
+            with transaction.atomic():
+                # Response and answers are stored together or not at all.
+                response = self.response_repository.save(
+                    Response(survey=survey, respondent=respondent_user)
                 )
 
+                for answer_data in answer_map.values():
+                    question = question_map.get(answer_data.get("question_id"))
+                    if question is None:
+                        raise QuestionNotFound("Question does not belong to this survey.")
+
+                    answer = self._build_answer(response, question, answer_data)
+                    if answer is not None:
+                        self.response_repository.save_answer(answer)
+
+                if response.has_open_text_answers():
+                    # Sentiment analysis runs only after the submission is committed.
+                    response_id = response.response_id
+                    transaction.on_commit(
+                        lambda: self._dispatch_sentiment_analysis(response_id),
+                        robust=True,
+                    )
+        except IntegrityError as exc:
+            if "unique_response_per_survey_respondent" in str(exc) or "unique" in str(exc).lower():
+                raise DuplicateResponse("Respondent already submitted this survey.") from exc
+            raise
+
         return response
+
+    def _dispatch_sentiment_analysis(self, response_id):
+        """Dispatch sentiment analysis asynchronously via Celery or fallback synchronously."""
+        use_celery = getattr(settings, "CELERY_ENABLED", False) or os.environ.get(
+            "USE_CELERY", "false"
+        ).lower() in {"true", "1", "yes"}
+        if use_celery:
+            try:
+                from apps.core.tasks import analyze_open_text_answers_task
+
+                analyze_open_text_answers_task.delay(response_id)
+                return
+            except Exception:
+                pass
+
+        self.analysis_service.analyze_open_text_answers(response_id)
 
     def validate_duplicate_response(self, respondent_user, survey_id):
         """Prevent a respondent from submitting more than one response to the same survey."""
@@ -215,8 +239,13 @@ class ResponseService:
             raise ValidationError("Open-text answers must not use rating_value.")
 
         answer_value = answer_data.get("answer_value")
-        if answer_value is not None and not isinstance(answer_value, str):
-            raise ValidationError("Open-text answers must use text answer_value.")
+        if answer_value is not None:
+            if not isinstance(answer_value, str):
+                raise ValidationError("Open-text answers must use text answer_value.")
+            if len(answer_value) > self.MAX_OPEN_TEXT_LENGTH:
+                raise ValidationError(
+                    f"Open-text answers must not exceed {self.MAX_OPEN_TEXT_LENGTH} characters."
+                )
 
         if required and (not isinstance(answer_value, str) or not answer_value.strip()):
             raise ValidationError("Required open-text answers must not be blank.")

@@ -1,5 +1,6 @@
 import logging
 
+from django.db import IntegrityError
 from rest_framework import exceptions as drf_exceptions
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
@@ -29,6 +30,13 @@ def api_exception_handler(exc, context):
     for exception_class, (status, code) in CORE_ERRORS.items():
         if isinstance(exc, exception_class):
             return Response(_error_body(code, str(exc)), status=status)
+
+    if isinstance(exc, IntegrityError):
+        logger.warning("Database IntegrityError handled in API exception handler.", exc_info=exc)
+        return Response(
+            _error_body("conflict", "A conflicting resource already exists."),
+            status=409,
+        )
 
     response = drf_exception_handler(exc, context)
     if response is None:

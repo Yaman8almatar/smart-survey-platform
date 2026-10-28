@@ -1,4 +1,6 @@
-from django.db import transaction
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
 
 from apps.core.models import RespondentProfile, User
 from core.enums import AccountStatus, Gender, UserType
@@ -17,16 +19,21 @@ class AuthenticationService:
 
     def register_service_provider(self, name, email, password):
         """Register a service provider account with a hashed password."""
-        self._reject_duplicate_email(email)
+        normalized_email = self._normalize_email(email)
+        self._reject_duplicate_email(normalized_email)
 
         user = User(
             name=name,
-            email=email,
+            email=normalized_email,
             user_type=UserType.SERVICE_PROVIDER,
             account_status=AccountStatus.ACTIVE,
         )
+        self._validate_user_password(password, user=user)
         user.set_password(password)
-        return self.user_repository.save(user)
+        try:
+            return self.user_repository.save(user)
+        except IntegrityError as exc:
+            raise ValidationError("Email is already registered.") from exc
 
     def register_respondent(self, name, email, password, age, gender, region, interests):
         """Register a respondent account and create its demographic profile."""
@@ -34,33 +41,39 @@ class AuthenticationService:
         if gender == Gender.ANY:
             raise ValidationError("Gender.ANY is not allowed for respondent profiles.")
 
-        self._reject_duplicate_email(email)
+        normalized_email = self._normalize_email(email)
+        self._reject_duplicate_email(normalized_email)
 
         user = User(
             name=name,
-            email=email,
+            email=normalized_email,
             user_type=UserType.RESPONDENT,
             account_status=AccountStatus.ACTIVE,
         )
+        self._validate_user_password(password, user=user)
         user.set_password(password)
 
-        with transaction.atomic():
-            # A respondent account is never stored without its profile.
-            saved_user = self.user_repository.save(user)
+        try:
+            with transaction.atomic():
+                # A respondent account is never stored without its profile.
+                saved_user = self.user_repository.save(user)
 
-            profile = RespondentProfile(
-                user=saved_user,
-                age=age,
-                gender=gender,
-                region=region,
-                interests=interests,
-            )
-            self.profile_repository.save(profile)
-        return saved_user
+                profile = RespondentProfile(
+                    user=saved_user,
+                    age=age,
+                    gender=gender,
+                    region=region,
+                    interests=interests,
+                )
+                self.profile_repository.save(profile)
+            return saved_user
+        except IntegrityError as exc:
+            raise ValidationError("Email is already registered.") from exc
 
     def authenticate_user(self, email, password):
         """Authenticate an active user by email and password."""
-        user = self.user_repository.find_by_email(email)
+        normalized_email = self._normalize_email(email)
+        user = self.user_repository.find_by_email(normalized_email)
 
         if user is None or not user.check_password(password):
             raise InvalidCredentials("Invalid email or password.")
@@ -69,6 +82,17 @@ class AuthenticationService:
             raise InvalidCredentials("Account is suspended or deleted.")
 
         return user
+
+    def _normalize_email(self, email):
+        """Normalize email address to lowercase and strip whitespace."""
+        return email.strip().lower() if isinstance(email, str) else ""
+
+    def _validate_user_password(self, password, user=None):
+        """Validate password against Django's AUTH_PASSWORD_VALIDATORS."""
+        try:
+            validate_password(password, user=user)
+        except DjangoValidationError as err:
+            raise ValidationError(", ".join(err.messages))
 
     def _reject_duplicate_email(self, email):
         """Reject registration when the email is already used."""

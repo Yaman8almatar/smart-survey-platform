@@ -74,7 +74,6 @@ class AdminService:
             "status",
             SurveyStatus,
         )
-        response_counts = list(self.response_repository.count_by_survey())
         responses_over_time = self._date_count_rows(
             self.response_repository.count_submitted_by_date(date_from, date_to),
             "submitted_date",
@@ -88,7 +87,7 @@ class AdminService:
         return {
             "total_users": sum(users_by_type.values()),
             "total_surveys": sum(surveys_by_status.values()),
-            "total_responses": self._total_response_count(response_counts),
+            "total_responses": self.response_repository.total_responses(),
             "active_surveys": surveys_by_status[SurveyStatus.PUBLISHED.value],
             "users_by_type": users_by_type,
             "surveys_by_status": surveys_by_status,

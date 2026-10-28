@@ -29,6 +29,9 @@ class SentimentAnalysisResult(models.Model):
 
     class Meta:
         db_table = "sentiment_analysis_results"
+        indexes = [
+            models.Index(fields=["status"], name="sent_results_status_idx"),
+        ]
 
     def __str__(self):
         """Return a readable sentiment result label."""

@@ -1,4 +1,6 @@
 from django import forms
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from core.enums import Gender
 
@@ -26,8 +28,14 @@ class ServiceProviderRegistrationForm(BootstrapFormMixin, forms.Form):
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
 
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError("Passwords do not match.")
+        if password and confirm_password:
+            if password != confirm_password:
+                self.add_error("confirm_password", "Passwords do not match.")
+            else:
+                try:
+                    validate_password(password)
+                except DjangoValidationError as err:
+                    self.add_error("password", err)
 
         return cleaned_data
 
@@ -52,8 +60,14 @@ class RespondentRegistrationForm(BootstrapFormMixin, forms.Form):
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
 
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError("Passwords do not match.")
+        if password and confirm_password:
+            if password != confirm_password:
+                self.add_error("confirm_password", "Passwords do not match.")
+            else:
+                try:
+                    validate_password(password)
+                except DjangoValidationError as err:
+                    self.add_error("password", err)
 
         return cleaned_data
 

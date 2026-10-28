@@ -29,18 +29,6 @@ class TargetingCriteria(models.Model):
         """Return a readable targeting criteria label."""
         return f"Targeting criteria for {self.survey}"
 
-    def matches(self, profile):
-        """Return whether the given profile satisfies the criteria."""
-        if self.gender and self.gender != Gender.ANY and self.gender != profile.gender:
-            return False
-        if self.age_min is not None and profile.age < self.age_min:
-            return False
-        if self.age_max is not None and profile.age > self.age_max:
-            return False
-        if self.region and self.region != profile.region:
-            return False
-        return True
-
     def is_open_to_all(self):
         """Return whether the criteria has no demographic restrictions."""
         return (

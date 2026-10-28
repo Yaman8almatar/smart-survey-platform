@@ -12,12 +12,16 @@ class UserRepository:
         return User.objects.filter(user_id=user_id).first()
 
     def find_by_email(self, email):
-        """Return a user account by email address."""
-        return User.objects.filter(email=email).first()
+        """Return a user account by email address (case-insensitive)."""
+        if not email:
+            return None
+        return User.objects.filter(email__iexact=email.strip()).first()
 
     def email_exists(self, email):
-        """Return whether an email is already registered."""
-        return User.objects.filter(email=email).exists()
+        """Return whether an email is already registered (case-insensitive)."""
+        if not email:
+            return False
+        return User.objects.filter(email__iexact=email.strip()).exists()
 
     def save(self, user):
         """Persist a user account."""
@@ -47,10 +51,22 @@ class UserRepository:
 
     def count_created_by_date(self, date_from, date_to):
         """Return new user counts grouped by creation date."""
+        import datetime
+        from django.utils import timezone
+
+        if isinstance(date_from, datetime.date) and not isinstance(date_from, datetime.datetime):
+            start_dt = timezone.make_aware(datetime.datetime.combine(date_from, datetime.time.min))
+        else:
+            start_dt = date_from
+
+        if isinstance(date_to, datetime.date) and not isinstance(date_to, datetime.datetime):
+            end_dt = timezone.make_aware(datetime.datetime.combine(date_to, datetime.time.max))
+        else:
+            end_dt = date_to
+
         return (
             User.objects.filter(
-                created_at__date__gte=date_from,
-                created_at__date__lte=date_to,
+                created_at__range=(start_dt, end_dt),
             )
             .annotate(created_date=TruncDate("created_at"))
             .values("created_date")

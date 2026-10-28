@@ -4,6 +4,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -17,6 +18,7 @@ from .serializers import (
     AnsweredSurveySerializer,
     EligibleSurveySerializer,
     ErrorSerializer,
+    LogoutSerializer,
     ProfileSerializer,
     RegisterSerializer,
     ResponseCreatedSerializer,
@@ -26,6 +28,7 @@ from .serializers import (
     LoginSerializer,
     UserSerializer,
 )
+from .throttles import RegisterThrottle, TokenAuthThrottle
 
 AUTH_TAG = ["auth"]
 ME_TAG = ["me"]
@@ -40,6 +43,8 @@ class PublicAPIView(APIView):
 
 
 class RegisterView(PublicAPIView):
+    throttle_classes = [RegisterThrottle]
+
     @extend_schema(
         tags=AUTH_TAG,
         request=RegisterSerializer,
@@ -65,6 +70,8 @@ class RegisterView(PublicAPIView):
 
 
 class TokenView(PublicAPIView):
+    throttle_classes = [TokenAuthThrottle]
+
     @extend_schema(
         tags=AUTH_TAG,
         request=LoginSerializer,
@@ -82,6 +89,31 @@ class TokenView(PublicAPIView):
         )
         refresh = RefreshToken.for_user(user)
         return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
+
+
+class LogoutView(PublicAPIView):
+    @extend_schema(
+        tags=AUTH_TAG,
+        request=LogoutSerializer,
+        responses={
+            204: None,
+            400: ErrorSerializer,
+        },
+        summary="Revoke and blacklist a refresh token on logout",
+    )
+    def post(self, request):
+        """Blacklist the provided refresh token."""
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            token = RefreshToken(serializer.validated_data["refresh"])
+            token.blacklist()
+        except TokenError:
+            return Response(
+                {"error": {"code": "invalid_token", "message": "Invalid or expired token."}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TokenRefresh(TokenRefreshView):

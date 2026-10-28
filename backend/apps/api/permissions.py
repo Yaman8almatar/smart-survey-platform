@@ -1,16 +1,20 @@
 from rest_framework.permissions import BasePermission
 
-from core.enums import UserType
+from core.enums import AccountStatus, UserType
 
 
 class IsRespondent(BasePermission):
-    """Allows authenticated respondent accounts only."""
+    """Allows active authenticated respondent accounts only."""
 
-    message = "Only respondents can use this endpoint."
+    message = "Only active respondents can use this endpoint."
 
     def has_permission(self, request, view):
-        """Return True for an authenticated user with the respondent role."""
+        """Return True for an active authenticated user with the respondent role."""
         user = request.user
         return bool(
-            user and user.is_authenticated and user.user_type == UserType.RESPONDENT
+            user
+            and getattr(user, "is_authenticated", False)
+            and getattr(user, "is_active", True)
+            and getattr(user, "user_type", None) == UserType.RESPONDENT
+            and getattr(user, "account_status", AccountStatus.ACTIVE) == AccountStatus.ACTIVE
         )
