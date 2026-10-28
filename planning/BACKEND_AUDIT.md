@@ -11,25 +11,6 @@ Branch: chore/claude-setup (commit 75fd0bd). Read-only audit. Every line below c
 | Git | 2.51.1.windows.1 |
 | Flutter | `C:\SRC\flutter\bin\flutter.bat` exists, but `flutter --version` printed nothing in 120 s and again in 90 s (hung). `flutter doctor` not run. Flutter state: unverified |
 
-## Skills
-Skills listed as available in this session. Skills named in the task (`superpowers:verification-before-completion`, `engineering:code-review`, `engineering:tech-debt`) are all in the list. They were not loaded. Severity was rated by hand and each claim carries command output.
-- project: find-skills, handoff, init, security-review, update-config, keybindings-help, code-review, simplify, fewer-permission-prompts, loop, schedule, claude-api, run, plugin-authoring
-- anthropic-skills: built-in-browser, chrome-browser, computer-use, consolidate-memory, deep-research, docs, docx, explain-usage, google-workspace, import-memory, morning, pdf, pptx, schedule, setup-claude, skill-creator, xlsx
-- superpowers: using-superpowers, brainstorming, diagnosing-superpowers, dispatching-parallel-agents, executing-plans, finishing-a-development-branch, receiving-code-review, requesting-code-review, subagent-driven-development, systematic-debugging, test-driven-development, using-git-worktrees, verification-before-completion, writing-plans, writing-skills
-- engineering: architecture, code-review, debug, deploy-checklist, documentation, incident-response, standup, system-design, tech-debt, testing-strategy
-- data: analyze, build-dashboard, create-viz, data-context-extractor, data-visualization, explore-data, sql-queries, statistical-analysis, validate-data, write-query
-- design: accessibility-review, design-critique, design-handoff, design-system, research-synthesis, user-research, ux-copy
-- figma: figma-code-connect, figma-code-workflows, figma-create-new-file, figma-design-to-code, figma-generate-design, figma-generate-diagram, figma-generate-library, figma-generative-plugins, figma-implement-motion, figma-shaders, figma-spec, figma-swiftui, figma-use, figma-use-figjam, figma-use-motion, figma-use-slides
-- caveman: caveman-init, cavecrew, caveman, caveman-commit, caveman-compress, caveman-discover, caveman-evidence-review, caveman-explore, caveman-help, caveman-learn, caveman-manage, caveman-optimize, caveman-review, caveman-setup, caveman-stats, investigate-first, lean-build, migration, safe-refactor, surgical-patch, verify-and-stop
-- searchfit-seo: create-content, create-topic, generate-schema, keyword-cluster, seo-check, translate-content, ai-visibility, broken-links, content-brief, content-strategy, content-translation, internal-linking, keyword-clustering, on-page-seo, schema-markup, seo-audit, technical-seo
-- fastly-agent-toolkit: falco, fastlike, fastly, fastly-cli, fastly-fiddle, fastly-ngwaf, fastly-reference-architectures, fastly-stats, viceroy, xvcl
-- claude-code-setup: claude-automation-recommender
-- frontend-design: frontend-design
-- rtl-chat-fixer: rtl-chat
-- desktop-commander: ai-tools-setup, computer-health-check, desktop-commander-overview, knowledge-base, obsidian-vault, terminal
-- dataviz: dataviz
-- artifact: artifact-design, artifact-diagramming, artifact-capabilities
-
 ## Database
 `docker ps -a` (running containers only):
 | Name | Status | Ports |

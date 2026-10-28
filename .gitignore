@@ -23,6 +23,9 @@ docs/
 Docs/
 *_codex_*.md
 codex_*.md
+.claude/
+CLAUDE.md
+CLAUDE.local.md
 
 # Temporary Office files
 ~$*.docx

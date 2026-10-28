@@ -55,8 +55,14 @@ Example: `feat: add survey list endpoint for the mobile client`.
 
 The team often works together on one laptop, so the commit author is the laptop owner. To credit
 everyone who took part, end the commit message with one `Co-authored-by:` trailer per teammate who
-paired on that commit, and only for them. The exact lines are in `CLAUDE.md`, section
-"Team and commit credit":
+paired on that commit, and only for them. The trailer lines are:
+
+```text
+Co-authored-by: Yousef812005 <alzby7906@gmail.com>
+Co-authored-by: HoLqKoO <54415481+HoLqKoO@users.noreply.github.com>
+```
+
+For example, a commit message that credits both teammates looks like this:
 
 ```text
 feat: add survey list endpoint for the mobile client
