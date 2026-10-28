@@ -23,6 +23,22 @@ Smart Survey Platform addresses these limitations by providing:
 
 ---
 
+## Graduation 1 (in progress)
+
+Graduation 1 (October 2026 to January 2027) extends the platform with a Flutter mobile app for respondents,
+richer targeting, a response-quality engine, and sentiment analysis of Arabic (MSA) and English open answers.
+The team works in Scrum with two-week sprints starting 2026-11-02.
+
+- Built so far: the respondent REST API (`/api/v1/`, JWT) and the Flutter respondent app with login,
+  registration, the eligible-survey list and logout. How to run it: [`frontend/README.md`](frontend/README.md).
+- Planned: requirements FR-01..FR-20, tracked as issues in the
+  [Product Backlog](https://github.com/users/Yaman8almatar/projects/1).
+- Seminar 1 slides: [`documentation/graduation-1/`](documentation/graduation-1/).
+- Diagrams: [`diagrams/`](diagrams/README.md).
+- Releases: `v1.0-junior-final` (junior project), `v1.1-iteration0` (Iteration 0, Seminar 1).
+
+---
+
 ## Main User Roles
 
 ### Service Provider
@@ -218,82 +234,77 @@ These reports provide an operational overview of the platform.
 
 ---
 
+## Project Structure
+
+The repository is a monorepo: the Django backend lives in `backend/` and the Flutter respondent app in `frontend/`.
+
+```text
+smart-survey-platform/
+├── backend/                  Django project (run all Python commands from here)
+│   ├── manage.py
+│   ├── config/               settings, URLs, ASGI/WSGI
+│   ├── apps/                 Django apps: views, forms, URLs, models, migrations
+│   ├── core/                 shared enums and exceptions
+│   ├── services/             business rules and workflows
+│   ├── repositories/         database access (Django ORM)
+│   ├── infrastructure/       external integrations (Hugging Face API)
+│   ├── templates/  static/
+│   ├── tests/                service-layer tests (pytest)
+│   ├── requirements.txt  pytest.ini  .env.example
+├── frontend/                 Flutter respondent app (Android and web)
+├── diagrams/                 Diagram exports (PNG): class diagram, use case diagrams
+├── documentation/
+│   ├── junior/               junior project documents
+│   └── graduation-1/         Graduation 1 report and slides
+├── planning/                 status, audits, sprint plans
+├── .github/workflows/        CI (Django CI, Flutter CI)
+├── docker-compose.yml        PostgreSQL 15 for local development
+├── CONTRIBUTING.md           branching and commit rules
+└── README.md
+```
+
+---
+
 ## Local Setup
 
-### 1. Clone the Repository
+Commands are for Windows PowerShell. Requirements: Python 3.11, Docker Desktop, Git.
 
-```bash
-git clone https://github.com/your-username/smart-survey-platform.git
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/Yaman8almatar/smart-survey-platform.git
 cd smart-survey-platform
 ```
 
-Replace the repository URL with your actual GitHub repository URL.
+### 2. Create the virtual environment (repository root)
 
-### 2. Create and Activate Virtual Environment
-
-```bash
+```powershell
 python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r backend\requirements.txt
 ```
 
-Windows:
+### 3. Configure environment variables
 
-```bash
-.venv\\Scripts\\activate
+```powershell
+copy backend\.env.example backend\.env
 ```
 
-Linux / macOS:
+Edit `backend\.env` and set `SECRET_KEY` and `HF_API_TOKEN`. The database values already match
+`docker-compose.yml` (`DB_HOST=127.0.0.1`, `DB_PORT=5432`). Never commit `backend\.env`.
 
-```bash
-source .venv/bin/activate
-```
+### 4. Start PostgreSQL (repository root)
 
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure Environment Variables
-
-Create a `.env` file based on `.env.example`.
-
-Example:
-
-```env
-SECRET_KEY=replace-this-secret-key
-DEBUG=True
-
-DB_NAME=smart_survey_db
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=127.0.0.1
-DB_PORT=5432
-
-HF_API_TOKEN=your_huggingface_token
-HF_SENTIMENT_MODEL_URL=https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest
-```
-
-### 5. Start PostgreSQL with Docker
-
-```bash
+```powershell
 docker compose up -d
 ```
 
-### 6. Apply Migrations
+### 5. Migrate, seed and run (from backend)
 
-```bash
+```powershell
+cd backend
 python manage.py migrate
-```
-
-### 7. Seed Demo Data
-
-```bash
 python manage.py seed_demo_data
-```
-
-### 8. Run the Development Server
-
-```bash
 python manage.py runserver
 ```
 
@@ -302,6 +313,7 @@ Open:
 ```text
 http://127.0.0.1:8000/
 ```
+
 
 ---
 
@@ -322,10 +334,11 @@ respondent@demo.com / DemoPass123!
 
 ## Testing
 
-Run service-layer tests:
+Run all tests (services, repositories, settings and views):
 
 ```bash
-pytest tests/services
+cd backend
+python -m pytest tests -q
 ```
 
 Run Django checks:
