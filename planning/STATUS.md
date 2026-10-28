@@ -1,10 +1,10 @@
-# STATUS — 2026-10-23
-Branch: feature/flutter-register
-Task: TASK-08 Part B — Flutter register screen, auto-login, then the eligible list
-Done: Part A merged (PR 13, squash 082f639, branch deleted). Register screen with fields errors, _RegionField, Create account link on login.
-Changes: 2 modified, 3 new, 0 deleted — frontend/lib/features/auth/{register_screen,form_message,auth_repository,login_screen}.dart, frontend/test/features/auth/register_screen_test.dart
-Tests: skipped (no Python changes); flutter analyze clean, flutter test 34 passed
+# STATUS — 2026-10-28
+Branch: docs/iteration0-outputs
+Task: TASK-11 Part B — upload Iteration 0 outputs (deck, report draft, diagrams, READMEs) into develop
+Done: Copied deck pptx and pdf, report chapters 1-3 draft, class diagram and 3 use case PNGs (SHA256 match). Rewrote diagrams and graduation-1 READMEs, added Graduation 1 section to README.md.
+Changes: 3 modified, 7 new, 0 deleted — README.md, diagrams/README.md, documentation/graduation-1/{README.md, Seminar 1 pptx/pdf, Report draft docx}
+Tests: skipped (no Python changes)
 Check: OK (System check identified no issues)
-Committed: yes (this commit, see PR)
-Open questions: Part B not run live in Chrome (widget tests only). Region is free text; swap _RegionField if the supervisor requires a governorate list.
-Next: merge Part B PR when CI is green; add DEFENSE_QA.md entries.
+Committed: yes (one commit "docs: add Iteration 0 outputs for Seminar 1", this file amended in; hash in git log)
+Open questions: Slide 9 speaker notes still say "Data Access" twice (B3 check waived by the user) while slide 9 and the READMEs say "Data Source". README Architecture section still says "Data Layer". PDF has 11 pages by regex; open it to confirm Western digits.
+Next: wait for Django CI on the PR, squash-merge into develop, then Part C release PR.
