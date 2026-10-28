@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -175,9 +176,16 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_URLS_REGEX = r"^/api/.*$"
 
+IS_TESTING = (
+    "pytest" in sys.modules
+    or "test" in sys.argv
+    or any("pytest" in arg for arg in sys.argv)
+    or os.getenv("TESTING", "").lower() in {"true", "1"}
+)
+
 # Production SSL & security headers
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+if not DEBUG and not IS_TESTING:
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "true").lower() in {"true", "1", "yes"}
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
