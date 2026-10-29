@@ -27,7 +27,10 @@ Smart Survey Platform addresses these limitations by providing:
 
 Graduation 1 (October 2026 to January 2027) extends the platform with a Flutter mobile app for respondents,
 richer targeting, a response-quality engine, and sentiment analysis of Arabic (MSA) and English open answers.
-The team works in Scrum with two-week sprints starting 2026-11-02.
+The team works with Kanban: a defined workflow with work-in-progress limits on the
+[GitHub Projects board](https://github.com/users/Yaman8almatar/projects/1), and a release reviewed with the
+supervisors every two weeks, starting 2026-11-02. The workflow and its policies are in
+[`planning/KANBAN.md`](planning/KANBAN.md).
 
 - Built so far: the respondent REST API (`/api/v1/`, JWT) and the Flutter respondent app with login,
   registration, the eligible-survey list and logout. How to run it: [`frontend/README.md`](frontend/README.md).
@@ -35,7 +38,8 @@ The team works in Scrum with two-week sprints starting 2026-11-02.
   [Product Backlog](https://github.com/users/Yaman8almatar/projects/1).
 - Seminar 1 slides: [`documentation/graduation-1/`](documentation/graduation-1/).
 - Diagrams: [`diagrams/`](diagrams/README.md).
-- Releases: `v1.0-junior-final` (junior project), `v1.1-iteration0` (Iteration 0, Seminar 1).
+- Releases: `v1.0-junior-final` (junior project), `v1.1-iteration0` (Iteration 0, Seminar 1),
+  `v1.1.1` and `v1.1.2` (patch releases).
 
 ---
 
@@ -95,23 +99,17 @@ A system administrator can:
 
 ## Architecture
 
-The system follows a layered architecture:
+The system is a three-tier client-server system (client, Django application server, PostgreSQL). Inside the
+Django server the code is organised in three logical layers (Fowler, *Patterns of Enterprise Application
+Architecture*):
 
 ```text
-Presentation Layer
-Django Views, Templates, Bootstrap, Chart.js
-
-Service Layer
-Business rules and workflow orchestration
-
-Repository Layer
-Database access using Django ORM
-
-Data Layer
-Django models mapped to PostgreSQL tables
-
-Infrastructure Layer
-External integration with Hugging Face API
+Presentation Layer   DRF API views + serializers (REST, for the Flutter app)
+                     Django views + templates (MVT, for provider and admin pages)
+Business Layer       services/        Service Layer pattern: business rules and workflows
+Data Source Layer    repositories/    Repository pattern: all database queries (Django ORM)
+                     infrastructure/  Gateway pattern: HuggingFaceClient, the external sentiment API
+Domain Model         apps/core/models Django models (Active Record), used by the business and data source layers
 ```
 
 This structure separates responsibilities and prevents direct database access from the presentation layer.
@@ -256,10 +254,10 @@ smart-survey-platform/
 ├── documentation/
 │   ├── junior/               junior project documents
 │   └── graduation-1/         Graduation 1 report and slides
-├── planning/                 status, audits, sprint plans
+├── planning/                 status, Kanban workflow, API contract, backend audit
 ├── .github/workflows/        CI (Django CI, Flutter CI)
 ├── docker-compose.yml        PostgreSQL 15 for local development
-├── CONTRIBUTING.md           branching and commit rules
+├── CONTRIBUTING.md           workflow, branching and commit rules
 └── README.md
 ```
 
@@ -356,7 +354,7 @@ The project follows these engineering rules:
 - Views delegate business operations to services.
 - Services contain business rules and workflow logic.
 - Repositories isolate database queries.
-- External AI calls are isolated in the infrastructure layer.
+- External AI calls are isolated in a gateway class (`infrastructure/huggingface_client.py`) in the data source layer.
 - Models represent persistent domain entities.
 - Duplicate responses are blocked by business logic.
 - Survey actions are restricted by survey status.
