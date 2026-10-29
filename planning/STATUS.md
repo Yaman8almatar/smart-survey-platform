@@ -1,10 +1,10 @@
-# STATUS — 2026-10-28
-Branch: chore/untrack-local-tool-config
-Task: TASK-12 — stop tracking local tool configuration (.claude/ and CLAUDE.md), release v1.1.1
-Done: git rm --cached on 6 files (kept on disk, backup in Desktop\tool-config-backup). Added 3 ignore lines. CONTRIBUTING.md now holds the two trailer lines. Removed the Skills inventory from BACKEND_AUDIT.md (user approved).
-Changes: 4 modified, 0 new, 6 deleted from index — .gitignore, CONTRIBUTING.md, planning/BACKEND_AUDIT.md, .claude/*, CLAUDE.md
+# STATUS — 2026-10-29
+Branch: hotfix/kanban-docs
+Task: TASK-14 — align repository documents with Kanban (D-078), hotfix release v1.1.2 from main
+Done: Replaced README, CONTRIBUTING, diagrams and graduation-1 READMEs, deck (pptx, pdf) and report (docx) with the Kanban versions. Added planning/KANBAN.md.
+Changes: 8 modified, 1 new, 0 deleted — README.md, CONTRIBUTING.md, planning/KANBAN.md, documentation/graduation-1/ (README, deck, report), diagrams/README.md
 Tests: skipped (no Python changes)
 Check: OK (System check identified no issues)
-Committed: yes (one commit "chore: stop tracking local tool configuration", this file amended in; hash in git log)
-Open questions: none. Remaining "claude" hits in tracked files: .gitignore:26-28, BACKEND_AUDIT.md lines 2, 85, 158 (branch name and K-04/F-12 finding text, left unchanged).
-Next: push, PR into develop, wait for Django CI, squash-merge, then the v1.1.1 release PR.
+Committed: yes (one commit "docs: switch the project method to Kanban ...", this file included; hash in git log)
+Open questions: none. Only planning/KANBAN.md lines 12-13 still say Scrum (the explanatory lines).
+Next: PR into main (merge commit), tag v1.1.2 and release, merge the hotfix back into develop, then update the GitHub Project.
