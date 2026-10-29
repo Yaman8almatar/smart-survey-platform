@@ -19,7 +19,8 @@ The architecture diagram is on slide 9 of the Seminar 1 deck in documentation/gr
   (Larman, Applying UML and Patterns, 2nd ed., Ch. 6).
 - Requirement IDs are those of the Product Backlog: FR-01..FR-20 for Graduation 1.
 
-## Planned in later sprints
-ERD with relational schema and constraints (Sprint 1), component diagram (Sprint 1), one sequence diagram per
-main use case (in the sprint that builds it), activity diagrams (Sprints 2-3), survey lifecycle state machine
-(Sprint 3), data-flow diagram of the sentiment analysis (Sprint 2).
+## Planned in later increments
+Drawn when the backlog item that needs them is pulled (Agile Modeling, model storming): ERD with relational
+schema and constraints and the component diagram (Increment 1), one sequence diagram per main use case (in the
+increment that builds it), activity diagrams (Increments 2-3), survey lifecycle state machine (Increment 3),
+data-flow diagram of the sentiment analysis (Increment 2).
