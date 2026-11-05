@@ -1,10 +1,10 @@
-# STATUS — 2026-10-29
-Branch: hotfix/kanban-docs
-Task: TASK-14 — align repository documents with Kanban (D-078), hotfix release v1.1.2 from main
-Done: Replaced README, CONTRIBUTING, diagrams and graduation-1 READMEs, deck (pptx, pdf) and report (docx) with the Kanban versions. Added planning/KANBAN.md.
-Changes: 8 modified, 1 new, 0 deleted — README.md, CONTRIBUTING.md, planning/KANBAN.md, documentation/graduation-1/ (README, deck, report), diagrams/README.md
-Tests: skipped (no Python changes)
+# STATUS — 2026-11-06
+Branch: fix/api-auth-throttling
+Task: TASK-15 Part 3 — T-4 scoped throttling for the auth endpoints (#38)
+Done: ScopedRateThrottle with auth_token 10/min, auth_refresh 30/min, auth_register 5/min, auth_logout 30/min; no default throttle, so health probes are free. Redis cache when REDIS_URL is set. throttles.py removed. 11 throttling tests, cache cleared per test. API.md: logout, rotation, 429, limits note.
+Changes: 4 modified, 1 new, 1 deleted — backend/config/settings.py, backend/apps/api/views.py, backend/tests/api/test_throttling.py, backend/apps/api/throttles.py (deleted), planning/API.md
+Tests: 352 passed, 247 warnings (baseline 341)
 Check: OK (System check identified no issues)
-Committed: yes (one commit "docs: switch the project method to Kanban ...", this file included; hash in git log)
-Open questions: none. Only planning/KANBAN.md lines 12-13 still say Scrum (the explanatory lines).
-Next: PR into main (merge commit), tag v1.1.2 and release, merge the hotfix back into develop, then update the GitHub Project.
+Committed: yes — a1cfd34 (code, tests), 1486ba5 (API.md), this file in the final commit
+Open questions: none
+Next: open the PR to develop, move #38 to Review; after PR #50 merges, merge develop in (keep this STATUS.md). Part 4 waits (Review limit 2).
