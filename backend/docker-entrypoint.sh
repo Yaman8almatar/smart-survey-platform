@@ -37,7 +37,7 @@ fi
 
 if [ "$COLLECT_STATIC" != "false" ]; then
     echo "[entrypoint] Collecting static files..."
-    python manage.py collectstatic --noinput || true
+    python manage.py collectstatic --noinput
 fi
 
 echo "[entrypoint] Executing CMD: $@"

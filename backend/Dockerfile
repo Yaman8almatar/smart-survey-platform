@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build stage
 # ==========================================
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.11-slim-bookworm AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -26,7 +26,7 @@ RUN pip install --upgrade pip setuptools wheel && \
 # ==========================================
 # Stage 2: Production runtime stage
 # ==========================================
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
