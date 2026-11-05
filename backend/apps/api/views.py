@@ -28,7 +28,6 @@ from .serializers import (
     LoginSerializer,
     UserSerializer,
 )
-from .throttles import RegisterThrottle, TokenAuthThrottle
 
 AUTH_TAG = ["auth"]
 ME_TAG = ["me"]
@@ -43,7 +42,7 @@ class PublicAPIView(APIView):
 
 
 class RegisterView(PublicAPIView):
-    throttle_classes = [RegisterThrottle]
+    throttle_scope = "auth_register"
 
     @extend_schema(
         tags=AUTH_TAG,
@@ -70,7 +69,7 @@ class RegisterView(PublicAPIView):
 
 
 class TokenView(PublicAPIView):
-    throttle_classes = [TokenAuthThrottle]
+    throttle_scope = "auth_token"
 
     @extend_schema(
         tags=AUTH_TAG,
@@ -92,6 +91,8 @@ class TokenView(PublicAPIView):
 
 
 class LogoutView(PublicAPIView):
+    throttle_scope = "auth_logout"
+
     @extend_schema(
         tags=AUTH_TAG,
         request=LogoutSerializer,
@@ -117,6 +118,8 @@ class LogoutView(PublicAPIView):
 
 
 class TokenRefresh(TokenRefreshView):
+    throttle_scope = "auth_refresh"
+
     @extend_schema(tags=AUTH_TAG, summary="Exchange a refresh token for a new access token")
     def post(self, request, *args, **kwargs):
         """Return a new access token for a valid refresh token."""

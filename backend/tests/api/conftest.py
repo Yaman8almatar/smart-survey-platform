@@ -1,4 +1,5 @@
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -19,6 +20,12 @@ from core.enums import (
 )
 
 PASSWORD = "strong-password"
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Start every test with empty throttle counters."""
+    cache.clear()
 
 
 @pytest.fixture
