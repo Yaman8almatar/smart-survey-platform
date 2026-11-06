@@ -25,6 +25,9 @@ Android emulator notes:
    (rotation): store both, because the old refresh token is blacklisted and refused from then on. If refresh fails, log in again.
 5. On logout, call `POST /auth/logout/` with `{"refresh": "..."}`. It returns 204 and blacklists that refresh token, so it
    can no longer be used, even if a copy was kept. The access token stays valid until it expires (30 minutes).
+   The call needs no `Authorization` header. The Flutter client (`AuthRepository.logout`) sends it without one, treats
+   revocation as best effort, and always deletes both stored tokens, even on a 400, a network failure or when no refresh
+   token is stored (then it sends no request).
 
 Only respondents may use the API. Other roles can obtain a token but get 403 `permission_denied` on every endpoint except register and token. Token lifetimes are `API_ACCESS_TOKEN_LIFETIME` and `API_REFRESH_TOKEN_LIFETIME` in `config/settings.py`.
 
