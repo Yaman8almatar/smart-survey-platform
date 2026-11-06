@@ -44,6 +44,7 @@ jobs:
       DB_PORT: "5432"
       HF_API_TOKEN: dummy-ci-token
       HF_SENTIMENT_MODEL_URL: https://example.invalid/huggingface/sentiment
+      SECURE_SSL_REDIRECT: "false"
 
     steps:
       - name: Check out repository

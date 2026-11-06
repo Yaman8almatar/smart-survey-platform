@@ -1,10 +1,12 @@
-# STATUS — 2026-10-29
-Branch: hotfix/kanban-docs
-Task: TASK-14 — align repository documents with Kanban (D-078), hotfix release v1.1.2 from main
-Done: Replaced README, CONTRIBUTING, diagrams and graduation-1 READMEs, deck (pptx, pdf) and report (docx) with the Kanban versions. Added planning/KANBAN.md.
-Changes: 8 modified, 1 new, 0 deleted — README.md, CONTRIBUTING.md, planning/KANBAN.md, documentation/graduation-1/ (README, deck, report), diagrams/README.md
-Tests: skipped (no Python changes)
-Check: OK (System check identified no issues)
-Committed: yes (one commit "docs: switch the project method to Kanban ...", this file included; hash in git log)
-Open questions: none. Only planning/KANBAN.md lines 12-13 still say Scrum (the explanatory lines).
-Next: PR into main (merge commit), tag v1.1.2 and release, merge the hotfix back into develop, then update the GitHub Project.
+# STATUS — 2026-11-06
+Branch: chore/infra-split-compose
+Task: TASK-15 Part 2 follow-up (T-6 #48) — prove the production stack on a GitHub runner (PR #50)
+Done: new non-required workflow Prod stack smoke (build, up --wait, readiness 200, worker running);
+  first run found the worker crash (kombu 5.7.0 needs redis-py >= 6.1), fixed by pinning kombu==5.3.7;
+  PR #50 Verification updated; temp venv ssv2 deleted.
+Changes: 1 modified, 1 new, 0 deleted — .github/workflows/prod-stack-smoke.yml, backend/requirements.txt
+Tests: skipped (no Python changes); CI on 62e60c8: test green, Prod stack smoke green
+Check: ModuleNotFoundError (laptop .venv has main's packages, no celery; fixed by the step 11 pip install)
+Committed: yes — 2f83723, 62e60c8, plus this status commit
+Open questions: none
+Next: approval by Yousef or Hasan with the comprehension answer, squash merge, then step 11 (move the laptop to develop)
