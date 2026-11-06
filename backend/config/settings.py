@@ -123,21 +123,28 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["apps.api.permissions.IsRespondent"],
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-    ],
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/day",
-        "user": "1000/day",
-        "auth_token": "5/min",
-        "auth_register": "3/min",
+        "auth_token": "10/min",
+        "auth_refresh": "30/min",
+        "auth_register": "5/min",
+        "auth_logout": "30/min",
     },
+    "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0")),
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.api.exceptions.api_exception_handler",
 }
+
+REDIS_URL = os.getenv("REDIS_URL", "").strip()
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
 
 # The User primary key is user_id, not id.
 SIMPLE_JWT = {

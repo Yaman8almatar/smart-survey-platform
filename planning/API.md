@@ -21,16 +21,20 @@ Android emulator notes:
 1. `POST /auth/register/` creates the respondent and the profile. It returns 201 and **no tokens**.
 2. `POST /auth/token/` with `email` and `password` returns `access` (30 minutes) and `refresh` (7 days). Suspended or deleted accounts get 401 `invalid_credentials`.
 3. Send `Authorization: Bearer <access>` on every other call.
-4. On 401, call `POST /auth/token/refresh/` with `{"refresh": "..."}` to get a new `access`. If that fails, log in again.
+4. On 401, call `POST /auth/token/refresh/` with `{"refresh": "..."}`. It returns a new `access` and a new `refresh`
+   (rotation): store both, because the old refresh token is blacklisted and refused from then on. If refresh fails, log in again.
+5. On logout, call `POST /auth/logout/` with `{"refresh": "..."}`. It returns 204 and blacklists that refresh token, so it
+   can no longer be used, even if a copy was kept. The access token stays valid until it expires (30 minutes).
 
 Only respondents may use the API. Other roles can obtain a token but get 403 `permission_denied` on every endpoint except register and token. Token lifetimes are `API_ACCESS_TOKEN_LIFETIME` and `API_REFRESH_TOKEN_LIFETIME` in `config/settings.py`.
 
 ## Endpoints
 | Method | Path | Auth | Success | Errors |
 |---|---|---|---|---|
-| POST | `/auth/register/` | none | 201 `{id,email,name,role}` | 400 |
-| POST | `/auth/token/` | none | 200 `{access,refresh}` | 400, 401 |
-| POST | `/auth/token/refresh/` | none | 200 `{access}` | 400, 401 |
+| POST | `/auth/register/` | none | 201 `{id,email,name,role}` | 400, 429 |
+| POST | `/auth/token/` | none | 200 `{access,refresh}` | 400, 401, 429 |
+| POST | `/auth/token/refresh/` | none | 200 `{access,refresh}` | 400, 401, 429 |
+| POST | `/auth/logout/` | none | 204 | 400, 429 |
 | GET | `/me/` | respondent | 200 `{id,email,name,role}` | 401, 403 |
 | GET | `/me/profile/` | respondent | 200 `{age,gender,region,interests}` | 401, 403, 404 |
 | PUT | `/me/profile/` | respondent | 200 profile | 400, 401, 403 |
@@ -60,19 +64,41 @@ Every error, including 401 and 403, has one shape. `fields` appears only for inp
 ```
 | Status | Codes |
 |---|---|
-| 400 | `validation_error`, `parse_error` |
+| 400 | `validation_error`, `parse_error`, `invalid_token` (logout) |
 | 401 | `not_authenticated`, `authentication_failed`, `invalid_credentials` |
 | 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible) |
 | 404 | `survey_not_found`, `question_not_found`, `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `duplicate_response`, `not_editable` (survey is not published) |
+| 429 | `throttled` (too many auth requests; see Throttling) |
 | 500 | `internal_error` |
 
 Mapping lives in one place: `backend/apps/api/exceptions.py`.
 
+## Throttling
+The four auth endpoints are rate limited per client IP with DRF `ScopedRateThrottle`, one scope each. The rates live in
+`REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` in `config/settings.py`:
+
+| Endpoint | Scope | Rate |
+|---|---|---|
+| `POST /auth/token/` | `auth_token` | 10/min |
+| `POST /auth/token/refresh/` | `auth_refresh` | 30/min |
+| `POST /auth/register/` | `auth_register` | 5/min |
+| `POST /auth/logout/` | `auth_logout` | 30/min |
+
+A request over the limit gets 429 `throttled` and a `Retry-After` header (seconds to wait). Scopes are independent: using up
+login does not block token refresh. Endpoints without a scope, including `/healthz/live/` and `/healthz/ready/`, are not
+throttled. The counters live in the Django cache; set `REDIS_URL` so that several server processes share them (without it
+each process keeps its own in-memory counters).
+
+The client is identified by the connection address (REMOTE_ADDR), so clients cannot change their identity with
+X-Forwarded-For. Everyone behind one NAT gateway shares one limit. If a proxy is added in front of the API, set
+NUM_PROXIES to the number of proxies.
+
+Throttling limits abuse; it is not complete brute-force protection, because clients can change IP addresses.
+
 ## Known limits
 - No pagination.
-- No login throttling yet; add DRF throttle classes before any public deployment.
 - URLs that do not exist (or a non-numeric survey id) return Django's HTML 404, not the JSON error shape.
 - Use a `SECRET_KEY` of at least 32 bytes: JWT signing reuses it, and shorter keys trigger a PyJWT warning.
 - The eligible list runs one count query per survey (small lists).

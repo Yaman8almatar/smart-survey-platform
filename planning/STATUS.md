@@ -1,12 +1,12 @@
 # STATUS — 2026-11-06
-Branch: chore/infra-split-compose
-Task: TASK-15 Part 2 follow-up (T-6 #48) — prove the production stack on a GitHub runner (PR #50)
-Done: new non-required workflow Prod stack smoke (build, up --wait, readiness 200, worker running);
-  first run found the worker crash (kombu 5.7.0 needs redis-py >= 6.1), fixed by pinning kombu==5.3.7;
-  PR #50 Verification updated; temp venv ssv2 deleted.
-Changes: 1 modified, 1 new, 0 deleted — .github/workflows/prod-stack-smoke.yml, backend/requirements.txt
-Tests: skipped (no Python changes); CI on 62e60c8: test green, Prod stack smoke green
-Check: ModuleNotFoundError (laptop .venv has main's packages, no celery; fixed by the step 11 pip install)
-Committed: yes — 2f83723, 62e60c8, plus this status commit
+Branch: fix/api-auth-throttling
+Task: TASK-15 — merge PR #50 (Part 2), reopen #48, bring PR #51 (Part 3) up to date with develop
+Done: PR #50 squash-merged into develop (7f00596), branch deleted; #48 back to In Progress (Parts 5, 6, 8 remain).
+  origin/develop merged into this branch (8e7cf38); only planning/STATUS.md conflicted, kept this branch's version.
+  docker compose config: one service, db, host port 5432.
+Changes: merge brought 15 files from develop; PR #51 vs develop is 8 files — backend/config/settings.py, backend/apps/api/views.py, backend/tests/api/test_throttling.py, backend/apps/api/throttles.py (deleted), planning/API.md
+Tests: 353 passed, 128 warnings
+Check: OK (System check identified no issues)
+Committed: yes — 8e7cf38 (merge, pushed), this file in a separate commit
 Open questions: none
-Next: approval by Yousef or Hasan with the comprehension answer, squash merge, then step 11 (move the laptop to develop)
+Next: Django CI green on PR #51, then teammate approval and the Part 3 comprehension answer; Part 4 may start (Review now holds one PR).
