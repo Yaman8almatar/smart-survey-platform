@@ -1,0 +1,44 @@
+name: Prod stack smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - backend/Dockerfile
+      - backend/docker-entrypoint.sh
+      - backend/.dockerignore
+      - backend/.env.prod.example
+      - backend/requirements.txt
+      - docker-compose.prod.yml
+      - .github/workflows/prod-stack-smoke.yml
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create the env file from the template
+        run: cp backend/.env.prod.example backend/.env.prod
+
+      - name: Build and start the stack
+        run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 180
+
+      - name: Readiness answers 200
+        run: test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/healthz/ready/)" = "200"
+
+      - name: Worker is running
+        run: docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx worker
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml logs --no-color --tail=100
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down -v
