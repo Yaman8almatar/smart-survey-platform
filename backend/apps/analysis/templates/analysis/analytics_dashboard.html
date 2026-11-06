@@ -152,6 +152,11 @@
                                                     </div>
                                                 {% endfor %}
                                             </div>
+                                            {% if question.text_answer_total > question.text_answers|length %}
+                                                <p class="text-muted small mt-2 mb-0">
+                                                    Showing the first {{ question.text_answers|length }} of {{ question.text_answer_total }} answers.
+                                                </p>
+                                            {% endif %}
                                         {% else %}
                                             <div class="empty-state">
                                                 No text answers submitted yet.

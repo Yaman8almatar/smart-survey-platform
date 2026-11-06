@@ -132,6 +132,43 @@ def choice_answer(question, option):
 
 
 @pytest.mark.django_db
+def test_open_text_answer_over_2000_characters_is_rejected(response_service):
+    provider = create_user("provider-long-text@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-long-text@example.com", UserType.RESPONDENT)
+    create_profile(respondent)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT)
+
+    with pytest.raises(ValidationError):
+        response_service.submit_response(
+            respondent,
+            survey.survey_id,
+            [open_text_answer(question, "x" * 2001)],
+        )
+
+    assert not ResponseRepository().has_response_for_survey(
+        survey.survey_id, respondent.user_id
+    )
+
+
+@pytest.mark.django_db
+def test_open_text_answer_of_exactly_2000_characters_is_accepted(response_service):
+    provider = create_user("provider-limit-text@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-limit-text@example.com", UserType.RESPONDENT)
+    create_profile(respondent)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT)
+
+    response = response_service.submit_response(
+        respondent,
+        survey.survey_id,
+        [open_text_answer(question, "x" * 2000)],
+    )
+
+    assert response.response_id is not None
+
+
+@pytest.mark.django_db
 def test_respondent_can_submit_valid_response(response_service):
     provider = create_user("provider-submit@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-submit@example.com", UserType.RESPONDENT)

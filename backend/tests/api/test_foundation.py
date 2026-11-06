@@ -10,7 +10,7 @@ from apps.api.exceptions import api_exception_handler
 from apps.api.permissions import IsRespondent
 from config import settings as config_settings
 from core import exceptions as core_exceptions
-from core.enums import UserType
+from core.enums import AccountStatus, UserType
 
 
 @pytest.mark.parametrize(
@@ -133,6 +133,19 @@ def test_is_respondent_permission(user, allowed):
     request = SimpleNamespace(user=user)
 
     assert IsRespondent().has_permission(request, None) is allowed
+
+
+@pytest.mark.parametrize("account_status", [AccountStatus.SUSPENDED, AccountStatus.DELETED])
+def test_is_respondent_permission_refuses_inactive_account_status(account_status):
+    # is_active stays True to prove the account_status rule alone refuses the request.
+    user = SimpleNamespace(
+        is_authenticated=True,
+        is_active=True,
+        user_type=UserType.RESPONDENT,
+        account_status=account_status,
+    )
+
+    assert IsRespondent().has_permission(SimpleNamespace(user=user), None) is False
 
 
 @pytest.mark.django_db

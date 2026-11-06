@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.enums import AccountStatus, Gender, UserType
+from repositories.health_repository import HealthRepository
 from repositories.response_repository import ResponseRepository
 from repositories.user_repository import UserRepository
 from apps.core.tasks import analyze_open_text_answers_task
@@ -28,6 +29,21 @@ def test_readiness_probe_returns_200():
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert response.json()["database"] == "connected"
+
+
+@pytest.mark.django_db
+def test_readiness_probe_returns_503_without_exception_text(monkeypatch):
+    def failing_ping(self):
+        raise RuntimeError("password=secret host=db")
+
+    monkeypatch.setattr(HealthRepository, "ping", failing_ping)
+    client = APIClient()
+
+    response = client.get("/healthz/ready/")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready", "database": "disconnected"}
+    assert b"secret" not in response.content
 
 
 @pytest.mark.django_db

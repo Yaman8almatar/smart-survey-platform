@@ -21,10 +21,6 @@ class SurveyRepository:
         """Return surveys owned by the selected service provider."""
         return Survey.objects.filter(provider_id=provider_id)
 
-    def find_published(self):
-        """Return surveys currently available for respondent eligibility checks."""
-        return Survey.objects.filter(status=SurveyStatus.PUBLISHED)
-
     def find_eligible_for_respondent(self, profile, respondent_user_id):
         """Return published unanswered surveys matching respondent demographics with question counts."""
         has_responded = Response.objects.filter(

@@ -2,6 +2,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 
 from apps.core.models import User
+from repositories.date_ranges import aware_day_range
 
 
 class UserRepository:
@@ -51,19 +52,7 @@ class UserRepository:
 
     def count_created_by_date(self, date_from, date_to):
         """Return new user counts grouped by creation date."""
-        import datetime
-        from django.utils import timezone
-
-        if isinstance(date_from, datetime.date) and not isinstance(date_from, datetime.datetime):
-            start_dt = timezone.make_aware(datetime.datetime.combine(date_from, datetime.time.min))
-        else:
-            start_dt = date_from
-
-        if isinstance(date_to, datetime.date) and not isinstance(date_to, datetime.datetime):
-            end_dt = timezone.make_aware(datetime.datetime.combine(date_to, datetime.time.max))
-        else:
-            end_dt = date_to
-
+        start_dt, end_dt = aware_day_range(date_from, date_to)
         return (
             User.objects.filter(
                 created_at__range=(start_dt, end_dt),

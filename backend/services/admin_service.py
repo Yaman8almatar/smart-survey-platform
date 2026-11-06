@@ -166,10 +166,6 @@ class AdminService:
             if row[date_key] is not None
         ]
 
-    def _total_response_count(self, response_counts):
-        """Calculate the total response count from grouped response rows."""
-        return sum(row["response_count"] for row in response_counts)
-
     def _has_count_data(self, counts):
         """Return whether grouped count data contains any non-zero values."""
         return any(count > 0 for count in counts.values())

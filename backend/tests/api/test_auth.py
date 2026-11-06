@@ -8,6 +8,7 @@ from tests.api.conftest import PASSWORD
 REGISTER_URL = "/api/v1/auth/register/"
 TOKEN_URL = "/api/v1/auth/token/"
 REFRESH_URL = "/api/v1/auth/token/refresh/"
+LOGOUT_URL = "/api/v1/auth/logout/"
 
 pytestmark = pytest.mark.django_db
 
@@ -203,6 +204,58 @@ def test_refresh_rejects_invalid_token(client):
 
     assert response.status_code == 401
     assert set(response.json()) == {"error"}
+
+
+def test_refresh_rotates_and_refuses_the_rotated_token(client, respondent):
+    old_refresh = str(RefreshToken.for_user(respondent))
+
+    first = client.post(REFRESH_URL, {"refresh": old_refresh}, format="json")
+    reused = client.post(REFRESH_URL, {"refresh": old_refresh}, format="json")
+
+    assert first.status_code == 200
+    new_refresh = first.json()["refresh"]
+    assert new_refresh != old_refresh
+    assert reused.status_code == 401
+    assert client.post(REFRESH_URL, {"refresh": new_refresh}, format="json").status_code == 200
+
+
+def test_logout_with_bad_token_returns_invalid_token(client):
+    response = client.post(LOGOUT_URL, {"refresh": "not-a-token"}, format="json")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_token"
+
+
+def test_token_accepts_email_in_any_letter_case(client, respondent):
+    response = client.post(
+        TOKEN_URL,
+        {"email": "  Respondent@EXAMPLE.com ", "password": PASSWORD},
+        format="json",
+    )
+
+    assert response.status_code == 200
+
+
+def test_register_rejects_same_email_in_other_letter_case(client, respondent):
+    response = client.post(
+        REGISTER_URL,
+        registration_payload(email="RESPONDENT@Example.COM"),
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Email is already registered."
+
+
+def test_register_rejects_interests_over_1000_characters(client):
+    response = client.post(
+        REGISTER_URL,
+        registration_payload(interests="x" * 1001),
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "interests" in response.json()["error"]["fields"]
 
 
 def test_refresh_requires_refresh_field(client):

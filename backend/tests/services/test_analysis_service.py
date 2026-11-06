@@ -596,6 +596,45 @@ def test_open_text_question_summary_returns_submitted_text_answers():
     assert question_summary["text_answers"] == ["Great service", "Clear process"]
 
 
+def test_text_answers_shown_are_capped_at_50():
+    assert AnalysisService.MAX_TEXT_ANSWERS_SHOWN == 50
+
+
+@pytest.mark.django_db
+def test_open_text_summary_counts_all_non_blank_answers_before_the_cap(monkeypatch):
+    monkeypatch.setattr(AnalysisService, "MAX_TEXT_ANSWERS_SHOWN", 2)
+    provider = create_user("provider-text-total@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT)
+
+    for index, text in enumerate(["First", "   ", "Second", "Third"]):
+        respondent = create_user(
+            f"respondent-text-total-{index}@example.com",
+            UserType.RESPONDENT,
+        )
+        create_answer(create_response(survey, respondent), question, answer_value=text)
+
+    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+
+    summary = service.get_survey_results(provider, survey.survey_id)
+    question_summary = summary["question_summaries"][0]
+
+    assert question_summary["text_answer_total"] == 3
+    assert len(question_summary["text_answers"]) == 2
+
+
+@pytest.mark.django_db
+def test_non_text_question_summary_has_zero_text_answer_total():
+    provider = create_user("provider-rating-total@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    create_question(survey, QuestionType.RATING_SCALE)
+    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+
+    summary = service.get_survey_results(provider, survey.survey_id)
+
+    assert summary["question_summaries"][0]["text_answer_total"] == 0
+
+
 @pytest.mark.django_db
 def test_get_survey_results_returns_question_summaries():
     provider = create_user("provider-question-summary@example.com", UserType.SERVICE_PROVIDER)

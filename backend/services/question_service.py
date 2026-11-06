@@ -287,21 +287,6 @@ class QuestionService:
             "required_label": "Required" if question.is_required else "Optional",
         }
 
-    def _management_options(self, question_id):
-        """Return ordered option data for the question management page."""
-        options = sorted(
-            self.question_repository.find_options_by_question_id(question_id),
-            key=lambda option: (option.order_index, option.option_id),
-        )
-        return [
-            {
-                "option_id": option.option_id,
-                "option_text": option.option_text,
-                "order_index": option.order_index,
-            }
-            for option in options
-        ]
-
     def _response_form_question(self, question):
         """Build one respondent-facing response form question."""
         question_id = question.question_id
@@ -334,20 +319,3 @@ class QuestionService:
             "option_name": f"selected_option_id_{question_id}",
             "rating_values": self.RATING_VALUES,
         }
-
-    def _response_form_options(self, question_id):
-        """Return ordered option data for the respondent form."""
-        options = sorted(
-            self.question_repository.find_options_by_question_id(question_id),
-            key=lambda option: (option.order_index, option.option_id),
-        )
-        return [
-            {
-                "option_id": option.option_id,
-                "option_text": option.option_text,
-                "order_index": option.order_index,
-                "id": option.option_id,
-                "text": option.option_text,
-            }
-            for option in options
-        ]
