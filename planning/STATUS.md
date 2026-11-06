@@ -1,11 +1,11 @@
 # STATUS — 2026-11-06
 Branch: chore/upgrade-django-5-2
-Task: TASK-15 Part 7 (T-7, #49): upgrade the backend to Django 5.2 LTS
-Done: Django 5.2.19, whitenoise 6.9.0, pytest-django 4.11.0; CI SECRET_KEY is a 66-char CI-only value; .env.example SECRET_KEY empty with key-generation notes.
-  makemigrations --check: no changes; 0 warnings with -W default::DeprecationWarning. API smoke 200 x3; provider web, admin, Flutter login/list/logout passed.
-Changes: 4 modified, 0 new, 0 deleted — backend/requirements.txt, .github/workflows/django-ci.yml, backend/.env.example, planning/STATUS.md
-Tests: 411 passed, 1 xfailed (run after the upgrade; no .py files changed)
+Task: Correct the smoke section of the PR #55 body (TASK-15 Part 7)
+Done: PR #55 smoke section now lists only checks proven by runserver logs (user run 23:09-23:28 on 5.2.19, session API smoke);
+  earlier unverified browser run marked as not counted; analytics page marked as not opened.
+Changes: 1 modified, 0 new, 0 deleted — planning/STATUS.md (PR body edited on GitHub)
+Tests: skipped (no Python changes)
 Check: OK (System check identified no issues)
-Committed: no (goes into the Part 7 commit)
+Committed: yes (this status commit, on top of fae1e06)
 Open questions: none
-Next: commit, push, open PR against develop; approval from Hasan or Yousef; #49 to Review.
+Next: approval of PR #55 from Hasan or Yousef; #49 stays in Review until merge.
