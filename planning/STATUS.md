@@ -1,11 +1,11 @@
 # STATUS — 2026-11-06
-Branch: fix/mobile-logout-server
-Task: TASK-15 Part 6 (T-6, #48): Flutter logout calls auth/logout/ and always signs out
-Done: AuthRepository.logout posts the refresh token to auth/logout/ (no auth header), ignores ApiException, always clears tokens.
-  4 new TestApi tests (204, 400, network failure, no refresh token). API.md auth flow notes the client behaviour.
-Changes: 3 modified, 1 new, 0 deleted — frontend/lib/features/auth/auth_repository.dart, frontend/test/features/auth/auth_repository_logout_test.dart, planning/API.md, planning/STATUS.md
-Tests: skipped (no Python changes); flutter test: 38 passed; flutter analyze: No issues found
+Branch: chore/upgrade-django-5-2
+Task: Correct the smoke section of the PR #55 body (TASK-15 Part 7)
+Done: PR #55 smoke section now lists only checks proven by runserver logs (user run 23:09-23:28 on 5.2.19, session API smoke);
+  earlier unverified browser run marked as not counted; analytics page marked as not opened.
+Changes: 1 modified, 0 new, 0 deleted — planning/STATUS.md (PR body edited on GitHub)
+Tests: skipped (no Python changes)
 Check: OK (System check identified no issues)
-Committed: no (goes into the Part 6 commit)
+Committed: yes (this status commit, on top of fae1e06)
 Open questions: none
-Next: commit, push, open PR against develop; approval from Yaman or Hasan; #48 stays In Progress until Part 8.
+Next: approval of PR #55 from Hasan or Yousef; #49 stays in Review until merge.
