@@ -54,6 +54,17 @@ def test_using_up_login_does_not_block_token_refresh(client, respondent):
     assert refresh.status_code == 401
 
 
+def test_changing_x_forwarded_for_does_not_reset_the_limit(client, respondent):
+    url, limit, payload, _ = SCOPES["auth_token"]
+
+    statuses = [
+        client.post(url, payload, format="json", HTTP_X_FORWARDED_FOR=f"10.0.0.{n}").status_code
+        for n in range(limit + 1)
+    ]
+
+    assert statuses[-1] == 429
+
+
 @pytest.mark.parametrize("url", ["/healthz/live/", "/healthz/ready/"])
 def test_health_probes_are_not_throttled(client, url):
     responses = [client.get(url) for _ in range(120)]

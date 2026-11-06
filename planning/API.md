@@ -91,6 +91,10 @@ login does not block token refresh. Endpoints without a scope, including `/healt
 throttled. The counters live in the Django cache; set `REDIS_URL` so that several server processes share them (without it
 each process keeps its own in-memory counters).
 
+The client is identified by the connection address (REMOTE_ADDR), so clients cannot change their identity with
+X-Forwarded-For. Everyone behind one NAT gateway shares one limit. If a proxy is added in front of the API, set
+NUM_PROXIES to the number of proxies.
+
 Throttling limits abuse; it is not complete brute-force protection, because clients can change IP addresses.
 
 ## Known limits

@@ -131,6 +131,7 @@ REST_FRAMEWORK = {
         "auth_register": "5/min",
         "auth_logout": "30/min",
     },
+    "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0")),
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
