@@ -21,6 +21,7 @@ class AnalysisService:
     """Handles Sentiment analysis orchestration and survey analytics summaries."""
 
     RATING_LABELS = [1, 2, 3, 4, 5]
+    MAX_TEXT_ANSWERS_SHOWN = 50
 
     def __init__(
         self,
@@ -178,6 +179,7 @@ class AnalysisService:
             "labels": [],
             "values": [],
             "text_answers": [],
+            "text_answer_total": 0,
         }
 
     def _multiple_choice_summary(self, question, answers):
@@ -218,11 +220,13 @@ class AnalysisService:
     def _open_text_summary(self, question, answers):
         """Build the submitted text answer list for an open-text question."""
         summary = self._base_question_summary(question, "text")
-        summary["text_answers"] = [
+        text_answers = [
             answer.answer_value.strip()
             for answer in answers
             if isinstance(answer.answer_value, str) and answer.answer_value.strip()
-        ][:50]
+        ]
+        summary["text_answer_total"] = len(text_answers)
+        summary["text_answers"] = text_answers[: self.MAX_TEXT_ANSWERS_SHOWN]
         return summary
 
     def _normalized_value(self, value):

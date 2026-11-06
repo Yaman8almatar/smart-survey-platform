@@ -45,6 +45,20 @@ def test_submit_stores_response_and_answers(client, authenticate, respondent, su
     assert Answer.objects.filter(response=stored).count() == 3
 
 
+def test_submit_rejects_answer_value_over_2000_characters(
+    client, authenticate, respondent, survey
+):
+    authenticate(respondent)
+    answers = valid_answers(survey)
+    answers[2]["answer_value"] = "x" * 2001
+
+    response = submit(client, survey, answers)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+    assert not Response.objects.filter(survey=survey).exists()
+
+
 def test_submit_accepts_missing_optional_answer(client, authenticate, respondent, survey):
     authenticate(respondent)
 

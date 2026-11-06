@@ -1,12 +1,12 @@
 # STATUS — 2026-11-06
-Branch: fix/api-duplicate-submit
-Task: TASK-15 Part 4 — T-1 duplicate submit (#35, F-06, F-20, F-21)
-Done: Only unique_response_per_survey_respondent maps to DuplicateResponse; API handler lost its IntegrityError branch (unknown -> 500 internal_error).
-  Registration maps only users_email to "Email is already registered."; Celery dispatch reads settings.CELERY_ENABLED and logs failures.
-  11 new tests: threaded race, patched pre-check race (201 then 409), other-constraint, 500, Answer constraint, dispatch, email constraint.
-Changes: 6 modified, 0 new, 0 deleted — backend/services/response_service.py, backend/services/authentication_service.py, backend/apps/api/exceptions.py, backend/tests/services/, backend/tests/api/test_responses.py
-Tests: 364 passed, 132 warnings in 206.84s
+Branch: chore/api-health-and-cleanup
+Task: TASK-15 Part 5 (T-6, #48) — health service, text-answer cap, dead code, date-range helper, missing tests
+Done: /healthz/ready/ goes through HealthService/HealthRepository; 503 body has no exception text.
+  MAX_TEXT_ANSWERS_SHOWN = 50 + text_answer_total; 4 dead functions removed; repositories/date_ranges.py shared.
+  New tests for PR #43 gaps and eligibility (age bounds, gender ANY, DB/Python agreement, query count).
+Changes: 18 modified, 5 new, 0 deleted — services/health_service.py, repositories/health_repository.py, repositories/date_ranges.py, apps/core/views_health.py, tests/
+Tests: 411 passed, 1 xfailed, 137 warnings in 523.27s
 Check: OK (System check identified no issues)
-Committed: yes — this commit (fix: map only named integrity constraints), pushed; PR to develop opened
-Open questions: HoLqKoO lacks write access to project 1; #35 is still Ready (Yaman to move it or grant access)
-Next: Django CI green, approval from Yaman or Yousef, #35 to Review (needs board access); then Part 5.
+Committed: yes (this commit, chore: health service, cleanup and missing tests)
+Open questions: xfail trailing-tab region pair: DB TRIM keeps tabs, Python strip removes them (fix later, not in Part 5)
+Next: PR review by Yaman or Yousef; then Part 6 fix/mobile-logout-server.

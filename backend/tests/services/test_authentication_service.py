@@ -78,6 +78,41 @@ def test_authenticate_with_valid_credentials_succeeds(auth_service):
 
 
 @pytest.mark.django_db
+def test_authenticate_ignores_email_letter_case_and_spaces(auth_service):
+    auth_service.register_service_provider(
+        name="Provider User",
+        email="case-login@example.com",
+        password="strong-password",
+    )
+
+    user = auth_service.authenticate_user("  Case-Login@EXAMPLE.com ", "strong-password")
+
+    assert user.email == "case-login@example.com"
+
+
+@pytest.mark.django_db
+def test_registration_stores_lowercase_email_and_rejects_other_case(auth_service):
+    user = auth_service.register_service_provider(
+        name="Provider User",
+        email="  Case-Register@Example.COM ",
+        password="strong-password",
+    )
+
+    with pytest.raises(ValidationError, match="Email is already registered."):
+        auth_service.register_respondent(
+            name="Respondent User",
+            email="CASE-REGISTER@example.com",
+            password="strong-password",
+            age=25,
+            gender=Gender.MALE,
+            region="Aleppo",
+            interests="Sports",
+        )
+
+    assert user.email == "case-register@example.com"
+
+
+@pytest.mark.django_db
 def test_authenticate_with_wrong_password_fails(auth_service):
     auth_service.register_service_provider(
         name="Provider User",

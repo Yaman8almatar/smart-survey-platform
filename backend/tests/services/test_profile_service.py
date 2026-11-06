@@ -120,6 +120,49 @@ def test_gender_any_is_rejected(profile_service):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("region", ""),
+        ("region", "   "),
+        ("interests", ""),
+        ("interests", "   "),
+        ("interests", "x" * 1001),
+        ("age", True),
+    ],
+)
+def test_invalid_profile_field_is_rejected(profile_service, field, value):
+    user = create_user(f"respondent-invalid-{field}@example.com", UserType.RESPONDENT)
+    details = {
+        "age": 30,
+        "gender": Gender.FEMALE,
+        "region": "Damascus",
+        "interests": "Technology",
+    }
+    details[field] = value
+
+    with pytest.raises(ValidationError):
+        profile_service.update_profile(user, **details)
+
+    assert not RespondentProfile.objects.filter(user=user).exists()
+
+
+@pytest.mark.django_db
+def test_interests_of_exactly_1000_characters_are_accepted(profile_service):
+    user = create_user("respondent-interests-limit@example.com", UserType.RESPONDENT)
+
+    profile = profile_service.update_profile(
+        user,
+        age=30,
+        gender=Gender.FEMALE,
+        region="Damascus",
+        interests="x" * 1000,
+    )
+
+    assert len(profile.interests) == 1000
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("age", [0, -1, 121, "30"])
 def test_invalid_age_is_rejected(profile_service, age):
     user = create_user(f"respondent-age-{age}@example.com", UserType.RESPONDENT)
