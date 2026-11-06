@@ -79,7 +79,22 @@ class AuthRepository {
     }
   }
 
-  Future<void> logout() => _tokens.clear();
+  Future<void> logout() async {
+    final refresh = await _tokens.readRefresh();
+    try {
+      if (refresh != null) {
+        await _api.post(
+          'auth/logout/',
+          body: {'refresh': refresh},
+          authenticated: false,
+        );
+      }
+    } on ApiException {
+      // Revocation is best effort: signing out on this device must still work.
+    } finally {
+      await _tokens.clear();
+    }
+  }
 
   Future<bool> hasSession() async => await _tokens.readRefresh() != null;
 }
