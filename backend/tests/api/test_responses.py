@@ -1,7 +1,12 @@
+from unittest.mock import patch
+
 import pytest
+from django.db import IntegrityError
 
 from apps.core.models import Answer, Question, QuestionOption, Response
 from core.enums import Gender, QuestionType, SurveyStatus
+from repositories.response_repository import ResponseRepository
+from services.response_service import ResponseService
 
 HISTORY_URL = "/api/v1/me/responses/"
 
@@ -219,3 +224,30 @@ def test_history_lists_only_own_responses(
     assert len(rows) == 1
     assert set(rows[0]) == {"survey_id", "title", "description", "submitted_at"}
     assert rows[0]["title"] == "Campus survey"
+
+
+def test_parallel_duplicate_submit_returns_409(client, authenticate, respondent, survey):
+    """Both requests pass the pre-check; the unique constraint still answers 409."""
+    authenticate(respondent)
+
+    with patch.object(ResponseRepository, "has_response_for_survey", return_value=False):
+        first = submit(client, survey, valid_answers(survey))
+        second = submit(client, survey, valid_answers(survey))
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "duplicate_response"
+    assert Response.objects.filter(survey=survey, respondent=respondent).count() == 1
+
+
+def test_unknown_integrity_error_returns_500(client, authenticate, respondent, survey):
+    authenticate(respondent)
+    error = IntegrityError('new row violates check constraint "answers_rating_range"')
+
+    with patch.object(ResponseService, "submit_response", side_effect=error):
+        response = submit(client, survey, valid_answers(survey))
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {"code": "internal_error", "message": "Unexpected server error."}
+    }

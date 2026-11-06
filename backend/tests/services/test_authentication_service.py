@@ -1,4 +1,5 @@
 import pytest
+from django.db import IntegrityError
 
 from core.enums import AccountStatus, Gender, UserType
 from core.exceptions import InvalidCredentials, ValidationError
@@ -151,3 +152,74 @@ def test_respondent_registration_rolls_back_user_when_profile_save_fails():
         )
 
     assert not UserRepository().email_exists("respondent-rollback@example.com")
+
+
+@pytest.mark.django_db
+def test_provider_email_constraint_reports_registered_email(auth_service, monkeypatch):
+    auth_service.register_service_provider(
+        name="Provider User",
+        email="race-provider@example.com",
+        password="strong-password",
+    )
+    # Skip the pre-check so only the users_email constraint can catch the duplicate.
+    monkeypatch.setattr(auth_service.user_repository, "email_exists", lambda email: False)
+
+    with pytest.raises(ValidationError, match="Email is already registered."):
+        auth_service.register_service_provider(
+            name="Provider User",
+            email="race-provider@example.com",
+            password="strong-password",
+        )
+
+
+@pytest.mark.django_db
+def test_respondent_email_constraint_reports_registered_email(auth_service, monkeypatch):
+    details = {
+        "name": "Respondent User",
+        "email": "race-respondent@example.com",
+        "password": "strong-password",
+        "age": 30,
+        "gender": Gender.FEMALE,
+        "region": "Damascus",
+        "interests": "Technology",
+    }
+    auth_service.register_respondent(**details)
+    # Skip the pre-check so only the users_email constraint can catch the duplicate.
+    monkeypatch.setattr(auth_service.user_repository, "email_exists", lambda email: False)
+
+    with pytest.raises(ValidationError, match="Email is already registered."):
+        auth_service.register_respondent(**details)
+
+
+def _fail_with_other_constraint(user):
+    raise IntegrityError(
+        'null value in column "name" of relation "users" violates not-null constraint'
+    )
+
+
+@pytest.mark.django_db
+def test_provider_registration_reraises_other_integrity_error(auth_service, monkeypatch):
+    monkeypatch.setattr(auth_service.user_repository, "save", _fail_with_other_constraint)
+
+    with pytest.raises(IntegrityError):
+        auth_service.register_service_provider(
+            name="Provider User",
+            email="other-provider@example.com",
+            password="strong-password",
+        )
+
+
+@pytest.mark.django_db
+def test_respondent_registration_reraises_other_integrity_error(auth_service, monkeypatch):
+    monkeypatch.setattr(auth_service.user_repository, "save", _fail_with_other_constraint)
+
+    with pytest.raises(IntegrityError):
+        auth_service.register_respondent(
+            name="Respondent User",
+            email="other-respondent@example.com",
+            password="strong-password",
+            age=30,
+            gender=Gender.FEMALE,
+            region="Damascus",
+            interests="Technology",
+        )
