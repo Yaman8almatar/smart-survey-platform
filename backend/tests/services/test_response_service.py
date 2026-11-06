@@ -1,6 +1,12 @@
+import logging
+import threading
+from unittest.mock import MagicMock, patch
+
 import pytest
+from django.db import IntegrityError, connection, transaction
 
 from apps.core.models import (
+    Answer,
     Question,
     QuestionOption,
     RespondentProfile,
@@ -553,3 +559,109 @@ def test_validate_duplicate_response_returns_false_when_response_does_not_exist(
     survey = create_survey(provider)
 
     assert response_service.validate_duplicate_response(respondent, survey.survey_id) is False
+
+
+def create_rating_survey(suffix):
+    provider = create_user(f"provider-{suffix}@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user(f"respondent-{suffix}@example.com", UserType.RESPONDENT)
+    create_profile(respondent)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.RATING_SCALE)
+    return respondent, survey, question
+
+
+@pytest.mark.django_db(transaction=True)
+def test_parallel_submits_store_one_response():
+    respondent, survey, question = create_rating_survey("race")
+    barrier = threading.Barrier(2)
+    results = []
+
+    def submit_once():
+        try:
+            service = ResponseService(analysis_service=FakeAnalysisService())
+            barrier.wait()
+            service.submit_response(respondent, survey.survey_id, [rating_answer(question)])
+            results.append("created")
+        except DuplicateResponse:
+            results.append("duplicate")
+        except Exception as exc:  # reported by the assertion below
+            results.append(repr(exc))
+        finally:
+            connection.close()
+
+    threads = [threading.Thread(target=submit_once) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(results) == ["created", "duplicate"]
+    assert Response.objects.filter(survey=survey, respondent=respondent).count() == 1
+
+
+@pytest.mark.django_db
+def test_other_integrity_error_is_not_turned_into_duplicate_response(
+    response_service, monkeypatch
+):
+    respondent, survey, question = create_rating_survey("other-constraint")
+
+    def fail_save_answer(answer):
+        raise IntegrityError(
+            'duplicate key value violates unique constraint "unique_answer_per_response_question"'
+        )
+
+    monkeypatch.setattr(response_service.response_repository, "save_answer", fail_save_answer)
+
+    with pytest.raises(IntegrityError):
+        response_service.submit_response(
+            respondent,
+            survey.survey_id,
+            [rating_answer(question)],
+        )
+
+
+@pytest.mark.django_db
+def test_database_refuses_two_answers_for_one_response_and_question():
+    respondent, survey, question = create_rating_survey("answer-constraint")
+    repository = ResponseRepository()
+    response = repository.save(Response(survey=survey, respondent=respondent))
+    repository.save_answer(Answer(response=response, question=question, rating_value=4))
+
+    with pytest.raises(IntegrityError, match="unique_answer_per_response_question"):
+        with transaction.atomic():
+            repository.save_answer(Answer(response=response, question=question, rating_value=5))
+
+
+def test_dispatch_logs_celery_failure_and_runs_analysis_directly(
+    fake_analysis_service, settings, caplog
+):
+    settings.CELERY_ENABLED = True
+    task = MagicMock()
+    task.delay.side_effect = ConnectionError("broker unavailable")
+    service = ResponseService(analysis_service=fake_analysis_service)
+
+    with patch("apps.core.tasks.analyze_open_text_answers_task", task):
+        with caplog.at_level(logging.ERROR, logger="services.response_service"):
+            service._dispatch_sentiment_analysis(42)
+
+    task.delay.assert_called_once_with(42)
+    assert fake_analysis_service.calls == [42]
+    [record] = caplog.records
+    assert record.levelno == logging.ERROR
+    assert record.exc_info is not None
+
+
+def test_dispatch_without_celery_never_calls_delay(
+    fake_analysis_service, settings, monkeypatch
+):
+    settings.CELERY_ENABLED = False
+    # Only the setting decides; the raw environment variable is not read again.
+    monkeypatch.setenv("USE_CELERY", "true")
+    task = MagicMock()
+    service = ResponseService(analysis_service=fake_analysis_service)
+
+    with patch("apps.core.tasks.analyze_open_text_answers_task", task):
+        service._dispatch_sentiment_analysis(7)
+
+    task.delay.assert_not_called()
+    assert fake_analysis_service.calls == [7]

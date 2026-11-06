@@ -33,7 +33,10 @@ class AuthenticationService:
         try:
             return self.user_repository.save(user)
         except IntegrityError as exc:
-            raise ValidationError("Email is already registered.") from exc
+            # Only the unique email constraint means a duplicate account.
+            if "users_email" in str(exc):
+                raise ValidationError("Email is already registered.") from exc
+            raise
 
     def register_respondent(self, name, email, password, age, gender, region, interests):
         """Register a respondent account and create its demographic profile."""
@@ -68,7 +71,10 @@ class AuthenticationService:
                 self.profile_repository.save(profile)
             return saved_user
         except IntegrityError as exc:
-            raise ValidationError("Email is already registered.") from exc
+            # Only the unique email constraint means a duplicate account.
+            if "users_email" in str(exc):
+                raise ValidationError("Email is already registered.") from exc
+            raise
 
     def authenticate_user(self, email, password):
         """Authenticate an active user by email and password."""

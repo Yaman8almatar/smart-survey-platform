@@ -1,4 +1,5 @@
-import os
+import logging
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
 
@@ -17,6 +18,8 @@ from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from services.analysis_service import AnalysisService
 from services.targeting_service import TargetingService
+
+logger = logging.getLogger(__name__)
 
 
 class ResponseService:
@@ -93,7 +96,8 @@ class ResponseService:
                         robust=True,
                     )
         except IntegrityError as exc:
-            if "unique_response_per_survey_respondent" in str(exc) or "unique" in str(exc).lower():
+            # A parallel submit can pass the pre-check; only this constraint means a duplicate.
+            if "unique_response_per_survey_respondent" in str(exc):
                 raise DuplicateResponse("Respondent already submitted this survey.") from exc
             raise
 
@@ -101,17 +105,17 @@ class ResponseService:
 
     def _dispatch_sentiment_analysis(self, response_id):
         """Dispatch sentiment analysis asynchronously via Celery or fallback synchronously."""
-        use_celery = getattr(settings, "CELERY_ENABLED", False) or os.environ.get(
-            "USE_CELERY", "false"
-        ).lower() in {"true", "1", "yes"}
-        if use_celery:
+        if settings.CELERY_ENABLED:
             try:
                 from apps.core.tasks import analyze_open_text_answers_task
 
                 analyze_open_text_answers_task.delay(response_id)
                 return
             except Exception:
-                pass
+                logger.exception(
+                    "Celery dispatch failed for response_id=%s; running analysis directly.",
+                    response_id,
+                )
 
         self.analysis_service.analyze_open_text_answers(response_id)
 
