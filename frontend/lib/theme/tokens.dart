@@ -7,6 +7,12 @@ abstract final class SsColors {
   static const Color brandTint = Color(0xFFE3EFF1);
   static const Color brand50 = Color(0xFFEEF6F7);
   static const Color onBrandMuted = Color(0xFFBFDCE0);
+
+  /// White at 8% on brand-deep: decorative hero circles.
+  static const Color onBrandDecor = Color(0x14FFFFFF);
+
+  /// White at 12% on brand-deep: skeleton bars and the empty ring track while loading.
+  static const Color onBrandSkeleton = Color(0x1FFFFFFF);
   static const Color accent = Color(0xFFE3A21A);
   static const Color accentTint = Color(0xFFFCF3E0);
   static const Color ink = Color(0xFF13252A);
@@ -34,8 +40,10 @@ abstract final class SsSpace {
   static const double s2 = 8;
   static const double s3 = 12;
   static const double s4 = 16;
+  static const double s5 = 20;
   static const double s6 = 24;
   static const double s8 = 32;
+  static const double s10 = 40;
   static const double s12 = 48;
 }
 
@@ -45,6 +53,22 @@ abstract final class SsLayout {
   static const double formMaxWidth = 420;
   static const double indicatorSize = 20;
   static const double indicatorStroke = 2;
+
+  /// Small inline icons: chip avatars, section statuses, message lines.
+  static const double iconSmall = 16;
+
+  /// Divider and decorative line width.
+  static const double hairline = 1;
+
+  /// Signal ring in a hero band.
+  static const double ringSize = 88;
+
+  /// Radii of the three decorative circles behind the profile hero.
+  static const List<double> heroDecorRadii = [70, 105, 140];
+
+  /// Skeleton bar heights: a line of text and a form field.
+  static const double skeletonLine = 12;
+  static const double skeletonField = 48;
 }
 
 /// Smart Survey corner radii in logical pixels.

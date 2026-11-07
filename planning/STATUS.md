@@ -1,12 +1,14 @@
 # STATUS — 2026-11-07
-Branch: feat/t8-design-app
-Task: TASK-17 Part B review fix — StateMessage start-aligned as in fr02-states.png (PR #57)
-Done: StateMessage column starts at the leading edge (no centred text); survey list load error uses
-  Icons.cloud_off_outlined, empty list has no icon; copy unchanged; new leading-edge alignment test.
-Changes: 3 modified, 0 new, 0 deleted — frontend/lib/widgets/state_message.dart,
-  frontend/lib/features/surveys/eligible_surveys_screen.dart, frontend/test/widgets/state_message_test.dart
-Tests: skipped (no Python changes); flutter test 49 passed (before 48); flutter analyze no issues
+Branch: feat/fr02-profile-app
+Task: TASK-16 Part 2 — FR-02 profile screen in the Flutter app, v2 look (issue #16)
+Done: ProfileScreen (hero + SignalRing, rising sheet, section statuses, save bar, loading/error/first-time, discard
+  dialog); ChoiceSelectField and InterestChips; register sends governorate code and interest codes; survey list
+  profile entry points, one error wording, log-out progress; theme tokens for the new sizes and on-brand whites.
+Changes: 13 modified, 10 new, 0 deleted — frontend/lib/features/profile/, frontend/lib/widgets/,
+  frontend/lib/features/auth/register_screen.dart, frontend/lib/features/surveys/eligible_surveys_screen.dart,
+  frontend/lib/theme/tokens.dart
+Tests: skipped (no Python changes); flutter test 71 passed (before 49); flutter analyze no issues
 Check: OK (System check identified no issues)
-Committed: yes (second commit on PR #57, fix: StateMessage starts at the leading edge)
-Open questions: none
-Next: reviewer compares screenshots with documentation/design/; Yaman merges; TASK-16 Part 2 starts on top.
+Committed: yes (feat: FR-02 profile screen in the app (TASK-16 Part 2))
+Open questions: issue #16 not moved on Project 1 — gh token lacks read:project/project scope
+Next: reviewer compares the PR screenshots with documentation/design/; Yaman merges into develop.

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:smart_survey_app/core/api/token_store.dart';
 import 'package:smart_survey_app/features/auth/auth_models.dart';
 import 'package:smart_survey_app/features/auth/login_screen.dart';
+import 'package:smart_survey_app/features/profile/profile_screen.dart';
 import 'package:smart_survey_app/features/surveys/eligible_surveys_screen.dart';
 
 import '../../support/test_api.dart';
@@ -30,6 +31,7 @@ Future<void> pumpList(WidgetTester tester, TestApi test) async {
       home: EligibleSurveysScreen(
         authRepository: test.auth,
         surveysRepository: test.surveys,
+        profileRepository: test.profile,
         user: sara,
       ),
     ),
@@ -50,7 +52,9 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('shows the error with Retry, and Retry reloads', (tester) async {
+  testWidgets('shows the error with Try again, and Try again reloads', (
+    tester,
+  ) async {
     var calls = 0;
     final test = TestApi((request) async {
       calls++;
@@ -64,7 +68,7 @@ void main() {
 
     expect(find.text('Something went wrong.'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Retry'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Try again'));
     await tester.pumpAndSettle();
 
     expect(find.text('Campus Services Survey'), findsOneWidget);
@@ -79,10 +83,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Cannot reach the server. Is it running?'),
+      find.text(
+        'Cannot reach the server. Check your connection and try again.',
+      ),
       findsOneWidget,
     );
-    expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Try again'), findsOneWidget);
   });
 
   testWidgets('shows the empty state', (tester) async {
@@ -95,7 +101,7 @@ void main() {
     expect(
       find.text(
         'New surveys appear here when a provider targets your age, gender '
-        'and region.',
+        'and governorate. A complete profile matches more surveys.',
       ),
       findsOneWidget,
     );
@@ -165,4 +171,69 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('the app bar opens the profile', (tester) async {
+    final test = TestApi(profileHandler);
+    await pumpList(tester, test);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Your profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfileScreen), findsOneWidget);
+    expect(find.text('Your profile'), findsOneWidget);
+  });
+
+  testWidgets('the empty state opens the profile', (tester) async {
+    final test = TestApi(profileHandler);
+    await pumpList(tester, test);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Complete your profile'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfileScreen), findsOneWidget);
+  });
+
+  testWidgets('log out shows progress and is disabled while it waits', (
+    tester,
+  ) async {
+    final gate = Completer<http.Response>();
+    final test = TestApi(
+      (request) => request.url.path.endsWith('auth/logout/')
+          ? gate.future
+          : Future.value(jsonResponse([])),
+      tokens: MemoryTokenStore(access: 'a', refresh: 'r'),
+    );
+    await pumpList(tester, test);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Log out'));
+    await tester.pump();
+
+    final logout = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byType(CircularProgressIndicator),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(logout.onPressed, isNull);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    gate.complete(http.Response('', 204));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
+  });
+}
+
+/// Empty survey list plus the profile endpoints.
+Future<http.Response> profileHandler(http.Request request) async {
+  final path = request.url.path;
+  if (path.endsWith('profile/options/')) {
+    return jsonResponse(profileOptionsJson);
+  }
+  if (path.endsWith('me/profile/')) return jsonResponse(profileJson);
+  return jsonResponse([]);
 }
