@@ -1,12 +1,12 @@
 # STATUS — 2026-11-07
 Branch: feat/t8-design-app
-Task: TASK-17 Part B — design foundation v2 in the Flutter app (T-8, D-110)
-Done: v2 tokens (SsColors, SsSpace, SsRadius, SsShadow, SsMotion, SsType.ring); AppTheme brand-deep app bar and v2 controls;
-  shared SignalRing and StateMessage widgets; survey list uses StateMessage (copy unchanged); design pictures committed.
-Changes: 3 modified, 11 new, 0 deleted — frontend/lib/theme/, frontend/lib/widgets/, frontend/test/widgets/,
-  frontend/test/theme/, documentation/design/
-Tests: skipped (no Python changes); flutter test 48 passed (before 38); flutter analyze no issues
+Task: TASK-17 Part B review fix — StateMessage start-aligned as in fr02-states.png (PR #57)
+Done: StateMessage column starts at the leading edge (no centred text); survey list load error uses
+  Icons.cloud_off_outlined, empty list has no icon; copy unchanged; new leading-edge alignment test.
+Changes: 3 modified, 0 new, 0 deleted — frontend/lib/widgets/state_message.dart,
+  frontend/lib/features/surveys/eligible_surveys_screen.dart, frontend/test/widgets/state_message_test.dart
+Tests: skipped (no Python changes); flutter test 49 passed (before 48); flutter analyze no issues
 Check: OK (System check identified no issues)
-Committed: yes (style: design foundation v2 for the app, on feat/t8-design-app)
-Open questions: StateMessage is centred — components.png does not show it; compare with fr02-states.png in review
-Next: PR review against documentation/design/; TASK-16 Part 2 starts on top of this PR.
+Committed: yes (second commit on PR #57, fix: StateMessage starts at the leading edge)
+Open questions: none
+Next: reviewer compares screenshots with documentation/design/; Yaman merges; TASK-16 Part 2 starts on top.

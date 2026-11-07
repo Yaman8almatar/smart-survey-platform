@@ -44,4 +44,24 @@ void main() {
 
     expect(taps, 1);
   });
+
+  testWidgets('title and action start at the same leading edge', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        StateMessage(
+          icon: Icons.cloud_off_outlined,
+          title: 'Could not load surveys',
+          body: 'Cannot reach the server. Is it running?',
+          action: FilledButton(onPressed: () {}, child: const Text('Retry')),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getTopLeft(find.text('Could not load surveys')).dx,
+      tester.getTopLeft(find.byType(FilledButton)).dx,
+    );
+  });
 }

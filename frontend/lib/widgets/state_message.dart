@@ -37,17 +37,9 @@ class StateMessage extends StatelessWidget {
           ),
           child: Icon(icon, size: _iconSize, color: SsColors.brand),
         ),
-      Text(
-        title,
-        textAlign: TextAlign.center,
-        style: SsType.heading.copyWith(color: SsColors.ink),
-      ),
+      Text(title, style: SsType.heading.copyWith(color: SsColors.ink)),
       if (body != null)
-        Text(
-          body,
-          textAlign: TextAlign.center,
-          style: SsType.body.copyWith(color: SsColors.inkMuted),
-        ),
+        Text(body, style: SsType.body.copyWith(color: SsColors.inkMuted)),
       ?action,
     ];
 
@@ -55,6 +47,7 @@ class StateMessage extends StatelessWidget {
       padding: const EdgeInsetsDirectional.symmetric(vertical: SsSpace.s6),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (var i = 0; i < parts.length; i++) ...[
             if (i > 0) const SizedBox(height: SsSpace.s4),

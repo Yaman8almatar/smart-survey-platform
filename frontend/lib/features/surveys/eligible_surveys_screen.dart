@@ -112,7 +112,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                   onRefresh: _refresh,
                   children: [
                     StateMessage(
-                      icon: Icons.error_outline,
+                      icon: Icons.cloud_off_outlined,
                       title: 'Could not load surveys',
                       body: _errorText(snapshot.error),
                       action: FilledButton(
@@ -129,7 +129,6 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                   onRefresh: _refresh,
                   children: const [
                     StateMessage(
-                      icon: Icons.inbox_outlined,
                       title: 'No surveys match your profile yet.',
                       body:
                           'New surveys appear here when a provider targets '
