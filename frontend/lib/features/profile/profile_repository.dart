@@ -16,13 +16,14 @@ class ProfileRepository {
 
   /// The stored profile, or null when the respondent has none yet (404).
   Future<Profile?> load() async {
+    final Object? json;
     try {
-      final json = await _api.get('me/profile/');
-      return _parse(json, Profile.fromJson);
+      json = await _api.get('me/profile/');
     } on ApiException catch (error) {
       if (error.statusCode == 404) return null;
       rethrow;
     }
+    return _parse<Profile>(json, Profile.fromJson);
   }
 
   /// Replaces the whole profile and returns it with the new completion percent.

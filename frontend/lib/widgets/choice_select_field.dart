@@ -4,8 +4,8 @@ import '../features/profile/profile_models.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 
-/// The answer code that is set apart from the real answers in optional lists.
-const String preferNotToSay = 'PREFER_NOT_TO_SAY';
+/// Answers set apart from the rest of their list by a divider above them.
+const Set<String> setApartCodes = {'PREFER_NOT_TO_SAY', 'OUTSIDE_SYRIA'};
 
 /// A dropdown over `{code, label}` options: shows the label, reports the code.
 class ChoiceSelectField extends StatelessWidget {
@@ -16,7 +16,6 @@ class ChoiceSelectField extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.errorText,
-    this.separatePreferNotToSay = false,
   });
 
   final String label;
@@ -29,15 +28,12 @@ class ChoiceSelectField extends StatelessWidget {
   final ValueChanged<String?>? onChanged;
   final String? errorText;
 
-  /// Puts a divider above "Prefer not to say" (the three optional lists).
-  final bool separatePreferNotToSay;
-
   @override
   Widget build(BuildContext context) {
     final items = <DropdownMenuItem<String>>[];
     final closed = <Widget>[];
     for (final option in options) {
-      if (separatePreferNotToSay && option.code == preferNotToSay) {
+      if (setApartCodes.contains(option.code)) {
         items.add(
           const DropdownMenuItem<String>(enabled: false, child: Divider()),
         );
@@ -68,16 +64,23 @@ class ChoiceSelectField extends StatelessWidget {
           ),
         ),
       );
-      closed.add(Text(option.label));
+      // The closed field shows the value in regular weight; colour stays the dropdown's.
+      closed.add(Text(option.label, style: SsType.body));
     }
 
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      items: items,
-      selectedItemBuilder: (_) => closed,
-      onChanged: onChanged,
-      decoration: InputDecoration(labelText: label, errorText: errorText),
+    // The menu paints the selected item with the theme focus colour.
+    return Theme(
+      data: Theme.of(context).copyWith(focusColor: SsColors.brandTint),
+      child: DropdownButtonFormField<String>(
+        initialValue: value,
+        isExpanded: true,
+        items: items,
+        selectedItemBuilder: (_) => closed,
+        onChanged: onChanged,
+        icon: const Icon(Icons.expand_more),
+        borderRadius: BorderRadius.circular(SsRadius.md),
+        decoration: InputDecoration(labelText: label, errorText: errorText),
+      ),
     );
   }
 }

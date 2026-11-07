@@ -523,7 +523,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: 'Education',
                         options: options.education,
                         value: _education,
-                        separatePreferNotToSay: true,
                         errorText: errors['education'],
                         onChanged: enabled
                             ? (code) =>
@@ -535,7 +534,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: 'Occupation',
                         options: options.occupation,
                         value: _occupation,
-                        separatePreferNotToSay: true,
                         errorText: errors['occupation'],
                         onChanged: enabled
                             ? (code) =>
@@ -547,7 +545,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: 'Marital status',
                         options: options.maritalStatus,
                         value: _maritalStatus,
-                        separatePreferNotToSay: true,
                         errorText: errors['marital_status'],
                         onChanged: enabled
                             ? (code) => _edit(
@@ -578,54 +575,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            SsSpace.s4,
-            SsSpace.s3,
-            SsSpace.s4,
-            SsSpace.s4,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (count > 0) ...[
-                Semantics(
-                  liveRegion: true,
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        size: SsLayout.iconSmall,
-                        color: SsColors.danger,
-                      ),
-                      const SizedBox(width: SsSpace.s2),
-                      Expanded(
-                        child: Text(
-                          count == 1
-                              ? 'Fix the 1 highlighted field, then save.'
-                              : 'Fix the $count highlighted fields, then save.',
-                          style: SsType.label.copyWith(color: SsColors.danger),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: SsSpace.s3),
-              ],
-              FilledButton(
-                onPressed: _dirty && !_saving ? _save : null,
-                child: _saving
-                    ? const SizedBox(
-                        width: SsLayout.indicatorSize,
-                        height: SsLayout.indicatorSize,
-                        child: CircularProgressIndicator(
-                          strokeWidth: SsLayout.indicatorStroke,
-                        ),
-                      )
-                    : Text(_saved == null ? 'Save profile' : 'Save changes'),
+        // Centred and as wide as the form, so the button lines up on wide windows.
+        child: Align(
+          alignment: AlignmentDirectional.topCenter,
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: SsLayout.contentMaxWidth,
+            ),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                SsSpace.s4,
+                SsSpace.s3,
+                SsSpace.s4,
+                SsSpace.s4,
               ),
-            ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (count > 0) ...[
+                    Semantics(
+                      liveRegion: true,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: SsLayout.iconSmall,
+                            color: SsColors.danger,
+                          ),
+                          const SizedBox(width: SsSpace.s2),
+                          Expanded(
+                            child: Text(
+                              count == 1
+                                  ? 'Fix the 1 highlighted field, then save.'
+                                  : 'Fix the $count highlighted fields, then save.',
+                              style: SsType.label.copyWith(
+                                color: SsColors.danger,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: SsSpace.s3),
+                  ],
+                  FilledButton(
+                    onPressed: _dirty && !_saving ? _save : null,
+                    child: _saving
+                        ? const SizedBox(
+                            width: SsLayout.indicatorSize,
+                            height: SsLayout.indicatorSize,
+                            child: CircularProgressIndicator(
+                              strokeWidth: SsLayout.indicatorStroke,
+                            ),
+                          )
+                        : Text(
+                            _saved == null ? 'Save profile' : 'Save changes',
+                          ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
