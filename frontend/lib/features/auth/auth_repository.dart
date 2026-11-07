@@ -35,7 +35,8 @@ class AuthRepository {
     await _tokens.saveRefresh(json['refresh'] as String);
   }
 
-  /// Creates the respondent and profile. The API returns no tokens; call [login] next.
+  /// Creates the respondent and profile. [region] is a governorate code and
+  /// [interests] a list of interest codes. The API returns no tokens; call [login] next.
   Future<void> register({
     required String name,
     required String email,
@@ -43,7 +44,7 @@ class AuthRepository {
     required int age,
     required String gender,
     required String region,
-    required String interests,
+    required List<String> interests,
   }) async {
     await _api.post(
       'auth/register/',

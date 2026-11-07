@@ -12,6 +12,7 @@ Future<void> pumpLogin(WidgetTester tester, TestApi test) async {
       home: LoginScreen(
         authRepository: test.auth,
         surveysRepository: test.surveys,
+        profileRepository: test.profile,
       ),
     ),
   );

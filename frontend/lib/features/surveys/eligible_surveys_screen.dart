@@ -6,6 +6,8 @@ import '../../widgets/state_message.dart';
 import '../auth/auth_models.dart';
 import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
+import '../profile/profile_repository.dart';
+import '../profile/profile_screen.dart';
 import 'surveys_models.dart';
 import 'surveys_repository.dart';
 
@@ -15,11 +17,13 @@ class EligibleSurveysScreen extends StatefulWidget {
     super.key,
     required this.authRepository,
     required this.surveysRepository,
+    required this.profileRepository,
     required this.user,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
+  final ProfileRepository profileRepository;
   final AppUser user;
 
   @override
@@ -28,6 +32,7 @@ class EligibleSurveysScreen extends StatefulWidget {
 
 class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
   late Future<List<EligibleSurvey>> _surveys;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -66,10 +71,25 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
   }
 
   Future<void> _logout() async {
+    setState(() => _loggingOut = true);
     await widget.authRepository.logout();
     if (mounted) {
       _openLogin();
     }
+  }
+
+  /// Profile edits change which surveys match, so the list reloads on return.
+  Future<void> _openProfile() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          authRepository: widget.authRepository,
+          surveysRepository: widget.surveysRepository,
+          profileRepository: widget.profileRepository,
+        ),
+      ),
+    );
+    if (mounted) _retry();
   }
 
   void _openLogin({String? notice}) {
@@ -78,6 +98,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
         builder: (_) => LoginScreen(
           authRepository: widget.authRepository,
           surveysRepository: widget.surveysRepository,
+          profileRepository: widget.profileRepository,
           notice: notice,
         ),
       ),
@@ -91,9 +112,23 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
         title: Text(widget.user.displayName),
         actions: [
           IconButton(
+            tooltip: 'Your profile',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: _loggingOut ? null : _openProfile,
+          ),
+          IconButton(
             tooltip: 'Log out',
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
+            icon: _loggingOut
+                ? const SizedBox(
+                    width: SsLayout.indicatorSize,
+                    height: SsLayout.indicatorSize,
+                    child: CircularProgressIndicator(
+                      strokeWidth: SsLayout.indicatorStroke,
+                      color: SsColors.surfaceRaised,
+                    ),
+                  )
+                : const Icon(Icons.logout),
+            onPressed: _loggingOut ? null : _logout,
           ),
         ],
       ),
@@ -117,7 +152,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                       body: _errorText(snapshot.error),
                       action: FilledButton(
                         onPressed: _retry,
-                        child: const Text('Retry'),
+                        child: const Text('Try again'),
                       ),
                     ),
                   ],
@@ -127,12 +162,21 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
               if (surveys.isEmpty) {
                 return _Scrollable(
                   onRefresh: _refresh,
-                  children: const [
+                  children: [
                     StateMessage(
                       title: 'No surveys match your profile yet.',
                       body:
                           'New surveys appear here when a provider targets '
-                          'your age, gender and region.',
+                          'your age, gender and governorate. A complete '
+                          'profile matches more surveys.',
+                      action: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: OutlinedButton.icon(
+                          onPressed: _openProfile,
+                          icon: const Icon(Icons.account_circle_outlined),
+                          label: const Text('Complete your profile'),
+                        ),
+                      ),
                     ),
                   ],
                 );
@@ -161,7 +205,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
   String _errorText(Object? error) {
     if (error is ApiException) {
       return error.code == ApiException.networkError
-          ? 'Cannot reach the server. Is it running?'
+          ? 'Cannot reach the server. Check your connection and try again.'
           : error.message;
     }
     return 'Something went wrong. Please try again.';

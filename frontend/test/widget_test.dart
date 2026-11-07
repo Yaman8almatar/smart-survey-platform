@@ -13,6 +13,7 @@ Future<void> pumpGate(WidgetTester tester, TestApi test) async {
       home: AuthGate(
         authRepository: test.auth,
         surveysRepository: test.surveys,
+        profileRepository: test.profile,
       ),
     ),
   );
