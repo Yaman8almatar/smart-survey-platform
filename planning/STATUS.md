@@ -1,12 +1,12 @@
 # STATUS — 2026-11-07
-Branch: feat/fr02-profile-backend
-Task: TASK-16 Part 1 — FR-02 profile lists, completion percent and options endpoint (Refs #16)
-Done: Governorate/interest codes plus education, occupation, marital status (D-108); migrations 0003-0005 map old text;
-  completion_percent; public GET /api/v1/profile/options/; targeting is code equality. Smoke passed on Yaman's runserver log.
-Changes: 31 modified, 6 new, 0 deleted — backend/core/enums.py, backend/apps/core/migrations/0003-0005,
-  backend/services/profile_service.py, backend/apps/api/, planning/API.md
-Tests: 503 passed (before: 411 passed, 1 xfailed)
+Branch: feat/t8-design-app
+Task: TASK-17 Part B — design foundation v2 in the Flutter app (T-8, D-110)
+Done: v2 tokens (SsColors, SsSpace, SsRadius, SsShadow, SsMotion, SsType.ring); AppTheme brand-deep app bar and v2 controls;
+  shared SignalRing and StateMessage widgets; survey list uses StateMessage (copy unchanged); design pictures committed.
+Changes: 3 modified, 11 new, 0 deleted — frontend/lib/theme/, frontend/lib/widgets/, frontend/test/widgets/,
+  frontend/test/theme/, documentation/design/
+Tests: skipped (no Python changes); flutter test 48 passed (before 38); flutter analyze no issues
 Check: OK (System check identified no issues)
-Committed: yes (TASK-16 Part 1 commit on feat/fr02-profile-backend)
-Open questions: class diagram is a PNG with no source in diagrams/ — team updates it
-Next: PR review on develop; Part 2 updates the Flutter register screen to the new codes.
+Committed: yes (style: design foundation v2 for the app, on feat/t8-design-app)
+Open questions: StateMessage is centred — components.png does not show it; compare with fr02-states.png in review
+Next: PR review against documentation/design/; TASK-16 Part 2 starts on top of this PR.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'tokens.dart';
@@ -21,6 +22,14 @@ abstract final class SsType {
     fontSize: 28,
     height: 32 / 28,
     fontWeight: FontWeight.w600,
+  );
+
+  /// The number inside a signal ring; tabular figures keep the width steady while it counts.
+  static TextStyle get ring => GoogleFonts.readexPro(
+    fontSize: 20,
+    height: 24 / 20,
+    fontWeight: FontWeight.w600,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
 
   static TextStyle get heading => GoogleFonts.ibmPlexSans(
@@ -57,6 +66,9 @@ abstract final class AppTheme {
       onPrimary: SsColors.surfaceRaised,
       secondary: SsColors.accent,
       onSecondary: SsColors.ink,
+      // Selected chips and segments use brand tint, never saffron.
+      secondaryContainer: SsColors.brandTint,
+      onSecondaryContainer: SsColors.ink,
       error: SsColors.danger,
       onError: SsColors.surfaceRaised,
       surface: SsColors.surfaceRaised,
@@ -82,6 +94,8 @@ abstract final class AppTheme {
       borderRadius: BorderRadius.circular(SsRadius.md),
     );
     final smallRadius = BorderRadius.circular(SsRadius.sm);
+    final smallShape = RoundedRectangleBorder(borderRadius: smallRadius);
+    const buttonMinimumSize = Size(64, 48);
 
     return ThemeData(
       useMaterial3: true,
@@ -89,13 +103,13 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: SsColors.surface,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
-        backgroundColor: SsColors.surfaceRaised,
-        foregroundColor: SsColors.ink,
+        backgroundColor: SsColors.brandDeep,
+        foregroundColor: SsColors.surfaceRaised,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: textTheme.titleLarge,
-        shape: const Border(bottom: BorderSide(color: SsColors.line)),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        titleTextStyle: SsType.title.copyWith(color: SsColors.surfaceRaised),
       ),
       cardTheme: CardThemeData(
         color: SsColors.surfaceRaised,
@@ -105,9 +119,41 @@ abstract final class AppTheme {
           side: const BorderSide(color: SsColors.line),
         ),
       ),
+      chipTheme: ChipThemeData(
+        shape: smallShape,
+        side: WidgetStateBorderSide.resolveWith(
+          (states) => BorderSide(
+            color: states.contains(WidgetState.selected)
+                ? SsColors.brand
+                : SsColors.lineStrong,
+          ),
+        ),
+        selectedColor: SsColors.brandTint,
+        checkmarkColor: SsColors.brand,
+        labelStyle: SsType.label.copyWith(color: SsColors.ink),
+        iconTheme: const IconThemeData(size: 16, color: SsColors.inkMuted),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style:
+            SegmentedButton.styleFrom(
+              shape: const StadiumBorder(),
+              selectedBackgroundColor: SsColors.brandTint,
+              selectedForegroundColor: SsColors.ink,
+              textStyle: textTheme.labelLarge,
+            ).copyWith(
+              side: WidgetStateProperty.resolveWith(
+                (states) => BorderSide(
+                  color: states.contains(WidgetState.selected)
+                      ? SsColors.brand
+                      : SsColors.lineStrong,
+                ),
+              ),
+            ),
+      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: mediumShape,
+          shape: smallShape,
+          minimumSize: buttonMinimumSize,
           textStyle: textTheme.labelLarge,
           padding: const EdgeInsets.symmetric(
             horizontal: SsSpace.s6,
@@ -116,13 +162,17 @@ abstract final class AppTheme {
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(shape: mediumShape),
+        style: ElevatedButton.styleFrom(shape: smallShape),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(shape: mediumShape),
+        style: OutlinedButton.styleFrom(
+          shape: smallShape,
+          minimumSize: buttonMinimumSize,
+          side: const BorderSide(color: SsColors.lineStrong),
+        ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(shape: mediumShape),
+        style: TextButton.styleFrom(shape: smallShape),
       ),
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: smallRadius),
@@ -134,6 +184,25 @@ abstract final class AppTheme {
           borderRadius: smallRadius,
           borderSide: const BorderSide(color: SsColors.brand, width: 2),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: smallRadius,
+          borderSide: const BorderSide(color: SsColors.danger),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: smallRadius,
+          borderSide: const BorderSide(color: SsColors.danger, width: 2),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: SsColors.ink,
+        contentTextStyle: SsType.body.copyWith(color: SsColors.surfaceRaised),
+        shape: mediumShape,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: SsColors.surfaceRaised,
+        surfaceTintColor: Colors.transparent,
+        shape: mediumShape,
       ),
     );
   }
