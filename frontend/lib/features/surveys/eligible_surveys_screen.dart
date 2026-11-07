@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/state_message.dart';
 import '../auth/auth_models.dart';
 import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
@@ -110,7 +111,8 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                 return _Scrollable(
                   onRefresh: _refresh,
                   children: [
-                    _StateMessage(
+                    StateMessage(
+                      icon: Icons.cloud_off_outlined,
                       title: 'Could not load surveys',
                       body: _errorText(snapshot.error),
                       action: FilledButton(
@@ -126,7 +128,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                 return _Scrollable(
                   onRefresh: _refresh,
                   children: const [
-                    _StateMessage(
+                    StateMessage(
                       title: 'No surveys match your profile yet.',
                       body:
                           'New surveys appear here when a provider targets '
@@ -182,33 +184,6 @@ class _Scrollable extends StatelessWidget {
         padding: const EdgeInsetsDirectional.all(SsSpace.s4),
         children: children,
       ),
-    );
-  }
-}
-
-class _StateMessage extends StatelessWidget {
-  const _StateMessage({required this.title, required this.body, this.action});
-
-  final String title;
-  final String body;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: SsSpace.s6),
-        Text(title, style: textTheme.titleMedium),
-        const SizedBox(height: SsSpace.s2),
-        Text(
-          body,
-          style: textTheme.bodyMedium?.copyWith(color: SsColors.inkMuted),
-        ),
-        if (action != null) ...[const SizedBox(height: SsSpace.s4), action!],
-      ],
     );
   }
 }
