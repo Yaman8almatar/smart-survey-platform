@@ -3,10 +3,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 
 from apps.core.models import RespondentProfile, User
-from core.enums import AccountStatus, Gender, UserType
+from core.enums import AccountStatus, UserType
 from core.exceptions import InvalidCredentials, ValidationError
 from repositories.profile_repository import ProfileRepository
 from repositories.user_repository import UserRepository
+from services.profile_service import ProfileService
 
 
 class AuthenticationService:
@@ -40,9 +41,10 @@ class AuthenticationService:
 
     def register_respondent(self, name, email, password, age, gender, region, interests):
         """Register a respondent account and create its demographic profile."""
-        # Gender.ANY is reserved for Targeting criteria, not respondent profiles.
-        if gender == Gender.ANY:
-            raise ValidationError("Gender.ANY is not allowed for respondent profiles.")
+        # Same profile rules as a profile update, checked before anything is saved.
+        ProfileService(self.profile_repository).validate_profile_data(
+            age, gender, region, interests
+        )
 
         normalized_email = self._normalize_email(email)
         self._reject_duplicate_email(normalized_email)
@@ -66,7 +68,7 @@ class AuthenticationService:
                     age=age,
                     gender=gender,
                     region=region,
-                    interests=interests,
+                    interests=list(interests),
                 )
                 self.profile_repository.save(profile)
             return saved_user

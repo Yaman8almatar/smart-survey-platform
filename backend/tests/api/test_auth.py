@@ -20,8 +20,8 @@ def registration_payload(**overrides):
         "password": "a-strong-pass-1",
         "age": 28,
         "gender": "FEMALE",
-        "region": "Aleppo",
-        "interests": "reading",
+        "region": "ALEPPO",
+        "interests": ["EDUCATION", "CAREERS"],
     }
     payload.update(overrides)
     return payload
@@ -38,7 +38,9 @@ def test_register_creates_respondent_and_profile_without_tokens(client):
     user = User.objects.get(email="sara@example.com")
     assert user.check_password("a-strong-pass-1")
     profile = RespondentProfile.objects.get(user=user)
-    assert (profile.age, profile.gender, profile.region) == (28, "FEMALE", "Aleppo")
+    assert (profile.age, profile.gender, profile.region) == (28, "FEMALE", "ALEPPO")
+    assert profile.interests == ["EDUCATION", "CAREERS"]
+    assert (profile.education, profile.occupation, profile.marital_status) == ("", "", "")
 
 
 def test_register_rejects_duplicate_email(client, respondent):
@@ -247,15 +249,38 @@ def test_register_rejects_same_email_in_other_letter_case(client, respondent):
     assert response.json()["error"]["message"] == "Email is already registered."
 
 
-def test_register_rejects_interests_over_1000_characters(client):
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("region", "Aleppo", "Choose a governorate from the list."),
+        ("region", " ALEPPO", "Choose a governorate from the list."),
+        ("interests", [], "Choose at least one interest."),
+        ("interests", ["READING"], "Choose interests from the list."),
+        ("interests", ["HEALTH", "HEALTH"], "Choose each interest only once."),
+    ],
+)
+def test_register_rejects_free_text_region_and_interests(client, field, value, message):
     response = client.post(
         REGISTER_URL,
-        registration_payload(interests="x" * 1001),
+        registration_payload(**{field: value}),
         format="json",
     )
 
     assert response.status_code == 400
-    assert "interests" in response.json()["error"]["fields"]
+    assert message in str(response.json()["error"]["fields"][field])
+    assert not User.objects.filter(email="sara@example.com").exists()
+
+
+def test_register_ignores_optional_profile_fields(client):
+    response = client.post(
+        REGISTER_URL,
+        registration_payload(education="BACHELOR"),
+        format="json",
+    )
+
+    assert response.status_code == 201
+    profile = RespondentProfile.objects.get(user__email="sara@example.com")
+    assert profile.education == ""
 
 
 def test_refresh_requires_refresh_field(client):

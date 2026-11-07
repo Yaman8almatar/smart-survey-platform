@@ -369,8 +369,8 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region="Damascus",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
 
@@ -381,7 +381,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
     survey_service.publish_survey(provider, eligible.survey_id)
 
@@ -397,7 +397,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
     survey_service.publish_survey(provider, answered.survey_id)
     ResponseRepository().save(Response(survey=answered, respondent=respondent))
@@ -409,7 +409,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
 
     surveys = survey_service.get_eligible_surveys(respondent)
@@ -418,7 +418,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
 
 
 @pytest.mark.django_db
-def test_eligible_surveys_match_region_ignoring_case_and_spaces(survey_service):
+def test_eligible_surveys_match_equal_governorate_codes_only(survey_service):
     provider = create_user("provider-eligible-region@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-eligible-region@example.com", UserType.RESPONDENT)
     ProfileRepository().save(
@@ -426,18 +426,22 @@ def test_eligible_surveys_match_region_ignoring_case_and_spaces(survey_service):
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region=" damascus ",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
-    survey = survey_service.create_survey(provider, "Regional", "Description")
-    add_question(survey)
-    add_targeting(survey, region="Damascus")
-    survey_service.publish_survey(provider, survey.survey_id)
+    matching = survey_service.create_survey(provider, "Damascus", "Description")
+    add_question(matching)
+    add_targeting(matching, region="DAMASCUS")
+    survey_service.publish_survey(provider, matching.survey_id)
+    other = survey_service.create_survey(provider, "Rif Dimashq", "Description")
+    add_question(other)
+    add_targeting(other, region="RIF_DIMASHQ")
+    survey_service.publish_survey(provider, other.survey_id)
 
     surveys = survey_service.get_eligible_surveys(respondent)
 
-    assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
+    assert [eligible.survey_id for eligible in surveys] == [matching.survey_id]
 
 
 def add_choice_question(survey, option_count):
@@ -500,8 +504,8 @@ def test_eligible_survey_items_include_question_count_for_eligible_surveys_only(
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region="Damascus",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
 
@@ -546,7 +550,7 @@ def published_survey_with_targeting(survey_service, provider, **targeting):
     return survey_service.publish_survey(provider, survey.survey_id)
 
 
-def respondent_with_profile(email, age=30, gender=Gender.FEMALE, region="Damascus"):
+def respondent_with_profile(email, age=30, gender=Gender.FEMALE, region="DAMASCUS"):
     respondent = create_user(email, UserType.RESPONDENT)
     profile = ProfileRepository().save(
         RespondentProfile(
@@ -554,7 +558,7 @@ def respondent_with_profile(email, age=30, gender=Gender.FEMALE, region="Damascu
             age=age,
             gender=gender,
             region=region,
-            interests="Technology",
+            interests=["TECHNOLOGY"],
         )
     )
     return respondent, profile
@@ -595,16 +599,12 @@ def test_eligible_surveys_with_gender_any_include_every_gender(survey_service, g
 
 
 REGION_PAIRS = [
-    pytest.param("Amman", " amman ", id="spaces-and-case"),
-    pytest.param("AMMAN", "amman", id="upper-and-lower"),
-    pytest.param("", "Amman", id="blank-criteria-region"),
-    pytest.param("Amman", "Zarqa", id="different-region"),
-    pytest.param(
-        "Amman\t",
-        "Amman",
-        id="trailing-tab",
-        marks=pytest.mark.xfail(strict=True, reason="DB TRIM keeps tabs; Python strip removes them"),
-    ),
+    # Codes only: the old free-text cases (case, spaces, a trailing tab) cannot exist any more.
+    pytest.param("DAMASCUS", "DAMASCUS", id="same-code"),
+    pytest.param(None, "DAMASCUS", id="no-criteria-region"),
+    pytest.param("", "DAMASCUS", id="blank-criteria-region"),
+    pytest.param("DAMASCUS", "RIF_DIMASHQ", id="different-code"),
+    pytest.param("DAMASCUS", "", id="unmapped-profile-region"),
 ]
 
 

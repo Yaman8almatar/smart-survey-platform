@@ -17,6 +17,8 @@ from core.enums import (
     AccountStatus,
     AnalysisStatus,
     Gender,
+    Governorate,
+    Interest,
     QuestionType,
     SentimentLabel,
     SurveyStatus,
@@ -92,7 +94,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Provider: {provider.email} / {DEMO_PASSWORD}")
         self.stdout.write(f"  Respondent: {respondent.email} / {DEMO_PASSWORD}")
         self.stdout.write("Demo profile:")
-        self.stdout.write(f"  Respondent region: {profile.region}")
+        self.stdout.write(f"  Respondent governorate: {profile.get_region_display()}")
         self.stdout.write(f"  Respondent age: {profile.age}")
         self.stdout.write("Demo survey:")
         self.stdout.write(f"  Title: {survey.title}")
@@ -118,8 +120,8 @@ class Command(BaseCommand):
             defaults={
                 "age": 24,
                 "gender": Gender.MALE,
-                "region": "Amman",
-                "interests": "customer experience, digital services",
+                "region": Governorate.DAMASCUS,
+                "interests": [Interest.CAREERS, Interest.TECHNOLOGY],
             },
         )
         return profile
@@ -151,7 +153,7 @@ class Command(BaseCommand):
                 "gender": Gender.ANY,
                 "age_min": 18,
                 "age_max": 35,
-                "region": "Amman",
+                "region": Governorate.DAMASCUS,
             },
         )[0]
 

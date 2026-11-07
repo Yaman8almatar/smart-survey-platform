@@ -19,6 +19,7 @@ from .serializers import (
     EligibleSurveySerializer,
     ErrorSerializer,
     LogoutSerializer,
+    ProfileOptionsSerializer,
     ProfileSerializer,
     RegisterSerializer,
     ResponseCreatedSerializer,
@@ -31,6 +32,7 @@ from .serializers import (
 
 AUTH_TAG = ["auth"]
 ME_TAG = ["me"]
+PROFILE_TAG = ["profile"]
 SURVEY_TAG = ["surveys"]
 
 
@@ -162,14 +164,31 @@ class ProfileView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        # Full replace: an omitted optional field arrives as "" and clears the stored value.
         profile = ProfileService().update_profile(
             request.user,
             data["age"],
             data["gender"],
             data["region"],
             data["interests"],
+            data["education"],
+            data["occupation"],
+            data["marital_status"],
         )
         return Response(ProfileSerializer(profile).data)
+
+
+class ProfileOptionsView(PublicAPIView):
+    # No throttle_scope: ScopedRateThrottle does not limit this public read.
+
+    @extend_schema(
+        tags=PROFILE_TAG,
+        responses={200: ProfileOptionsSerializer},
+        summary="Fixed lists for the profile fields (public)",
+    )
+    def get(self, request):
+        """Return the profile lists through ProfileService."""
+        return Response(ProfileOptionsSerializer(ProfileService().options()).data)
 
 
 class EligibleSurveysView(APIView):

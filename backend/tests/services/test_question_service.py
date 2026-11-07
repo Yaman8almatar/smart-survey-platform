@@ -53,8 +53,8 @@ def make_survey_answerable(survey, target_gender=Gender.ANY):
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region="Damascus",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
     return respondent

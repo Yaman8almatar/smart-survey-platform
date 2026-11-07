@@ -1,6 +1,6 @@
 from django.db import models
 
-from core.enums import Gender
+from core.enums import Gender, Governorate
 
 
 class TargetingCriteria(models.Model):
@@ -20,7 +20,12 @@ class TargetingCriteria(models.Model):
     )
     age_min = models.PositiveIntegerField(null=True, blank=True)
     age_max = models.PositiveIntegerField(null=True, blank=True)
-    region = models.CharField(max_length=255, null=True, blank=True)
+    region = models.CharField(
+        max_length=32,
+        choices=Governorate.choices,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         db_table = "survey_targeting_criteria"

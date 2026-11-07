@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from core.enums import Gender
+from core.enums import Education, Gender, Governorate, Interest, MaritalStatus, Occupation
 
 REGISTRATION_GENDERS = [Gender.MALE, Gender.FEMALE]
 
@@ -17,16 +17,73 @@ class UserSerializer(serializers.Serializer):
     role = serializers.CharField(source="user_type", read_only=True)
 
 
-class ProfileSerializer(serializers.Serializer):
-    """Demographic profile used for survey targeting (read and update)."""
+def _optional_choice(choices, message):
+    """Optional list field: an omitted value becomes "" (not answered)."""
+    return serializers.ChoiceField(
+        choices=choices,
+        required=False,
+        allow_blank=True,
+        default="",
+        error_messages={"invalid_choice": message},
+    )
+
+
+class ProfileFieldsSerializer(serializers.Serializer):
+    """The four required profile details shared by registration and the profile."""
 
     age = serializers.IntegerField(min_value=1, max_value=120)
     gender = serializers.ChoiceField(choices=REGISTRATION_GENDERS)
-    region = serializers.CharField(max_length=255)
-    interests = serializers.CharField(max_length=1000)
+    region = serializers.ChoiceField(
+        choices=Governorate.choices,
+        error_messages={"invalid_choice": "Choose a governorate from the list."},
+    )
+    interests = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=Interest.choices,
+            error_messages={"invalid_choice": "Choose interests from the list."},
+        ),
+        allow_empty=False,
+        error_messages={"empty": "Choose at least one interest."},
+    )
+
+    def validate_interests(self, value):
+        """Reject a repeated interest code."""
+        if len(set(value)) != len(value):
+            raise serializers.ValidationError("Choose each interest only once.")
+        return value
 
 
-class RegisterSerializer(ProfileSerializer):
+class ProfileSerializer(ProfileFieldsSerializer):
+    """Demographic profile used for survey targeting; PUT replaces every field."""
+
+    education = _optional_choice(
+        Education.choices, "Choose an education level from the list."
+    )
+    occupation = _optional_choice(Occupation.choices, "Choose an occupation from the list.")
+    marital_status = _optional_choice(
+        MaritalStatus.choices, "Choose a marital status from the list."
+    )
+    completion_percent = serializers.IntegerField(read_only=True)
+
+
+class ChoiceOptionSerializer(serializers.Serializer):
+    """One entry of a fixed profile list."""
+
+    code = serializers.CharField()
+    label = serializers.CharField()
+
+
+class ProfileOptionsSerializer(serializers.Serializer):
+    """The fixed profile lists, each in display order."""
+
+    governorates = ChoiceOptionSerializer(many=True)
+    education = ChoiceOptionSerializer(many=True)
+    occupation = ChoiceOptionSerializer(many=True)
+    marital_status = ChoiceOptionSerializer(many=True)
+    interests = ChoiceOptionSerializer(many=True)
+
+
+class RegisterSerializer(ProfileFieldsSerializer):
     """Respondent registration input; business rules stay in AuthenticationService."""
 
     name = serializers.CharField(max_length=255)

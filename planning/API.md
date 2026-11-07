@@ -29,7 +29,7 @@ Android emulator notes:
    revocation as best effort, and always deletes both stored tokens, even on a 400, a network failure or when no refresh
    token is stored (then it sends no request).
 
-Only respondents may use the API. Other roles can obtain a token but get 403 `permission_denied` on every endpoint except register and token. Token lifetimes are `API_ACCESS_TOKEN_LIFETIME` and `API_REFRESH_TOKEN_LIFETIME` in `config/settings.py`.
+Only respondents may use the API. Other roles can obtain a token but get 403 `permission_denied` on every endpoint except register, token and `GET /profile/options/`. Token lifetimes are `API_ACCESS_TOKEN_LIFETIME` and `API_REFRESH_TOKEN_LIFETIME` in `config/settings.py`.
 
 ## Endpoints
 | Method | Path | Auth | Success | Errors |
@@ -39,14 +39,42 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | POST | `/auth/token/refresh/` | none | 200 `{access,refresh}` | 400, 401, 429 |
 | POST | `/auth/logout/` | none | 204 | 400, 429 |
 | GET | `/me/` | respondent | 200 `{id,email,name,role}` | 401, 403 |
-| GET | `/me/profile/` | respondent | 200 `{age,gender,region,interests}` | 401, 403, 404 |
+| GET | `/me/profile/` | respondent | 200 `{age,gender,region,interests,education,occupation,marital_status,completion_percent}` | 401, 403, 404 |
 | PUT | `/me/profile/` | respondent | 200 profile | 400, 401, 403 |
+| GET | `/profile/options/` | none | 200 `{governorates,education,occupation,marital_status,interests}` | — |
 | GET | `/surveys/eligible/` | respondent | 200 `[{id,title,description,question_count}]` | 401, 403 |
 | GET | `/surveys/{id}/` | respondent | 200 `{id,title,description,questions[]}` | 401, 403, 404, 409 |
 | POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409 |
 | GET | `/me/responses/` | respondent | 200 `[{survey_id,title,description,submitted_at}]` | 401, 403 |
 
-Register and profile bodies: `age` 1 to 120, `gender` `MALE` or `FEMALE`, `region`, `interests`. Register also takes `name`, `email`, `password`.
+Register and profile bodies (FR-02, D-108): `age` 1 to 120, `gender` `MALE` or `FEMALE`, `region` one governorate code,
+`interests` a list of 1 to 12 distinct interest codes. Register also takes `name`, `email`, `password`; it does not take
+the optional fields (they start as `""`).
+```json
+{"age": 28, "gender": "FEMALE", "region": "DAMASCUS", "interests": ["TECHNOLOGY", "CAREERS"],
+ "education": "BACHELOR", "occupation": "", "marital_status": "PREFER_NOT_TO_SAY"}
+```
+- The profile also has three optional fields: `education`, `occupation`, `marital_status`. Each is `""` (not answered)
+  or one code of its list.
+- `PUT /me/profile/` is a **full replace**: send all seven fields. An optional field that is left out is stored as `""`.
+- `completion_percent` is read-only (GET and PUT responses). Seven details count equally: age, gender, region, interests
+  (at least one), education, occupation, marital status; `PREFER_NOT_TO_SAY` counts as filled.
+  Percent = round(filled × 100 / 7): 0, 14, 29, 43, 57, 71, 86, 100.
+- The field keeps the name `region`; the UI calls it "Governorate". Targeting matches by code equality.
+- Field errors name the field, for example `{"region": ["Choose a governorate from the list."]}` or
+  `{"interests": ["Choose at least one interest."]}`.
+
+`GET /profile/options/` needs no token and is not throttled. Each list is `[{"code", "label"}]` in display order:
+
+| Key | Codes, in order |
+|---|---|
+| `governorates` | `ALEPPO`, `AL_HASAKAH`, `AS_SUWAYDA`, `DAMASCUS`, `DARAA`, `DEIR_EZ_ZOR`, `HAMA`, `HOMS`, `IDLIB`, `LATAKIA`, `QUNEITRA`, `RAQQA`, `RIF_DIMASHQ`, `TARTUS`, `OUTSIDE_SYRIA` |
+| `education` | `BASIC`, `SECONDARY`, `INSTITUTE`, `BACHELOR`, `MASTER`, `DOCTORATE`, `PREFER_NOT_TO_SAY` |
+| `occupation` | `STUDENT`, `PUBLIC_SECTOR`, `PRIVATE_SECTOR`, `SELF_EMPLOYED`, `LOOKING_FOR_WORK`, `HOMEMAKER`, `RETIRED`, `OTHER`, `PREFER_NOT_TO_SAY` |
+| `marital_status` | `SINGLE`, `MARRIED`, `DIVORCED`, `WIDOWED`, `PREFER_NOT_TO_SAY` |
+| `interests` | `TECHNOLOGY`, `EDUCATION`, `HEALTH`, `SPORTS`, `FOOD`, `TRAVEL`, `SHOPPING`, `FINANCE`, `CAREERS`, `ARTS`, `ENTERTAINMENT`, `ENVIRONMENT` |
+
+Labels come from the API (`backend/core/enums.py`); clients show the label and send the code.
 
 Question fields: `id`, `text`, `type` (`MULTIPLE_CHOICE`, `RATING_SCALE`, `OPEN_TEXT`), `is_required`, `order_index`, `options[{id,text}]`, `rating_values` (`[1,2,3,4,5]` for rating questions, else `[]`).
 
@@ -91,7 +119,7 @@ The four auth endpoints are rate limited per client IP with DRF `ScopedRateThrot
 
 A request over the limit gets 429 `throttled` and a `Retry-After` header (seconds to wait). Scopes are independent: using up
 login does not block token refresh. Endpoints without a scope, including `/healthz/live/` and `/healthz/ready/`, are not
-throttled. The counters live in the Django cache; set `REDIS_URL` so that several server processes share them (without it
+throttled; `GET /profile/options/` is not throttled either. The counters live in the Django cache; set `REDIS_URL` so that several server processes share them (without it
 each process keeps its own in-memory counters).
 
 The client is identified by the connection address (REMOTE_ADDR), so clients cannot change their identity with

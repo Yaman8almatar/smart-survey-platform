@@ -1,5 +1,4 @@
 from django.db.models import Count, Exists, OuterRef, Q
-from django.db.models.functions import Lower, Trim
 
 from apps.core.models import Response, Survey
 from core.enums import Gender, SurveyStatus
@@ -42,11 +41,10 @@ class SurveyRepository:
             Q(criteria__age_max__isnull=True)
             | Q(criteria__age_max__gte=profile.age)
         )
-        region_clean_lower = (profile.region or "").strip().casefold()
         region_filter = (
             Q(criteria__region__isnull=True)
-            | Q(clean_criteria_region="")
-            | Q(clean_criteria_region=region_clean_lower)
+            | Q(criteria__region="")
+            | Q(criteria__region=profile.region)
         )
 
         return (
@@ -54,7 +52,6 @@ class SurveyRepository:
                 status=SurveyStatus.PUBLISHED,
                 criteria__isnull=False,
             )
-            .annotate(clean_criteria_region=Lower(Trim("criteria__region")))
             .filter(
                 gender_filter,
                 age_min_filter,
