@@ -12,6 +12,7 @@ urlpatterns = [
     path("auth/logout/", views.LogoutView.as_view(), name="logout"),
     path("me/", views.MeView.as_view(), name="me"),
     path("me/profile/", views.ProfileView.as_view(), name="profile"),
+    path("profile/options/", views.ProfileOptionsView.as_view(), name="profile-options"),
     path("surveys/eligible/", views.EligibleSurveysView.as_view(), name="surveys-eligible"),
     path("surveys/<int:survey_id>/", views.SurveyDetailView.as_view(), name="survey-detail"),
     path(

@@ -41,6 +41,79 @@ class Gender(models.TextChoices):
     ANY = "ANY", "Any"
 
 
+class Governorate(models.TextChoices):
+    """Defines the fixed governorate list used by profiles and targeting criteria."""
+
+    ALEPPO = "ALEPPO", "Aleppo"
+    AL_HASAKAH = "AL_HASAKAH", "Al-Hasakah"
+    AS_SUWAYDA = "AS_SUWAYDA", "As-Suwayda"
+    DAMASCUS = "DAMASCUS", "Damascus"
+    DARAA = "DARAA", "Daraa"
+    DEIR_EZ_ZOR = "DEIR_EZ_ZOR", "Deir ez-Zor"
+    HAMA = "HAMA", "Hama"
+    HOMS = "HOMS", "Homs"
+    IDLIB = "IDLIB", "Idlib"
+    LATAKIA = "LATAKIA", "Latakia"
+    QUNEITRA = "QUNEITRA", "Quneitra"
+    RAQQA = "RAQQA", "Raqqa"
+    RIF_DIMASHQ = "RIF_DIMASHQ", "Rif Dimashq"
+    TARTUS = "TARTUS", "Tartus"
+    OUTSIDE_SYRIA = "OUTSIDE_SYRIA", "Outside Syria"
+
+
+class Education(models.TextChoices):
+    """Defines the optional education levels of a respondent profile."""
+
+    BASIC = "BASIC", "Basic education or less"
+    SECONDARY = "SECONDARY", "Secondary school"
+    INSTITUTE = "INSTITUTE", "Institute diploma"
+    BACHELOR = "BACHELOR", "Bachelor's degree"
+    MASTER = "MASTER", "Master's degree"
+    DOCTORATE = "DOCTORATE", "Doctorate"
+    PREFER_NOT_TO_SAY = "PREFER_NOT_TO_SAY", "Prefer not to say"
+
+
+class Occupation(models.TextChoices):
+    """Defines the optional occupations of a respondent profile."""
+
+    STUDENT = "STUDENT", "Student"
+    PUBLIC_SECTOR = "PUBLIC_SECTOR", "Public sector employee"
+    PRIVATE_SECTOR = "PRIVATE_SECTOR", "Private sector employee"
+    SELF_EMPLOYED = "SELF_EMPLOYED", "Self-employed or business owner"
+    LOOKING_FOR_WORK = "LOOKING_FOR_WORK", "Looking for work"
+    HOMEMAKER = "HOMEMAKER", "Homemaker"
+    RETIRED = "RETIRED", "Retired"
+    OTHER = "OTHER", "Other"
+    PREFER_NOT_TO_SAY = "PREFER_NOT_TO_SAY", "Prefer not to say"
+
+
+class MaritalStatus(models.TextChoices):
+    """Defines the optional marital status values of a respondent profile."""
+
+    SINGLE = "SINGLE", "Single"
+    MARRIED = "MARRIED", "Married"
+    DIVORCED = "DIVORCED", "Divorced"
+    WIDOWED = "WIDOWED", "Widowed"
+    PREFER_NOT_TO_SAY = "PREFER_NOT_TO_SAY", "Prefer not to say"
+
+
+class Interest(models.TextChoices):
+    """Defines the fixed interest topics a respondent can choose."""
+
+    TECHNOLOGY = "TECHNOLOGY", "Technology"
+    EDUCATION = "EDUCATION", "Education"
+    HEALTH = "HEALTH", "Health"
+    SPORTS = "SPORTS", "Sports"
+    FOOD = "FOOD", "Food and cooking"
+    TRAVEL = "TRAVEL", "Travel"
+    SHOPPING = "SHOPPING", "Shopping"
+    FINANCE = "FINANCE", "Money and finance"
+    CAREERS = "CAREERS", "Jobs and careers"
+    ARTS = "ARTS", "Arts and culture"
+    ENTERTAINMENT = "ENTERTAINMENT", "Entertainment"
+    ENVIRONMENT = "ENVIRONMENT", "Environment"
+
+
 class SentimentLabel(models.TextChoices):
     """Defines normalized sentiment categories stored for open-text answers."""
 

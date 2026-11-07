@@ -1,6 +1,6 @@
 from django import forms
 
-from core.enums import Gender, QuestionType
+from core.enums import Gender, Governorate, QuestionType
 
 
 class BootstrapFormMixin:
@@ -48,4 +48,7 @@ class TargetingCriteriaForm(BootstrapFormMixin, forms.Form):
     )
     age_min = forms.IntegerField(required=False)
     age_max = forms.IntegerField(required=False)
-    region = forms.CharField(required=False, max_length=255)
+    region = forms.ChoiceField(
+        required=False,
+        choices=[("", "Any governorate"), *Governorate.choices],
+    )

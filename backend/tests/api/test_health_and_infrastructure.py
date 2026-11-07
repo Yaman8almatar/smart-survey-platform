@@ -59,8 +59,8 @@ def test_password_validation_rejects_weak_passwords():
                 "name": "Weak User",
                 "age": 25,
                 "gender": "MALE",
-                "region": "Damascus",
-                "interests": "Tech",
+                "region": "DAMASCUS",
+                "interests": ["TECHNOLOGY"],
             },
             format="json",
         )

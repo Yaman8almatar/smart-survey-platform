@@ -57,14 +57,14 @@ def create_user(email, user_type):
     )
 
 
-def create_profile(user, gender=Gender.FEMALE, age=30, region="Damascus"):
+def create_profile(user, gender=Gender.FEMALE, age=30, region="DAMASCUS"):
     return ProfileRepository().save(
         RespondentProfile(
             user=user,
             age=age,
             gender=gender,
             region=region,
-            interests="Technology",
+            interests=["TECHNOLOGY"],
         )
     )
 

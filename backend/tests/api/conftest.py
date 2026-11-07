@@ -57,8 +57,8 @@ def make_respondent(make_user):
         email="respondent@example.com",
         age=30,
         gender=Gender.MALE,
-        region="Damascus",
-        interests="sports",
+        region="DAMASCUS",
+        interests=("SPORTS",),
         account_status=AccountStatus.ACTIVE,
     ):
         user = make_user(email, UserType.RESPONDENT, account_status)
@@ -67,7 +67,7 @@ def make_respondent(make_user):
             age=age,
             gender=gender,
             region=region,
-            interests=interests,
+            interests=list(interests),
         )
         return user
 

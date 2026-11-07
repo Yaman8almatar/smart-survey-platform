@@ -1,11 +1,12 @@
-# STATUS — 2026-11-06
-Branch: chore/upgrade-django-5-2
-Task: Correct the smoke section of the PR #55 body (TASK-15 Part 7)
-Done: PR #55 smoke section now lists only checks proven by runserver logs (user run 23:09-23:28 on 5.2.19, session API smoke);
-  earlier unverified browser run marked as not counted; analytics page marked as not opened.
-Changes: 1 modified, 0 new, 0 deleted — planning/STATUS.md (PR body edited on GitHub)
-Tests: skipped (no Python changes)
+# STATUS — 2026-11-07
+Branch: feat/fr02-profile-backend
+Task: TASK-16 Part 1 — FR-02 profile lists, completion percent and options endpoint (Refs #16)
+Done: Governorate/interest codes plus education, occupation, marital status (D-108); migrations 0003-0005 map old text;
+  completion_percent; public GET /api/v1/profile/options/; targeting is code equality. Smoke passed on Yaman's runserver log.
+Changes: 31 modified, 6 new, 0 deleted — backend/core/enums.py, backend/apps/core/migrations/0003-0005,
+  backend/services/profile_service.py, backend/apps/api/, planning/API.md
+Tests: 503 passed (before: 411 passed, 1 xfailed)
 Check: OK (System check identified no issues)
-Committed: yes (this status commit, on top of fae1e06)
-Open questions: none
-Next: approval of PR #55 from Hasan or Yousef; #49 stays in Review until merge.
+Committed: yes (TASK-16 Part 1 commit on feat/fr02-profile-backend)
+Open questions: class diagram is a PNG with no source in diagrams/ — team updates it
+Next: PR review on develop; Part 2 updates the Flutter register screen to the new codes.

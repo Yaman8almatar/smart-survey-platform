@@ -35,7 +35,8 @@ because its Daily Scrum and separate roles did not fit this pattern.
 | Released | The release pull request is merged into `main` and tagged; GitHub closes the issue. | — |
 
 **Definition of Done:** tests green in CI; the pull request reviewed by another member; affected diagrams
-updated; the item's report section and its three defence questions written.
+updated; the item's report section and its three defence questions written; every screen is designed and approved by
+the team before it is coded (D-106).
 
 **Blocked items:** add the label `blocked`, write the reason in a comment and mention a teammate; the teammate
 answers within 24 hours.
