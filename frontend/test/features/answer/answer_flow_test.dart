@@ -79,11 +79,33 @@ http.Response created() => jsonResponse({
   'submitted_at': DateTime.now().toUtc().toIso8601String(),
 }, 201);
 
-/// The list, the survey and the send endpoint; counts list loads and keeps sent bodies.
+/// The 200 body of the draft endpoint, saved just now.
+http.Response draftResponse(List<Object?> answers) {
+  final now = DateTime.now().toUtc().toIso8601String();
+  return jsonResponse({
+    'survey_id': 1,
+    'answers': answers,
+    'started_at': now,
+    'updated_at': now,
+  });
+}
+
+http.Response noDraft() =>
+    errorResponse(404, 'draft_not_found', 'No draft for this survey.');
+
+Future<http.Response> networkDown() async =>
+    throw http.ClientException('offline');
+
+/// The list, the survey, the send and draft endpoints; counts list loads and keeps bodies.
+///
+/// Unless overridden, the draft endpoint keeps what was last saved, as the server does.
 class FlowApi {
   FlowApi({
     Map<String, Object>? survey,
     this.detail,
+    this.draft,
+    this.save,
+    this.remove,
     Future<http.Response> Function()? submit,
     MemoryTokenStore? tokens,
   }) : survey = survey ?? flowSurvey,
@@ -93,13 +115,39 @@ class FlowApi {
 
   final Map<String, Object> survey;
   final Future<http.Response> Function()? detail;
+  final Future<http.Response> Function()? draft;
+  final Future<http.Response> Function()? save;
+  final Future<http.Response> Function()? remove;
   final Future<http.Response> Function() submit;
   late final TestApi api;
   int listLoads = 0;
+  int deletes = 0;
   final List<Object?> sent = [];
+  final List<Object?> saved = [];
+  List<Object?>? _stored;
+
+  Future<http.Response> _handleDraft(http.Request request) async {
+    switch (request.method) {
+      case 'PUT':
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        saved.add(body);
+        if (save != null) return save!();
+        _stored = body['answers'] as List<Object?>;
+        return draftResponse(_stored!);
+      case 'DELETE':
+        deletes++;
+        if (remove != null) return remove!();
+        _stored = null;
+        return http.Response('', 204);
+      default:
+        if (draft != null) return draft!();
+        return _stored == null ? noDraft() : draftResponse(_stored!);
+    }
+  }
 
   Future<http.Response> _handle(http.Request request) async {
     final path = request.url.path;
+    if (path.endsWith('/draft/')) return _handleDraft(request);
     if (path.endsWith('surveys/eligible/')) {
       listLoads++;
       return jsonResponse([
@@ -555,27 +603,57 @@ void main() {
   });
 
   group('leaving', () {
-    testWidgets('leaves at once with no answer', (tester) async {
-      await begin(tester, FlowApi());
-
+    Future<void> tapClose(WidgetTester tester) async {
       await tester.tap(find.byTooltip('Leave survey'));
       await tester.pumpAndSettle();
+    }
 
-      expect(find.text('Leave this survey?'), findsNothing);
+    testWidgets('leaves at once with no answer and sends no request', (
+      tester,
+    ) async {
+      final flow = FlowApi();
+      await begin(tester, flow);
+
+      await tapClose(tester);
+
+      expect(flow.saved, isEmpty);
+      expect(find.text('Leave without saving?'), findsNothing);
       expect(find.byType(SurveyStartScreen), findsOneWidget);
       expect(find.byType(SurveyAnswerScreen), findsNothing);
     });
 
-    testWidgets('asks after an answer; Keep answering stays', (tester) async {
-      await begin(tester, FlowApi());
+    testWidgets(
+      'a successful save leaves with no dialog into the resume view',
+      (tester) async {
+        final flow = FlowApi();
+        await begin(tester, flow);
+        await tapText(tester, 'Taxi');
+
+        await tapClose(tester);
+
+        expect(flow.saved, hasLength(1));
+        expect(find.text('Leave without saving?'), findsNothing);
+        expect(find.byType(SurveyAnswerScreen), findsNothing);
+        expect(find.text('Your draft'), findsOneWidget);
+        expect(
+          find.text('You answered 1 of 3 questions today.'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('a failed save asks; Keep answering stays', (tester) async {
+      final flow = FlowApi(save: networkDown);
+      await begin(tester, flow);
       await tapText(tester, 'Taxi');
 
-      await tester.tap(find.byTooltip('Leave survey'));
-      await tester.pumpAndSettle();
+      await tapClose(tester);
 
-      expect(find.text('Leave this survey?'), findsOneWidget);
+      expect(find.text('Leave without saving?'), findsOneWidget);
       expect(
-        find.text('Your answers so far will not be kept.'),
+        find.text(
+          'Your latest answers could not be saved. Cannot reach the server.',
+        ),
         findsOneWidget,
       );
 
@@ -585,11 +663,10 @@ void main() {
       expect(isSelected(tester, 'Taxi'), isTrue);
     });
 
-    testWidgets('Leave closes the answer screen', (tester) async {
-      await begin(tester, FlowApi());
+    testWidgets('a failed save asks; Leave pops', (tester) async {
+      await begin(tester, FlowApi(save: networkDown));
       await tapText(tester, 'Taxi');
-      await tester.tap(find.byTooltip('Leave survey'));
-      await tester.pumpAndSettle();
+      await tapClose(tester);
 
       await tapText(tester, 'Leave');
 
@@ -597,14 +674,365 @@ void main() {
       expect(find.byType(SurveyStartScreen), findsOneWidget);
     });
 
-    testWidgets('the system back on the review asks too', (tester) async {
-      await reachReview(tester, FlowApi());
+    testWidgets('a 400 counts as a failed save', (tester) async {
+      final flow = FlowApi(
+        save: () async => errorResponse(400, 'validation_error', 'Invalid.'),
+      );
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+
+      await tapClose(tester);
+
+      expect(find.text('Leave without saving?'), findsOneWidget);
+    });
+
+    testWidgets('the close icon spins and ignores taps during the save', (
+      tester,
+    ) async {
+      final gate = Completer<http.Response>();
+      final flow = FlowApi(save: () => gate.future);
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+
+      await tester.tap(find.byTooltip('Leave survey'));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await tester.tap(find.byTooltip('Leave survey'), warnIfMissed: false);
+      await tester.pump();
+      expect(flow.saved, hasLength(1));
+
+      gate.complete(draftResponse(const []));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SurveyAnswerScreen), findsNothing);
+    });
+
+    testWidgets('the system back on the review saves and leaves', (
+      tester,
+    ) async {
+      final flow = FlowApi();
+      await reachReview(tester, flow);
 
       final handled = await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
       expect(handled, isTrue);
-      expect(find.text('Leave this survey?'), findsOneWidget);
+      expect(find.byType(SurveyAnswerScreen), findsNothing);
+      expect(find.text('Your draft'), findsOneWidget);
+    });
+  });
+
+  group('saving a draft', () {
+    testWidgets('Next sends one PUT with the answers', (tester) async {
+      final flow = FlowApi();
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+
+      await tapText(tester, 'Next');
+
+      expect(flow.saved.single, {
+        'answers': [
+          {'question_id': 11, 'selected_option_id': 102},
+        ],
+      });
+    });
+
+    testWidgets('moving without a change sends no PUT', (tester) async {
+      final flow = FlowApi();
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+      await tapText(tester, 'Next');
+
+      await tapText(tester, 'Back');
+      await tapText(tester, 'Next');
+
+      expect(flow.saved, hasLength(1));
+    });
+
+    testWidgets('typing sends nothing until the question changes', (
+      tester,
+    ) async {
+      final flow = FlowApi();
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+      await tapText(tester, 'Next');
+
+      await tester.enterText(find.byType(TextField), 'Crowded');
+      await tester.pumpAndSettle();
+      expect(flow.saved, hasLength(1));
+
+      await tapText(tester, 'Next');
+      expect(flow.saved, hasLength(2));
+    });
+
+    testWidgets('one save at a time; the newest answers follow', (
+      tester,
+    ) async {
+      final gate = Completer<http.Response>();
+      var calls = 0;
+      final flow = FlowApi(
+        save: () async => ++calls == 1 ? gate.future : draftResponse(const []),
+      );
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+      await tapText(tester, 'Next');
+      await tester.enterText(find.byType(TextField), 'Crowded');
+      await tester.pumpAndSettle();
+
+      await tapText(tester, 'Next');
+      expect(flow.saved, hasLength(1));
+
+      gate.complete(draftResponse(const []));
+      await tester.pumpAndSettle();
+
+      expect(flow.saved, hasLength(2));
+      expect(flow.saved.last, {
+        'answers': [
+          {'question_id': 11, 'selected_option_id': 102},
+          {'question_id': 12, 'answer_value': 'Crowded'},
+        ],
+      });
+    });
+
+    testWidgets('a failed save is silent and is tried at the next change', (
+      tester,
+    ) async {
+      final flow = FlowApi(save: networkDown);
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+
+      await tapText(tester, 'Next');
+
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Anything else?'), findsOneWidget);
+
+      await tapText(tester, 'Back');
+
+      expect(flow.saved, hasLength(2));
+    });
+
+    testWidgets('409 not_editable shows the survey is closed', (tester) async {
+      final flow = FlowApi(
+        save: () async => errorResponse(409, 'not_editable', 'Closed.'),
+      );
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+
+      await tapText(tester, 'Next');
+
+      expect(find.text('This survey is closed'), findsOneWidget);
+      expect(find.text('It no longer takes answers.'), findsOneWidget);
+    });
+
+    testWidgets('an ended session while saving opens login', (tester) async {
+      final flow = FlowApi(
+        save: () async =>
+            errorResponse(401, 'authentication_failed', 'Token invalid.'),
+        tokens: MemoryTokenStore(access: 'a', refresh: 'r'),
+      );
+      await begin(tester, flow);
+      await tapText(tester, 'Taxi');
+
+      await tapText(tester, 'Next');
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+    });
+
+    testWidgets('a 409 for a save during the send does not block it', (
+      tester,
+    ) async {
+      final saveGate = Completer<http.Response>();
+      final sendGate = Completer<http.Response>();
+      var calls = 0;
+      final flow = FlowApi(
+        save: () async =>
+            ++calls == 2 ? saveGate.future : draftResponse(const []),
+        submit: () => sendGate.future,
+      );
+      await reachReview(tester, flow);
+
+      await tester.tap(find.text('Send answers'));
+      await tester.pump();
+      saveGate.complete(
+        errorResponse(409, 'duplicate_response', 'Already answered.'),
+      );
+      await tester.pump();
+
+      expect(find.text('You already answered this survey'), findsNothing);
+
+      sendGate.complete(created());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Answers sent'), findsOneWidget);
+    });
+  });
+
+  group('resume', () {
+    const chosen = {'question_id': 11, 'selected_option_id': 102};
+
+    Future<http.Response> Function() drafted(List<Object?> answers) =>
+        () async => draftResponse(answers);
+
+    Future<void> openStartOver(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.restart_alt));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('no draft: loads and shows Start survey', (tester) async {
+      await openStart(tester, FlowApi(draft: () async => noDraft()));
+
+      expect(find.text('Start survey'), findsOneWidget);
+      expect(find.text('Your draft'), findsNothing);
+    });
+
+    testWidgets('no draft: the third rule says Saved as you go', (
+      tester,
+    ) async {
+      await openStart(tester, FlowApi());
+
+      expect(find.text('Saved as you go'), findsOneWidget);
+      expect(
+        find.text(
+          'Your answers are kept until you send them or the survey closes.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Finish in one go'), findsNothing);
+    });
+
+    testWidgets('a draft shows the resume view', (tester) async {
+      final survey = surveyJson([
+        for (var i = 0; i < 6; i++) textQuestion(id: 21 + i, order: i + 1),
+      ]);
+      final flow = FlowApi(
+        survey: survey,
+        draft: drafted([
+          for (var i = 0; i < 3; i++)
+            {'question_id': 21 + i, 'answer_value': 'Yes'},
+        ]),
+      );
+
+      await openStart(tester, flow);
+
+      expect(find.text('3/6'), findsOneWidget);
+      expect(find.text('You answered 3 of 6 questions today.'), findsOneWidget);
+      expect(find.text('Your draft'), findsOneWidget);
+      expect(find.text('Saved as you go'), findsOneWidget);
+      expect(find.text('One response per survey'), findsOneWidget);
+      expect(find.text('Start over'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
+      expect(find.text('Start survey'), findsNothing);
+      final ring = tester.widget<SignalRing>(find.byType(SignalRing));
+      expect(ring.value, 50);
+      expect(ring.size, SsLayout.ringSize);
+      expect(ring.ping, isFalse);
+    });
+
+    testWidgets('a draft whose only answer lost its option is no draft', (
+      tester,
+    ) async {
+      await openStart(
+        tester,
+        FlowApi(
+          draft: drafted([
+            {'question_id': 11, 'selected_option_id': 999},
+          ]),
+        ),
+      );
+
+      expect(find.text('Start survey'), findsOneWidget);
+      expect(find.text('Your draft'), findsNothing);
+    });
+
+    testWidgets('an error from the draft call is handled as a load error', (
+      tester,
+    ) async {
+      await openStart(
+        tester,
+        FlowApi(draft: () async => errorResponse(409, 'not_editable', 'No.')),
+      );
+
+      expect(find.text('This survey is closed'), findsOneWidget);
+    });
+
+    testWidgets('Continue opens the first unanswered question', (tester) async {
+      await openStart(tester, FlowApi(draft: drafted([chosen])));
+
+      await tapText(tester, 'Continue');
+
+      expect(find.text('Question 2 of 3'), findsOneWidget);
+      expect(find.text('Anything else?'), findsOneWidget);
+
+      await tapText(tester, 'Back');
+
+      expect(isSelected(tester, 'Taxi'), isTrue);
+    });
+
+    testWidgets('Continue opens the review when all are answered', (
+      tester,
+    ) async {
+      await openStart(
+        tester,
+        FlowApi(
+          draft: drafted([
+            chosen,
+            {'question_id': 12, 'answer_value': 'Crowded'},
+            {'question_id': 13, 'rating_value': 4},
+          ]),
+        ),
+      );
+
+      await tapText(tester, 'Continue');
+
+      expect(find.text('Check your answers'), findsOneWidget);
+      expect(find.text('Crowded'), findsOneWidget);
+    });
+
+    testWidgets('Start over then Cancel keeps the draft', (tester) async {
+      final flow = FlowApi(draft: drafted([chosen]));
+      await openStart(tester, flow);
+
+      await openStartOver(tester);
+      expect(find.text('Start over?'), findsOneWidget);
+      expect(find.text('Your saved answers will be deleted.'), findsOneWidget);
+      await tapText(tester, 'Cancel');
+
+      expect(flow.deletes, 0);
+      expect(find.text('Your draft'), findsOneWidget);
+      expect(find.byType(SurveyAnswerScreen), findsNothing);
+    });
+
+    testWidgets('Start over then confirm deletes and opens question 1 empty', (
+      tester,
+    ) async {
+      final flow = FlowApi(draft: drafted([chosen]));
+      await openStart(tester, flow);
+
+      await openStartOver(tester);
+      await tester.tap(find.widgetWithText(TextButton, 'Start over'));
+      await tester.pumpAndSettle();
+
+      expect(flow.deletes, 1);
+      expect(find.text('Question 1 of 3'), findsOneWidget);
+      expect(isSelected(tester, 'Taxi'), isFalse);
+    });
+
+    testWidgets('a failed delete shows the snackbar and stays', (tester) async {
+      final flow = FlowApi(draft: drafted([chosen]), remove: networkDown);
+      await openStart(tester, flow);
+
+      await openStartOver(tester);
+      await tester.tap(find.widgetWithText(TextButton, 'Start over'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Cannot reach the server. Check your connection and try again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(SurveyAnswerScreen), findsNothing);
+      expect(find.text('Your draft'), findsOneWidget);
     });
   });
 
@@ -735,7 +1163,7 @@ void main() {
 
       await tester.binding.handlePopRoute();
       await tester.pump();
-      expect(find.text('Leave this survey?'), findsNothing);
+      expect(find.text('Leave without saving?'), findsNothing);
       expect(find.byType(SurveyAnswerScreen), findsOneWidget);
 
       gate.complete(created());

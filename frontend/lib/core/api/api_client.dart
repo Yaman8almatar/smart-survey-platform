@@ -44,6 +44,9 @@ class ApiClient {
   Future<Object?> put(String path, {Object? body, bool authenticated = true}) =>
       _send('PUT', path, body: body, authenticated: authenticated);
 
+  Future<Object?> delete(String path) =>
+      _send('DELETE', path, authenticated: true);
+
   Future<Object?> _send(
     String method,
     String path, {
