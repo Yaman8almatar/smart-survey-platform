@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../theme/tokens.dart';
+import '../answer/answer_repository.dart';
 import '../profile/profile_repository.dart';
 import '../surveys/eligible_surveys_screen.dart';
 import '../surveys/surveys_repository.dart';
@@ -18,12 +19,14 @@ class LoginScreen extends StatefulWidget {
     required this.authRepository,
     required this.surveysRepository,
     required this.profileRepository,
+    required this.answerRepository,
     this.notice,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
   final ProfileRepository profileRepository;
+  final AnswerRepository answerRepository;
 
   /// Shown above the form, e.g. after the session ended.
   final String? notice;
@@ -72,6 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
             authRepository: widget.authRepository,
             surveysRepository: widget.surveysRepository,
             profileRepository: widget.profileRepository,
+            answerRepository: widget.answerRepository,
             user: user,
           ),
         ),
@@ -115,6 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
           authRepository: widget.authRepository,
           surveysRepository: widget.surveysRepository,
           profileRepository: widget.profileRepository,
+          answerRepository: widget.answerRepository,
         ),
       ),
     );

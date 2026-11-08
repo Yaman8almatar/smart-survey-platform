@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:smart_survey_app/core/api/api_client.dart';
 import 'package:smart_survey_app/core/api/token_store.dart';
+import 'package:smart_survey_app/features/answer/answer_repository.dart';
 import 'package:smart_survey_app/features/auth/auth_repository.dart';
 import 'package:smart_survey_app/features/profile/profile_repository.dart';
 import 'package:smart_survey_app/features/surveys/surveys_repository.dart';
@@ -46,6 +47,7 @@ class TestApi {
     auth = AuthRepository(api: api, tokens: this.tokens);
     surveys = SurveysRepository(api: api);
     profile = ProfileRepository(api: api);
+    answers = AnswerRepository(api: api);
   }
 
   final MemoryTokenStore tokens;
@@ -53,6 +55,7 @@ class TestApi {
   late final AuthRepository auth;
   late final SurveysRepository surveys;
   late final ProfileRepository profile;
+  late final AnswerRepository answers;
 }
 
 List<Map<String, String>> _choices(List<List<String>> pairs) => [

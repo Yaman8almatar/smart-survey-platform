@@ -7,6 +7,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/choice_select_field.dart';
 import '../../widgets/interest_chips.dart';
 import '../../widgets/state_message.dart';
+import '../answer/answer_repository.dart';
 import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
 import '../surveys/surveys_repository.dart';
@@ -56,11 +57,13 @@ class ProfileScreen extends StatefulWidget {
     required this.authRepository,
     required this.surveysRepository,
     required this.profileRepository,
+    required this.answerRepository,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
   final ProfileRepository profileRepository;
+  final AnswerRepository answerRepository;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -278,6 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           authRepository: widget.authRepository,
           surveysRepository: widget.surveysRepository,
           profileRepository: widget.profileRepository,
+          answerRepository: widget.answerRepository,
           notice: 'Your session ended. Please log in again.',
         ),
       ),
@@ -418,7 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ProfileHero(saved: _saved),
-          _RisingSheet(
+          RisingSheet(
             child: ProfileContentWidth(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -640,27 +644,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The sheet over the hero: pulled up, and on first paint it rises and fades in.
-class _RisingSheet extends StatelessWidget {
-  const _RisingSheet({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 1, end: 0),
-      duration: SsMotion.of(context, SsMotion.standard),
-      curve: SsMotion.standardCurve,
-      builder: (context, t, child) => Transform.translate(
-        offset: Offset(0, -SsSpace.s6 + SsSpace.s4 * t),
-        child: Opacity(opacity: 1 - t, child: child),
-      ),
-      child: DecoratedBox(decoration: profileSheetDecoration, child: child),
     );
   }
 }

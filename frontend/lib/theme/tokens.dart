@@ -63,6 +63,22 @@ abstract final class SsLayout {
   /// Signal ring in a hero band.
   static const double ringSize = 88;
 
+  /// Signal ring in an app bar.
+  static const double ringCompact = 44;
+
+  /// Answer controls: option row height, rating button height, their checks, selected border.
+  static const double answerOptionHeight = 56;
+  static const double ratingHeight = 64;
+  static const double answerCheck = 22;
+  static const double ratingCheck = 14;
+  static const double selectedBorder = 2;
+
+  /// Medium inline icons: info rows on the survey start screen.
+  static const double iconMedium = 20;
+
+  /// Number circle on a review row.
+  static const double reviewNumber = 28;
+
   /// Radii of the three decorative circles behind the profile hero.
   static const List<double> heroDecorRadii = [70, 105, 140];
 
