@@ -1,0 +1,115 @@
+/*
+ * Design tokens v2 ("signal rings"), web side (TASK-17 Part A, D-110).
+ * The only stylesheet that holds literal colours. site.css uses var(--ss-...) only.
+ * Mirrors frontend/lib/theme for the Flutter app.
+ */
+:root {
+    /* Colour */
+    --ss-brand-deep: #0A3F48;
+    --ss-brand: #0E5A66;
+    --ss-brand-tint: #E3EFF1;
+    --ss-brand-50: #EEF6F7;
+    --ss-on-brand-muted: #BFDCE0;
+    --ss-accent: #E3A21A;
+    --ss-accent-tint: #FCF3E0;
+    --ss-ink: #13252A;
+    --ss-ink-muted: #4E6268;
+    --ss-surface: #F4F7F7;
+    --ss-surface-raised: #FFFFFF;
+    --ss-line: #D5E0E2;
+    --ss-line-strong: #7A8F95;
+    --ss-danger: #B54C15;
+    --ss-danger-tint: #FBEDE6;
+
+    --ss-chart-1: #0A3F48;
+    --ss-chart-2: #E3A21A;
+    --ss-chart-3: #4C9BD6;
+    --ss-chart-4: #9C5A9A;
+    --ss-chart-5: #6FA287;
+    --ss-chart-other: #9AA9AE;
+
+    --ss-sentiment-positive: #1F5F8B;
+    --ss-sentiment-neutral: #9AA9AE;
+    --ss-sentiment-negative: #B54C15;
+
+    /* Outside the design system (named in the PR) */
+    --ss-on-brand: #FFFFFF;      /* text and icons on brand-deep */
+    --ss-warning-text: #9A6700;  /* 4.9:1 on white; kept from --ssp-warning */
+
+    /* Type */
+    --ss-font-display: 'Readex Pro', system-ui, sans-serif;
+    --ss-font-body: 'IBM Plex Sans', system-ui, sans-serif;
+
+    --ss-display-size: 32px;
+    --ss-display-line: 38px;
+    --ss-title-size: 22px;
+    --ss-title-line: 28px;
+    --ss-stat-size: 28px;
+    --ss-stat-line: 32px;
+    --ss-ring-size: 20px;
+    --ss-ring-line: 24px;
+    --ss-heading-size: 17px;
+    --ss-heading-line: 24px;
+    --ss-body-size: 15px;
+    --ss-body-line: 22px;
+    --ss-label-size: 13px;
+    --ss-label-line: 18px;
+    --ss-caption-size: 12px;
+    --ss-caption-line: 16px;
+
+    /* Space */
+    --ss-space-4: 4px;
+    --ss-space-8: 8px;
+    --ss-space-12: 12px;
+    --ss-space-16: 16px;
+    --ss-space-24: 24px;
+    --ss-space-32: 32px;
+    --ss-space-48: 48px;
+
+    /* Radius */
+    --ss-radius-sm: 6px;
+    --ss-radius-md: 12px;
+    --ss-radius-lg: 20px;
+    --ss-radius-pill: 999px;
+
+    /* Shadow: floating layers only (menus, snackbars, dialogs) */
+    --ss-shadow-float: 0 8px 24px rgba(19, 37, 42, 0.18), 0 1px 2px rgba(19, 37, 42, 0.12);
+    --ss-shadow-dialog: 0 12px 32px rgba(19, 37, 42, 0.24);
+
+    /* Motion */
+    --ss-duration-fast: 150ms;
+    --ss-duration-standard: 300ms;
+    --ss-duration-emphasized: 500ms;
+    --ss-duration-pulse: 1200ms;
+    --ss-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ss-ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+    --ss-ease-pulse: ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --ss-duration-fast: 0ms;
+        --ss-duration-standard: 0ms;
+        --ss-duration-emphasized: 0ms;
+        --ss-duration-pulse: 0ms;
+    }
+}
+
+/* Bootstrap 5.3.3 mapping. Component class overrides live in site.css next to the existing rules. */
+:root {
+    --bs-body-font-family: var(--ss-font-body);
+    --bs-body-font-size: 15px;
+    --bs-body-line-height: 1.4667;
+    --bs-body-color: var(--ss-ink);
+    --bs-body-bg: var(--ss-surface);
+    --bs-primary: var(--ss-brand);
+    --bs-primary-rgb: 14, 90, 102;
+    --bs-link-color: var(--ss-brand);
+    --bs-link-color-rgb: 14, 90, 102;
+    --bs-link-hover-color: var(--ss-brand-deep);
+    --bs-link-hover-color-rgb: 10, 63, 72;
+    --bs-border-color: var(--ss-line);
+    --bs-border-radius: 6px;
+    --bs-border-radius-lg: 12px;
+    --bs-focus-ring-color: color-mix(in srgb, var(--ss-brand) 35%, transparent);
+}
