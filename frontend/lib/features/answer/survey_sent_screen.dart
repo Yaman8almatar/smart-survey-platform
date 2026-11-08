@@ -6,32 +6,12 @@ import '../../widgets/signal_ring.dart';
 import '../profile/profile_hero.dart';
 import 'survey_parts.dart';
 
-const List<String> _months = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
 /// "Sent today at 17:42." or "Sent on 7 November at 17:42.", in local time.
 String sentAtText(DateTime submittedAt, DateTime now) {
   final local = submittedAt.toLocal();
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
-  final today =
-      local.year == now.year &&
-      local.month == now.month &&
-      local.day == now.day;
-  final when = today ? 'today' : 'on ${local.day} ${_months[local.month - 1]}';
-  return 'Sent $when at $hour:$minute.';
+  return 'Sent ${dayPhrase(local, now)} at $hour:$minute.';
 }
 
 /// Confirms a survey was sent; there is no way back to its questions.

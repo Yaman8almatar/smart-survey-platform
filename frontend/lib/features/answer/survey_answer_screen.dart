@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
@@ -29,22 +30,40 @@ class SurveyAnswerScreen extends StatefulWidget {
     required this.answerRepository,
     required this.survey,
     required this.onSessionExpired,
+    this.initialAnswers = const {},
+    this.initialIndex = 0,
   });
 
   final AnswerRepository answerRepository;
   final SurveyDetail survey;
   final VoidCallback onSessionExpired;
 
+  /// Answers restored from a saved draft.
+  final Map<int, Answer> initialAnswers;
+
+  /// The first question shown; `survey.questions.length` means the review.
+  final int initialIndex;
+
   @override
   State<SurveyAnswerScreen> createState() => _SurveyAnswerScreenState();
 }
 
+enum _SaveResult { saved, failed, stopped }
+
 class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   /// Holds real answers only: a blank text removes its entry.
-  final Map<int, Answer> _answers = {};
+  late final Map<int, Answer> _answers = Map.of(widget.initialAnswers);
+
+  /// What the server holds as the draft.
+  late Map<int, Answer> _saved = widget.initialAnswers;
+
+  /// The answers of the latest save point, until a save takes them.
+  Map<int, Answer>? _queued;
+  Future<_SaveResult>? _saveRun;
+  bool _leaving = false;
 
   /// The question shown; `questions.length` means the review.
-  int _index = 0;
+  late int _index = widget.initialIndex;
   bool _movingForward = true;
   bool _returnToReview = false;
   bool _showRequired = false;
@@ -61,13 +80,51 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   bool get _onReview => _index == _questions.length;
 
   void _goTo(int index) {
-    if (_sending) return;
+    if (_sending || _leaving) return;
     FocusScope.of(context).unfocus();
     setState(() {
       _movingForward = index > _index;
       _index = index;
       _showRequired = false;
     });
+    _save();
+  }
+
+  /// A save point: at most one request runs, and the newest answers follow it.
+  Future<_SaveResult> _save() {
+    _queued = Map.of(_answers);
+    return _saveRun ??= _runSaves().whenComplete(() => _saveRun = null);
+  }
+
+  Future<_SaveResult> _runSaves() async {
+    var result = _SaveResult.saved;
+    while (mounted && !_sending) {
+      final answers = _queued;
+      if (answers == null) break;
+      _queued = null;
+      if (mapEquals(answers, _saved)) {
+        result = _SaveResult.saved;
+        continue;
+      }
+      try {
+        await widget.answerRepository.saveDraft(widget.survey.id, answers);
+        _saved = answers;
+        result = _SaveResult.saved;
+      } on SessionExpiredException {
+        if (mounted && !_sending) widget.onSessionExpired();
+        return _SaveResult.stopped;
+      } on ApiException catch (error) {
+        // During a send the server may already answer 409 for the response itself.
+        if (!mounted || _sending) return _SaveResult.stopped;
+        final block = surveyBlockFor(error, sending: false);
+        if (block != null) {
+          setState(() => _block = block);
+          return _SaveResult.stopped;
+        }
+        result = _SaveResult.failed;
+      }
+    }
+    return result;
   }
 
   void _setAnswer(SurveyQuestion question, Answer? answer) {
@@ -113,7 +170,7 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   }
 
   Future<void> _send() async {
-    if (_sending) return;
+    if (_sending || _leaving) return;
     _hideSnackBar();
     final sent = {
       for (final question in _questions) question.id: ?_answers[question.id],
@@ -190,12 +247,35 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
     };
   }
 
-  Future<void> _confirmLeave() async {
+  Future<void> _leave() async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    final result = await _save();
+    if (!mounted) return;
+    setState(() => _leaving = false);
+    switch (result) {
+      case _SaveResult.saved:
+        _close();
+      case _SaveResult.failed:
+        await _confirmLeaveUnsaved();
+      case _SaveResult.stopped:
+        break;
+    }
+  }
+
+  void _close() {
+    _hideSnackBar();
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _confirmLeaveUnsaved() async {
     final leave = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Leave this survey?'),
-        content: const Text('Your answers so far will not be kept.'),
+        title: const Text('Leave without saving?'),
+        content: const Text(
+          'Your latest answers could not be saved. Cannot reach the server.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -209,10 +289,7 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
         ],
       ),
     );
-    if (leave == true && mounted) {
-      _hideSnackBar();
-      Navigator.of(context).pop();
-    }
+    if (leave == true && mounted) _close();
   }
 
   void _onPop(bool didPop) {
@@ -221,7 +298,7 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
     } else if (_block != null) {
       backToSurveys(context);
     } else if (!_sending) {
-      _confirmLeave();
+      _leave();
     }
   }
 
@@ -229,7 +306,12 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   Widget build(BuildContext context) {
     final block = _block;
     return PopScope(
-      canPop: block == null && !_sending && _answers.isEmpty,
+      canPop:
+          block == null &&
+          !_sending &&
+          _answers.isEmpty &&
+          _saved.isEmpty &&
+          _saveRun == null,
       onPopInvokedWithResult: (didPop, _) => _onPop(didPop),
       child: block != null
           ? Scaffold(
@@ -258,8 +340,19 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
             )
           : IconButton(
               tooltip: 'Leave survey',
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.of(context).maybePop(),
+              icon: _leaving
+                  ? const SizedBox(
+                      width: SsLayout.indicatorSize,
+                      height: SsLayout.indicatorSize,
+                      child: CircularProgressIndicator(
+                        strokeWidth: SsLayout.indicatorStroke,
+                        color: SsColors.surfaceRaised,
+                      ),
+                    )
+                  : const Icon(Icons.close),
+              onPressed: _leaving
+                  ? null
+                  : () => Navigator.of(context).maybePop(),
             ),
       title: _onReview
           ? const Text('Check your answers')

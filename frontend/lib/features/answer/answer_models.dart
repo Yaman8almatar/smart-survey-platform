@@ -94,6 +94,72 @@ class Answer {
   final int? optionId;
   final int? rating;
   final String? text;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Answer &&
+      other.optionId == optionId &&
+      other.rating == rating &&
+      other.text == text;
+
+  @override
+  int get hashCode => Object.hash(optionId, rating, text);
+}
+
+/// The 200 body of `GET /surveys/{id}/draft/`: answers saved but not sent.
+class SurveyDraft {
+  const SurveyDraft({
+    required this.answers,
+    required this.startedAt,
+    required this.updatedAt,
+  });
+
+  factory SurveyDraft.fromJson(Map<String, dynamic> json) {
+    return SurveyDraft(
+      answers: {
+        for (final item in json['answers'] as List)
+          item['question_id'] as int: ?_answerFrom(
+            item as Map<String, dynamic>,
+          ),
+      },
+      startedAt: DateTime.parse(json['started_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+
+  static Answer? _answerFrom(Map<String, dynamic> row) {
+    final optionId = row['selected_option_id'] as int?;
+    if (optionId != null) return Answer.option(optionId);
+    final rating = row['rating_value'] as int?;
+    if (rating != null) return Answer.rating(rating);
+    final text = row['answer_value'] as String?;
+    return text == null ? null : Answer.text(text);
+  }
+
+  /// Keyed by question id.
+  final Map<int, Answer> answers;
+  final DateTime startedAt;
+  final DateTime updatedAt;
+
+  /// This draft without answers [survey] no longer accepts; null when none is left.
+  SurveyDraft? keptFor(SurveyDetail survey) {
+    final kept = <int, Answer>{};
+    for (final question in survey.questions) {
+      final answer = answers[question.id];
+      if (answer == null) continue;
+      final optionId = answer.optionId;
+      if (optionId != null && !question.options.any((o) => o.id == optionId)) {
+        continue;
+      }
+      kept[question.id] = answer;
+    }
+    if (kept.isEmpty) return null;
+    return SurveyDraft(
+      answers: kept,
+      startedAt: startedAt,
+      updatedAt: updatedAt,
+    );
+  }
 }
 
 /// The 201 body of `POST /surveys/{id}/responses/`.

@@ -20,16 +20,38 @@ class AnswerRepository {
   Future<SubmitResult> submit(int id, Map<int, Answer> answers) async {
     final json = await _api.post(
       'surveys/$id/responses/',
-      body: {
-        'answers': [
-          for (final entry in answers.entries)
-            ?_answerBody(entry.key, entry.value),
-        ],
-      },
+      body: _answersBody(answers),
       timeout: submitTimeout,
     );
     return _parse(201, json, SubmitResult.fromJson);
   }
+
+  /// The saved draft of survey [id], or null when the respondent has none.
+  Future<SurveyDraft?> draft(int id) async {
+    final Object? json;
+    try {
+      json = await _api.get('surveys/$id/draft/');
+    } on ApiException catch (error) {
+      if (error.code == 'draft_not_found') return null;
+      rethrow;
+    }
+    return _parse(200, json, SurveyDraft.fromJson);
+  }
+
+  /// Replaces the saved draft with [answers]. A blank text counts as no answer.
+  Future<void> saveDraft(int id, Map<int, Answer> answers) async {
+    await _api.put('surveys/$id/draft/', body: _answersBody(answers));
+  }
+
+  Future<void> deleteDraft(int id) async {
+    await _api.delete('surveys/$id/draft/');
+  }
+
+  static Map<String, Object> _answersBody(Map<int, Answer> answers) => {
+    'answers': [
+      for (final entry in answers.entries) ?_answerBody(entry.key, entry.value),
+    ],
+  };
 
   static Map<String, Object>? _answerBody(int questionId, Answer answer) {
     final text = answer.text?.trim();
