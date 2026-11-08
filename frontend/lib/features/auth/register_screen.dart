@@ -7,6 +7,7 @@ import '../../widgets/choice_select_field.dart';
 import '../../widgets/interest_chips.dart';
 import '../../widgets/state_message.dart';
 import '../profile/profile_models.dart';
+import '../answer/answer_repository.dart';
 import '../profile/profile_repository.dart';
 import '../surveys/eligible_surveys_screen.dart';
 import '../surveys/surveys_repository.dart';
@@ -25,11 +26,13 @@ class RegisterScreen extends StatefulWidget {
     required this.authRepository,
     required this.surveysRepository,
     required this.profileRepository,
+    required this.answerRepository,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
   final ProfileRepository profileRepository;
+  final AnswerRepository answerRepository;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -121,6 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             authRepository: auth,
             surveysRepository: widget.surveysRepository,
             profileRepository: widget.profileRepository,
+            answerRepository: widget.answerRepository,
             user: user,
           ),
         ),

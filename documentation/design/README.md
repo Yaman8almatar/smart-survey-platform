@@ -12,4 +12,17 @@ file differs from a pixel here, the TASK file wins.
 | components.png | Signal ring at 0, 57 and 100% on brand-deep and on a light surface; interest chips; gender segments | TASK-17 Part B |
 | web-shell.png | Web navbar with the signal mark and active-link underline, a ring on a light card, sentence-case badges | TASK-17 Part A |
 
+## FR-01 answer flow (2026-11-08)
+
+Rendered by the advisor from the canvas "Smart Survey — FR-01 Answer flow" (version 1794148118-caa4) with IBM Plex Sans and Readex Pro, so type matches the app.
+
+| File | Shows | Used by |
+|---|---|---|
+| fr01-flow-1.png | Start, choice question, rating, required error | TASK-19 |
+| fr01-flow-2.png | Optional open text in Arabic, check your answers, sent | TASK-19 |
+| fr01-states-1.png | Sending, not sent, leave dialog | TASK-19 |
+| fr01-states-2.png | Survey closed, load error, resume a draft for FR-06 | TASK-19 |
+| fr01-components-1.png | Parts, bottom bar, review rows, snackbar and dialog, motion, the copy table | TASK-19 |
+| fr01-components-2.png | Parts, bottom bar, review rows, snackbar and dialog, motion, the copy table | TASK-19 |
+
 Read one picture per step, only when the step names it.

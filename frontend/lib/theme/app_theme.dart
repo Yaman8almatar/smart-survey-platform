@@ -152,7 +152,7 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: smallShape,
+          shape: mediumShape,
           minimumSize: buttonMinimumSize,
           textStyle: textTheme.labelLarge,
           padding: const EdgeInsets.symmetric(
@@ -162,17 +162,17 @@ abstract final class AppTheme {
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(shape: smallShape),
+        style: ElevatedButton.styleFrom(shape: mediumShape),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          shape: smallShape,
+          shape: mediumShape,
           minimumSize: buttonMinimumSize,
           side: const BorderSide(color: SsColors.lineStrong),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(shape: smallShape),
+        style: TextButton.styleFrom(shape: mediumShape),
       ),
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: smallRadius),
@@ -197,11 +197,13 @@ abstract final class AppTheme {
         behavior: SnackBarBehavior.floating,
         backgroundColor: SsColors.ink,
         contentTextStyle: SsType.body.copyWith(color: SsColors.surfaceRaised),
-        shape: mediumShape,
+        shape: smallShape,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: SsColors.surfaceRaised,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: SsType.title.copyWith(color: SsColors.ink),
+        contentTextStyle: SsType.body.copyWith(color: SsColors.inkMuted),
         shape: mediumShape,
       ),
     );

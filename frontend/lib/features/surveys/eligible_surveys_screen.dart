@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/match_badge.dart';
 import '../../widgets/state_message.dart';
+import '../answer/answer_repository.dart';
+import '../answer/survey_start_screen.dart';
 import '../auth/auth_models.dart';
 import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
@@ -18,12 +21,14 @@ class EligibleSurveysScreen extends StatefulWidget {
     required this.authRepository,
     required this.surveysRepository,
     required this.profileRepository,
+    required this.answerRepository,
     required this.user,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
   final ProfileRepository profileRepository;
+  final AnswerRepository answerRepository;
   final AppUser user;
 
   @override
@@ -86,22 +91,41 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
           authRepository: widget.authRepository,
           surveysRepository: widget.surveysRepository,
           profileRepository: widget.profileRepository,
+          answerRepository: widget.answerRepository,
         ),
       ),
     );
     if (mounted) _retry();
   }
 
+  /// An answered survey leaves the list, so it reloads on return.
+  Future<void> _openSurvey(EligibleSurvey survey) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SurveyStartScreen(
+          answerRepository: widget.answerRepository,
+          surveyId: survey.id,
+          onSessionExpired: () =>
+              _openLogin(notice: 'Your session ended. Please log in again.'),
+        ),
+      ),
+    );
+    if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) _retry();
+  }
+
+  /// Removes every route, because the answer flow may be open above this list.
   void _openLogin({String? notice}) {
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) => LoginScreen(
           authRepository: widget.authRepository,
           surveysRepository: widget.surveysRepository,
           profileRepository: widget.profileRepository,
+          answerRepository: widget.answerRepository,
           notice: notice,
         ),
       ),
+      (route) => false,
     );
   }
 
@@ -190,7 +214,10 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                   ),
                   const SizedBox(height: SsSpace.s6),
                   for (final survey in surveys) ...[
-                    _SurveyCard(survey: survey),
+                    _SurveyCard(
+                      survey: survey,
+                      onTap: () => _openSurvey(survey),
+                    ),
                     const SizedBox(height: SsSpace.s4),
                   ],
                 ],
@@ -233,9 +260,10 @@ class _Scrollable extends StatelessWidget {
 }
 
 class _SurveyCard extends StatelessWidget {
-  const _SurveyCard({required this.survey});
+  const _SurveyCard({required this.survey, required this.onTap});
 
   final EligibleSurvey survey;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -243,53 +271,46 @@ class _SurveyCard extends StatelessWidget {
     final count = survey.questionCount;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(SsSpace.s4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _MatchBadge(),
-            const SizedBox(height: SsSpace.s2),
-            Text(survey.title, style: textTheme.titleMedium),
-            if (survey.description.isNotEmpty) ...[
-              const SizedBox(height: SsSpace.s1),
-              Text(
-                survey.description,
-                style: textTheme.bodyMedium?.copyWith(color: SsColors.inkMuted),
-              ),
-            ],
-            const SizedBox(height: SsSpace.s2),
-            Text(
-              count == 1 ? '1 question' : '$count questions',
-              style: textTheme.bodySmall?.copyWith(color: SsColors.inkMuted),
+      clipBehavior: Clip.antiAlias,
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.all(SsSpace.s4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const MatchBadge(),
+                      const SizedBox(height: SsSpace.s2),
+                      Text(survey.title, style: textTheme.titleMedium),
+                      if (survey.description.isNotEmpty) ...[
+                        const SizedBox(height: SsSpace.s1),
+                        Text(
+                          survey.description,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: SsColors.inkMuted,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: SsSpace.s2),
+                      Text(
+                        count == 1 ? '1 question' : '$count questions',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: SsColors.inkMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: SsSpace.s2),
+                const Icon(Icons.chevron_right, color: SsColors.inkMuted),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MatchBadge extends StatelessWidget {
-  const _MatchBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: SsColors.accent,
-        borderRadius: BorderRadius.circular(SsRadius.pill),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: SsSpace.s2,
-          vertical: SsSpace.s1,
-        ),
-        child: Text(
-          'Matches your profile',
-          style: Theme.of(
-            context,
-          ).textTheme.labelMedium?.copyWith(color: SsColors.ink),
+          ),
         ),
       ),
     );

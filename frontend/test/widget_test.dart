@@ -14,6 +14,7 @@ Future<void> pumpGate(WidgetTester tester, TestApi test) async {
         authRepository: test.auth,
         surveysRepository: test.surveys,
         profileRepository: test.profile,
+        answerRepository: test.answers,
       ),
     ),
   );

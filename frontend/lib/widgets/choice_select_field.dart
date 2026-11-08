@@ -78,7 +78,7 @@ class ChoiceSelectField extends StatelessWidget {
         selectedItemBuilder: (_) => closed,
         onChanged: onChanged,
         icon: const Icon(Icons.expand_more),
-        borderRadius: BorderRadius.circular(SsRadius.md),
+        borderRadius: BorderRadius.circular(SsRadius.sm),
         decoration: InputDecoration(labelText: label, errorText: errorText),
       ),
     );

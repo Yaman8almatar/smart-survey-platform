@@ -7,9 +7,10 @@ import '../theme/tokens.dart';
 
 /// The product's only progress shape: a ring whose arc and centred number show a 0-100 value.
 ///
-/// The value always comes from the API; the client never computes it. The arc counts up from 0 on
-/// the first build and from the previous value after that. When the value reaches 100 while the
-/// widget is shown, one saffron ping plays once.
+/// Business values (completion, reach, targets) come from the API; a position ring (question n of
+/// m) is computed in the client (D-118). The arc counts up from 0 on the first build and from the
+/// previous value after that. When the value reaches 100 while the widget is shown, one saffron
+/// ping plays once, unless [ping] is false.
 class SignalRing extends StatefulWidget {
   const SignalRing({
     super.key,
@@ -17,6 +18,9 @@ class SignalRing extends StatefulWidget {
     required this.semanticLabel,
     this.size = 88,
     this.onDark = true,
+    this.centerLabel,
+    this.centerIcon,
+    this.ping = true,
   });
 
   /// Progress from 0 to 100.
@@ -29,6 +33,15 @@ class SignalRing extends StatefulWidget {
 
   /// True on a brand-deep background, false on a light surface.
   final bool onDark;
+
+  /// Shown in the centre in place of "N%", for example "2/6".
+  final String? centerLabel;
+
+  /// Shown in the centre in place of any text.
+  final IconData? centerIcon;
+
+  /// False builds no ping layer, even at 100.
+  final bool ping;
 
   @override
   State<SignalRing> createState() => _SignalRingState();
@@ -56,7 +69,7 @@ class _SignalRingState extends State<SignalRing>
   void didUpdateWidget(SignalRing oldWidget) {
     super.didUpdateWidget(oldWidget);
     final animate = SsMotion.of(context, SsMotion.emphasized) > Duration.zero;
-    if (animate && oldWidget.value < 100 && _target == 100) {
+    if (widget.ping && animate && oldWidget.value < 100 && _target == 100) {
       _pingPending = true;
     } else if (_target != 100) {
       _pingPending = false;
@@ -120,11 +133,20 @@ class _SignalRingState extends State<SignalRing>
                     arc: arc,
                   ),
                   child: Center(
-                    child: Text('${value.round()}%', style: textStyle),
+                    child: widget.centerIcon != null
+                        ? Icon(
+                            widget.centerIcon,
+                            size: size / 2,
+                            color: textColor,
+                          )
+                        : Text(
+                            widget.centerLabel ?? '${value.round()}%',
+                            style: textStyle,
+                          ),
                   ),
                 ),
               ),
-              if (_pinging)
+              if (_pinging && widget.ping)
                 Positioned(
                   key: const ValueKey('signal-ring-ping'),
                   left: -_pingGap,

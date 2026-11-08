@@ -11,6 +11,27 @@ const BoxDecoration profileSheetDecoration = BoxDecoration(
   borderRadius: BorderRadius.vertical(top: Radius.circular(SsRadius.lg)),
 );
 
+/// The sheet over the hero: pulled up, and on first paint it rises and fades in.
+class RisingSheet extends StatelessWidget {
+  const RisingSheet({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 1, end: 0),
+      duration: SsMotion.of(context, SsMotion.standard),
+      curve: SsMotion.standardCurve,
+      builder: (context, t, child) => Transform.translate(
+        offset: Offset(0, -SsSpace.s6 + SsSpace.s4 * t),
+        child: Opacity(opacity: 1 - t, child: child),
+      ),
+      child: DecoratedBox(decoration: profileSheetDecoration, child: child),
+    );
+  }
+}
+
 /// Centres [child] and keeps it within the content width.
 class ProfileContentWidth extends StatelessWidget {
   const ProfileContentWidth({super.key, required this.child});
@@ -73,9 +94,12 @@ String joinWithAnd(List<String> items) {
 
 /// The brand-deep band: decorative circles, padding and content width.
 class HeroBand extends StatelessWidget {
-  const HeroBand({super.key, required this.child});
+  const HeroBand({super.key, required this.child, this.decorCenterY});
 
   final Widget child;
+
+  /// Centres the circles horizontally at this height; null puts them beyond the top-end corner.
+  final double? decorCenterY;
 
   @override
   Widget build(BuildContext context) {
@@ -89,18 +113,22 @@ class HeroBand extends StatelessWidget {
                 child: CustomPaint(
                   painter: _HeroDecorPainter(
                     textDirection: Directionality.of(context),
+                    centerY: decorCenterY,
                   ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                SsSpace.s4,
-                SsSpace.s4,
-                SsSpace.s4,
-                SsSpace.s10,
+            // Padding inside the width, as on the sheet, so their edges line up.
+            ProfileContentWidth(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  SsSpace.s4,
+                  SsSpace.s4,
+                  SsSpace.s4,
+                  SsSpace.s10,
+                ),
+                child: child,
               ),
-              child: ProfileContentWidth(child: child),
             ),
           ],
         ),
@@ -198,18 +226,22 @@ class _FadeIn extends StatelessWidget {
   }
 }
 
-/// Three thin circles centred beyond the top-end corner.
+/// Three thin circles centred beyond the top-end corner, or mid-band at [centerY].
 class _HeroDecorPainter extends CustomPainter {
-  const _HeroDecorPainter({required this.textDirection});
+  const _HeroDecorPainter({required this.textDirection, this.centerY});
 
   final TextDirection textDirection;
+  final double? centerY;
 
   @override
   void paint(Canvas canvas, Size size) {
     final x = textDirection == TextDirection.rtl
         ? -SsSpace.s6
         : size.width + SsSpace.s6;
-    final center = Offset(x, -SsSpace.s6);
+    final centerY = this.centerY;
+    final center = centerY == null
+        ? Offset(x, -SsSpace.s6)
+        : Offset(size.width / 2, centerY);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = SsLayout.hairline
@@ -221,7 +253,7 @@ class _HeroDecorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HeroDecorPainter old) =>
-      old.textDirection != textDirection;
+      old.textDirection != textDirection || old.centerY != centerY;
 }
 
 /// Loading placeholder: hero with an empty ring and bars, sheet with grey bars.
