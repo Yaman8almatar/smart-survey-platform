@@ -45,6 +45,9 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | GET | `/surveys/eligible/` | respondent | 200 `[{id,title,description,question_count}]` | 401, 403 |
 | GET | `/surveys/{id}/` | respondent | 200 `{id,title,description,questions[]}` | 401, 403, 404, 409 |
 | POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409 |
+| GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,started_at,updated_at}` | 401, 403, 404, 409 |
+| PUT | `/surveys/{id}/draft/` | respondent | 200 draft | 400, 401, 403, 404, 409 |
+| DELETE | `/surveys/{id}/draft/` | respondent | 204 | 401, 403, 404, 409 |
 | GET | `/me/responses/` | respondent | 200 `[{survey_id,title,description,submitted_at}]` | 401, 403 |
 
 Register and profile bodies (FR-02, D-108): `age` 1 to 120, `gender` `MALE` or `FEMALE`, `region` one governorate code,
@@ -88,6 +91,52 @@ Submit body:
 ```
 Use `selected_option_id` for multiple choice, `rating_value` (1 to 5) for rating, `answer_value` for open text. Optional questions may be left out.
 
+A successful submit deletes the draft; the response keeps the draft's started_at (not exposed in the API yet; for FR-18).
+
+## Drafts (FR-06)
+A respondent's unsent answers are kept per survey until the respondent submits them. Each respondent has at most one draft per survey.
+
+| Call | Success | Meaning |
+|---|---|---|
+| `GET /surveys/{id}/draft/` | 200 draft | Load the saved draft. |
+| `PUT /surveys/{id}/draft/` | 200 draft | Save. The first save creates the draft; later saves replace it. |
+| `DELETE /surveys/{id}/draft/` | 204, no body | Delete the draft. Also 204 when there is none. |
+
+`PUT` body, the same fields as submit:
+```json
+{"answers": [
+  {"question_id": 1, "selected_option_id": 2},
+  {"question_id": 3, "answer_value": "Clear so far."}
+]}
+```
+- **Full replace:** the stored list becomes exactly the sent list. `{"answers": []}` is allowed and stores an empty list.
+- No question is required, so a required question may be missing or empty. Every sent value follows the per-type rules of submit.
+
+200 shape. `answers` holds `question_id` and only the fields that are not null. `started_at` is set by the first save and never changes; `updated_at` changes on every save.
+```json
+{"survey_id": 5,
+ "answers": [
+   {"question_id": 1, "selected_option_id": 2},
+   {"question_id": 3, "answer_value": "Clear so far."}
+ ],
+ "started_at": "2026-11-08T09:30:00Z",
+ "updated_at": "2026-11-08T09:34:00Z"}
+```
+
+Errors. The first five rows apply to all three calls and are checked in this order, so after a submit every call answers 409 `duplicate_response`.
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `permission_denied` | The token does not belong to a respondent. |
+| 404 | `survey_not_found` | The survey does not exist. |
+| 409 | `not_editable` | The survey is not published (for example, it is closed). |
+| 403 | `unauthorized_action` | The respondent is not eligible for the survey. |
+| 409 | `duplicate_response` | The respondent already submitted the survey. |
+| 404 | `draft_not_found` | `GET` only: the respondent has no draft for the survey. |
+| 400 | `validation_error` | `PUT` only: the body is malformed, a `question_id` is repeated, an `answer_value` is over 2000 characters, a rating is outside 1 to 5, an option belongs to another question, or a field does not fit the question type. |
+| 404 | `question_not_found` | `PUT` only: a `question_id` does not belong to the survey. |
+| 401 | `not_authenticated` | No token was sent (all three calls). |
+
 ## Error shape
 Every error, including 401 and 403, has one shape. `fields` appears only for input validation errors.
 ```json
@@ -98,7 +147,7 @@ Every error, including 401 and 403, has one shape. `fields` appears only for inp
 | 400 | `validation_error`, `parse_error`, `invalid_token` (logout) |
 | 401 | `not_authenticated`, `authentication_failed`, `invalid_credentials` |
 | 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible) |
-| 404 | `survey_not_found`, `question_not_found`, `not_found` |
+| 404 | `survey_not_found`, `question_not_found`, `draft_not_found`, `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `duplicate_response`, `not_editable` (survey is not published) |
 | 429 | `throttled` (too many auth requests; see Throttling) |

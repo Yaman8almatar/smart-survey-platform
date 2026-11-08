@@ -18,6 +18,7 @@ class Response(models.Model):
         on_delete=models.CASCADE,
         related_name="responses",
     )
+    started_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
