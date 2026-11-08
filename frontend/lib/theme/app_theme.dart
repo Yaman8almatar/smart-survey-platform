@@ -202,6 +202,8 @@ abstract final class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: SsColors.surfaceRaised,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: SsType.title.copyWith(color: SsColors.ink),
+        contentTextStyle: SsType.body.copyWith(color: SsColors.inkMuted),
         shape: mediumShape,
       ),
     );

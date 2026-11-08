@@ -152,36 +152,42 @@ class _Content extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           HeroBand(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const MatchBadge(),
-                const SizedBox(height: SsSpace.s2),
-                Text(
-                  survey.title,
-                  style: SsType.title.copyWith(color: SsColors.surfaceRaised),
-                ),
-                if (survey.description.isNotEmpty) ...[
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const MatchBadge(),
                   const SizedBox(height: SsSpace.s2),
                   Text(
-                    survey.description,
-                    style: SsType.body.copyWith(color: muted),
+                    survey.title,
+                    style: SsType.title.copyWith(color: SsColors.surfaceRaised),
+                  ),
+                  if (survey.description.isNotEmpty) ...[
+                    const SizedBox(height: SsSpace.s2),
+                    Text(
+                      survey.description,
+                      style: SsType.body.copyWith(color: muted),
+                    ),
+                  ],
+                  const SizedBox(height: SsSpace.s3),
+                  Wrap(
+                    spacing: SsSpace.s4,
+                    runSpacing: SsSpace.s1,
+                    children: [
+                      _Fact(
+                        icon: Icons.format_list_bulleted,
+                        text: count == 1 ? '1 question' : '$count questions',
+                      ),
+                      if (optional > 0)
+                        _Fact(
+                          icon: Icons.last_page,
+                          text: '$optional optional',
+                        ),
+                    ],
                   ),
                 ],
-                const SizedBox(height: SsSpace.s3),
-                Wrap(
-                  spacing: SsSpace.s4,
-                  runSpacing: SsSpace.s1,
-                  children: [
-                    _Fact(
-                      icon: Icons.format_list_bulleted,
-                      text: count == 1 ? '1 question' : '$count questions',
-                    ),
-                    if (optional > 0)
-                      _Fact(icon: Icons.last_page, text: '$optional optional'),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
           const RisingSheet(

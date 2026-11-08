@@ -14,6 +14,7 @@ import 'package:smart_survey_app/features/surveys/eligible_surveys_screen.dart';
 import 'package:smart_survey_app/theme/app_theme.dart';
 import 'package:smart_survey_app/theme/tokens.dart';
 import 'package:smart_survey_app/widgets/answer_option.dart';
+import 'package:smart_survey_app/widgets/match_badge.dart';
 import 'package:smart_survey_app/widgets/signal_ring.dart';
 
 import '../../support/test_api.dart';
@@ -196,6 +197,25 @@ void main() {
 
       expect(find.byType(EligibleSurveysScreen), findsOneWidget);
       expect(flow.listLoads, 2);
+    });
+
+    testWidgets('the hero lines up with Before you start on a wide window', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await openStart(tester, FlowApi());
+
+      final badge = find.descendant(
+        of: find.byType(SurveyStartScreen),
+        matching: find.byType(MatchBadge),
+      );
+
+      expect(
+        tester.getTopLeft(badge).dx,
+        tester.getTopLeft(find.text('Before you start')).dx,
+      );
     });
 
     testWidgets('start counts questions and optional ones', (tester) async {

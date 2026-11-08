@@ -11,6 +11,16 @@ void main() {
     expect(theme.appBarTheme.shape, isNull);
   });
 
+  testWidgets('dialog title and content use the design type', (tester) async {
+    final dialog = AppTheme.light().dialogTheme;
+
+    expect(dialog.titleTextStyle!.fontSize, SsType.title.fontSize);
+    expect(dialog.titleTextStyle!.fontWeight, SsType.title.fontWeight);
+    expect(dialog.titleTextStyle!.color, SsColors.ink);
+    expect(dialog.contentTextStyle!.fontSize, SsType.body.fontSize);
+    expect(dialog.contentTextStyle!.color, SsColors.inkMuted);
+  });
+
   testWidgets('selection uses brand tint, never saffron', (tester) async {
     final theme = AppTheme.light();
 

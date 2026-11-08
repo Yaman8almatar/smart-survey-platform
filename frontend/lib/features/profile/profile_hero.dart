@@ -118,14 +118,17 @@ class HeroBand extends StatelessWidget {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                SsSpace.s4,
-                SsSpace.s4,
-                SsSpace.s4,
-                SsSpace.s10,
+            // Padding inside the width, as on the sheet, so their edges line up.
+            ProfileContentWidth(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  SsSpace.s4,
+                  SsSpace.s4,
+                  SsSpace.s4,
+                  SsSpace.s10,
+                ),
+                child: child,
               ),
-              child: ProfileContentWidth(child: child),
             ),
           ],
         ),
