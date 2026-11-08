@@ -1,0 +1,6 @@
+{% comment %}
+Signal ring (design v2). The value 0-100 comes from the server; it is never computed here.
+Usage: {% include "partials/signal_ring.html" with value=57 size=48 label="57 percent of the response target" %}
+Optional: on_dark=True for a brand-deep background. size defaults to 88.
+The stroke is 8 in an 88 viewBox, so it scales to round(size / 11).
+{% endcomment %}{% with ring_size=size|default:88 %}<svg class="signal-ring{% if on_dark %} signal-ring--on-dark{% endif %}{% if ring_size <= 48 %} signal-ring--small{% endif %}" width="{{ ring_size }}" height="{{ ring_size }}" viewBox="0 0 88 88" role="img" aria-label="{{ label }}"><circle class="signal-ring__track" cx="44" cy="44" r="38" fill="none" stroke-width="8" pathLength="100"/>{% if value > 0 %}<circle class="signal-ring__arc" cx="44" cy="44" r="38" fill="none" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="{{ value }} 100" transform="rotate(-90 44 44)"/>{% endif %}<text class="signal-ring__value" x="44" y="44" text-anchor="middle" dominant-baseline="central">{{ value }}%</text></svg>{% endwith %}
