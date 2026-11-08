@@ -20,5 +20,6 @@ urlpatterns = [
         views.SubmitResponseView.as_view(),
         name="survey-submit",
     ),
+    path("surveys/<int:survey_id>/draft/", views.DraftView.as_view(), name="survey-draft"),
     path("me/responses/", views.AnsweredSurveysView.as_view(), name="me-responses"),
 ]

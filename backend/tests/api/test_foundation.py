@@ -20,6 +20,7 @@ from core.enums import AccountStatus, UserType
         (core_exceptions.QuestionNotFound("x"), 404, "question_not_found"),
         (core_exceptions.AccountNotFound("x"), 404, "account_not_found"),
         (core_exceptions.ResponseNotFound("x"), 404, "response_not_found"),
+        (core_exceptions.DraftNotFound("x"), 404, "draft_not_found"),
         (
             core_exceptions.TargetingCriteriaNotFound("x"),
             404,

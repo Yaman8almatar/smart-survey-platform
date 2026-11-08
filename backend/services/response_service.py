@@ -3,9 +3,10 @@ import logging
 from django.conf import settings
 from django.db import IntegrityError, transaction
 
-from apps.core.models import Answer, Response
+from apps.core.models import Answer, Response, ResponseDraft
 from core.enums import QuestionType, UserType
 from core.exceptions import (
+    DraftNotFound,
     DuplicateResponse,
     NotEditable,
     QuestionNotFound,
@@ -13,6 +14,7 @@ from core.exceptions import (
     UnauthorizedAction,
     ValidationError,
 )
+from repositories.draft_repository import DraftRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
@@ -36,6 +38,7 @@ class ResponseService:
         response_repository=None,
         targeting_service=None,
         analysis_service=None,
+        draft_repository=None,
     ):
         """Wire repositories and services used by response submission workflows."""
         self.survey_repository = survey_repository or SurveyRepository()
@@ -43,9 +46,10 @@ class ResponseService:
         self.response_repository = response_repository or ResponseRepository()
         self.targeting_service = targeting_service or TargetingService()
         self.analysis_service = analysis_service or AnalysisService()
+        self.draft_repository = draft_repository or DraftRepository()
 
-    def submit_response(self, respondent_user, survey_id, answers):
-        """Validate and store a respondent survey submission with its answers."""
+    def ensure_can_answer(self, respondent_user, survey_id):
+        """Return the survey if this respondent may still answer it."""
         self._ensure_respondent(respondent_user)
 
         survey = self.survey_repository.find_by_id(survey_id)
@@ -65,6 +69,12 @@ class ResponseService:
         if self.validate_duplicate_response(respondent_user, survey_id):
             raise DuplicateResponse("Respondent already submitted this survey.")
 
+        return survey
+
+    def submit_response(self, respondent_user, survey_id, answers):
+        """Validate and store a respondent survey submission with its answers."""
+        survey = self.ensure_can_answer(respondent_user, survey_id)
+
         questions = list(self.question_repository.find_by_survey_id(survey_id))
         question_map = {question.question_id: question for question in questions}
         answer_map = self._build_answer_map(answers)
@@ -75,8 +85,13 @@ class ResponseService:
         try:
             with transaction.atomic():
                 # Response and answers are stored together or not at all.
+                draft = self.draft_repository.find(survey_id, respondent_user.user_id)
                 response = self.response_repository.save(
-                    Response(survey=survey, respondent=respondent_user)
+                    Response(
+                        survey=survey,
+                        respondent=respondent_user,
+                        started_at=draft.started_at if draft else None,
+                    )
                 )
 
                 for answer_data in answer_map.values():
@@ -87,6 +102,8 @@ class ResponseService:
                     answer = self._build_answer(response, question, answer_data)
                     if answer is not None:
                         self.response_repository.save_answer(answer)
+
+                self.draft_repository.delete(survey_id, respondent_user.user_id)
 
                 if response.has_open_text_answers():
                     # Sentiment analysis runs only after the submission is committed.
@@ -102,6 +119,61 @@ class ResponseService:
             raise
 
         return response
+
+    def get_draft(self, user, survey_id):
+        """Return the respondent's draft for a survey."""
+        self.ensure_can_answer(user, survey_id)
+
+        draft = self.draft_repository.find(survey_id, user.user_id)
+        if draft is None:
+            raise DraftNotFound("No draft for this survey.")
+        return draft
+
+    def save_draft(self, user, survey_id, answers):
+        """Replace the respondent's unsent answers; no question is required yet."""
+        survey = self.ensure_can_answer(user, survey_id)
+
+        question_map = {
+            question.question_id: question
+            for question in self.question_repository.find_by_survey_id(survey_id)
+        }
+        answer_map = self._build_answer_map(answers)
+        for answer_data in answer_map.values():
+            question = question_map.get(answer_data.get("question_id"))
+            if question is None:
+                raise QuestionNotFound("Question does not belong to this survey.")
+            self._validate_answer_data(question, answer_data, required=False)
+
+        stored_answers = [self._stored_draft_answer(item) for item in answer_map.values()]
+        draft = self.draft_repository.find(survey_id, user.user_id)
+        if draft is None:
+            draft = ResponseDraft(survey=survey, respondent=user)
+        draft.answers = stored_answers
+
+        try:
+            with transaction.atomic():
+                return self.draft_repository.save(draft)
+        except IntegrityError as exc:
+            # A parallel first save can pass the lookup; only this constraint means that.
+            if "unique_draft_per_survey_respondent" not in str(exc):
+                raise
+
+        draft = self.draft_repository.find(survey_id, user.user_id)
+        draft.answers = stored_answers
+        return self.draft_repository.save(draft)
+
+    def delete_draft(self, user, survey_id):
+        """Delete the respondent's draft for a survey; no error when there is none."""
+        self.ensure_can_answer(user, survey_id)
+        self.draft_repository.delete(survey_id, user.user_id)
+
+    def _stored_draft_answer(self, answer_data):
+        """Keep question_id and only the answer fields that have a value."""
+        stored = {"question_id": answer_data["question_id"]}
+        for key in ("selected_option_id", "rating_value", "answer_value"):
+            if answer_data.get(key) is not None:
+                stored[key] = answer_data[key]
+        return stored
 
     def _dispatch_sentiment_analysis(self, response_id):
         """Dispatch sentiment analysis asynchronously via Celery or fallback synchronously."""

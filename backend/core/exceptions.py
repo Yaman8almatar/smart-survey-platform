@@ -38,6 +38,10 @@ class ResponseNotFound(SmartSurveyException):
     """Raised when a survey response cannot be found."""
 
 
+class DraftNotFound(SmartSurveyException):
+    """Raised when a respondent has no draft for a survey."""
+
+
 class ExternalAnalysisServiceError(SmartSurveyException):
     """Raised when the external sentiment analysis service fails."""
 

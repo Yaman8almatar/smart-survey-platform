@@ -16,6 +16,7 @@ from services.survey_service import SurveyService
 
 from .serializers import (
     AnsweredSurveySerializer,
+    DraftSerializer,
     EligibleSurveySerializer,
     ErrorSerializer,
     LogoutSerializer,
@@ -23,6 +24,7 @@ from .serializers import (
     ProfileSerializer,
     RegisterSerializer,
     ResponseCreatedSerializer,
+    SaveDraftSerializer,
     SubmitResponseSerializer,
     SurveyDetailSerializer,
     TokenPairSerializer,
@@ -275,6 +277,86 @@ class SubmitResponseView(APIView):
             ResponseCreatedSerializer(response).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+DRAFT_REQUEST_EXAMPLE = OpenApiExample(
+    "Save the answers given so far",
+    value={
+        "answers": [
+            {"question_id": 1, "selected_option_id": 2},
+            {"question_id": 3, "answer_value": "Clear so far."},
+        ]
+    },
+    request_only=True,
+)
+DRAFT_RESPONSE_EXAMPLE = OpenApiExample(
+    "Stored draft",
+    value={
+        "survey_id": 5,
+        "answers": [
+            {"question_id": 1, "selected_option_id": 2},
+            {"question_id": 3, "answer_value": "Clear so far."},
+        ],
+        "started_at": "2026-11-08T09:30:00Z",
+        "updated_at": "2026-11-08T09:34:00Z",
+    },
+    response_only=True,
+    status_codes=["200"],
+)
+
+
+class DraftView(APIView):
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={
+            200: DraftSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        summary="Load the respondent's draft for a survey",
+    )
+    def get(self, request, survey_id):
+        """Return the stored draft through ResponseService."""
+        draft = ResponseService().get_draft(request.user, survey_id)
+        return Response(DraftSerializer(draft).data)
+
+    @extend_schema(
+        tags=SURVEY_TAG,
+        request=SaveDraftSerializer,
+        responses={
+            200: DraftSerializer,
+            400: ErrorSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        examples=[DRAFT_REQUEST_EXAMPLE, DRAFT_RESPONSE_EXAMPLE],
+        summary="Save the respondent's draft for a survey (full replace)",
+    )
+    def put(self, request, survey_id):
+        """Validate and store the draft through ResponseService."""
+        serializer = SaveDraftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        answers = [dict(answer) for answer in serializer.validated_data["answers"]]
+
+        draft = ResponseService().save_draft(request.user, survey_id, answers)
+        return Response(DraftSerializer(draft).data)
+
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={
+            204: None,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        summary="Delete the respondent's draft for a survey",
+    )
+    def delete(self, request, survey_id):
+        """Delete the draft through ResponseService."""
+        ResponseService().delete_draft(request.user, survey_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AnsweredSurveysView(APIView):

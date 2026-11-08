@@ -182,6 +182,21 @@ class SubmitResponseSerializer(serializers.Serializer):
     answers = AnswerSerializer(many=True)
 
 
+class SaveDraftSerializer(serializers.Serializer):
+    """Body of a draft save; the sent list replaces the stored one."""
+
+    answers = AnswerSerializer(many=True)
+
+
+class DraftSerializer(serializers.Serializer):
+    """A stored draft; answers hold only the keys that have a value."""
+
+    survey_id = serializers.IntegerField()
+    answers = serializers.ListField(child=serializers.DictField())
+    started_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+
+
 class ResponseCreatedSerializer(serializers.Serializer):
     """Receipt of a stored response."""
 
