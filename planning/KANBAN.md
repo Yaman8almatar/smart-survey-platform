@@ -17,7 +17,7 @@ because its Daily Scrum and separate roles did not fit this pattern.
 | Element | Policy |
 |---|---|
 | Work item | One backlog issue: a requirement FR-01..FR-20 (user story) or a technical item T-1..T-8. |
-| Started | When the item's branch is created (the card moves to **In Progress**). |
+| Started | When the item's branch is created (the card moves to **In Progress**). Right after creating the branch, make an empty start commit, `git commit --allow-empty -m "chore: start TASK-NN"`, so the branch's first commit marks the start of the work for cycle time; the squash merge keeps it out of `develop`. |
 | Finished | When its pull request is merged into `develop` (the card moves to **Done**). |
 | States | Backlog → Ready → In Progress → Review → Done → Released |
 | WIP control | **In Progress ≤ 3** (one item per member). **Review ≤ 2**. Shown as column limits on the board view. GitHub highlights a column above its limit but does not block it, so the limit is a team rule. |

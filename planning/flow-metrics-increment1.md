@@ -3,19 +3,39 @@
 - Range: 2026-11-02 to 2026-11-15 inclusive (UTC), pull requests into `develop`.
 - Run at commit `f142586` on 2026-11-13 15:41 UTC by `tools/flow_metrics.py`.
 - Times in UTC. Durations in days with one decimal. First commit = earliest `authoredDate` on the branch.
+- Tables below the headline are script output. The headline, this reading note and the section names were edited by
+  hand after the advisor review; the issue-level share and percentile are computed from the issue table.
 
 ## Headline
 
 | Metric | Value |
 |---|---|
 | WIP (open pull requests now) | 0 |
-| Throughput (merged in range) | 19 |
-| Cycle time within 7 days | 18 of 19 (94.7%) |
-| 85th percentile of cycle time (nearest rank) | 0.6 days |
+| Throughput (merged in range) | 19 pull requests (W45: 15, W46: 4) |
+| Cycle time #15 (FR-01) | 5.0 days |
+| Cycle time #16 (FR-02) | 6.0 days |
+| Cycle time #20 (FR-06) | 5.0 days |
+| Cycle time #35, #38, #48, #49, #61 | 0.0, 0.6, 0.0, 0.0, 0.0 days |
+| Issue cycle time within 7 days | 8 of 8 issues (100.0%) |
+| 85th percentile of issue cycle time (nearest rank) | 5.0 days |
+| PR review time within 7 days | 18 of 19 (94.7%) |
+| 85th percentile of PR review time (nearest rank) | 0.6 days |
+| Service level expectation | stays at 85% of items within 7 days until Increment 2 data with start commits exists |
 
-## Merged pull requests (cycle time)
+## Reading the numbers
 
-| PR | Title | Issues | First commit | Merged | Cycle time (days) |
+- Every task session commits once at its end, so a branch's first commit comes minutes before the merge. The
+  pull request value (merge minus first commit) therefore measures review time, not work time: 16 of 19 pull
+  requests show 0.0 days.
+- An issue spans the first commit of its earliest pull request to the merge of its last one, so the issue-level
+  cycle time is the headline cycle time. 6 of the 19 pull requests (47, 50, 54, 57, 59, 60) reference no issue and
+  are not in the issue table.
+- From Increment 2 each task branch starts with an empty start commit (planning/KANBAN.md, Definition of Workflow),
+  so the first commit marks the start of the work.
+
+## Merged pull requests (review time)
+
+| PR | Title | Issues | First commit | Merged | Review time (days) |
 |---|---|---|---|---|---|
 | 47 | chore: merge main documents back into develop | - | 2026-10-29 12:31 | 2026-11-05 18:01 | 7.2 |
 | 50 | chore: split demo and production compose files (TASK-15 Part 2) | - | 2026-11-05 21:52 | 2026-11-06 14:13 | 0.7 |
@@ -64,8 +84,9 @@
 
 ## Service level
 
-- Cycle times within 7 days: 18 of 19 (94.7%).
-- 85th percentile of the cycle times (nearest rank): 0.6 days.
+- Issue cycle times within 7 days: 8 of 8 (100.0%); 85th percentile (nearest rank, rank 7 of 8): 5.0 days.
+- Pull request review times within 7 days: 18 of 19 (94.7%); 85th percentile (nearest rank, rank 17 of 19): 0.6 days.
+- The service level expectation stays at 85% of items within 7 days until Increment 2 data with start commits exists.
 
 ## Not measured
 
