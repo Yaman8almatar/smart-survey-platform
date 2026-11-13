@@ -28,7 +28,7 @@
         <div class="container">
             <a class="navbar-brand app-brand" href="{% url 'home' %}">
                 <span class="brand-mark">
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle cx="14" cy="14" r="4" fill="#e3a21a"/><path d="M7.5 20.5a9 9 0 0 1 0-13M20.5 7.5a9 9 0 0 1 0 13" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M3.8 24.2a14 14 0 0 1 0-20.4M24.2 3.8a14 14 0 0 1 0 20.4" stroke="#fff" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/></svg>
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle class="mark-dot" cx="14" cy="14" r="4"/><path class="mark-ring" d="M7.5 20.5a9 9 0 0 1 0-13M20.5 7.5a9 9 0 0 1 0 13" stroke-width="2" stroke-linecap="round"/><path class="mark-ring" d="M3.8 24.2a14 14 0 0 1 0-20.4M24.2 3.8a14 14 0 0 1 0 20.4" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/></svg>
                 </span>
                 <span class="brand-text">Smart Survey Platform</span>
             </a>
@@ -57,7 +57,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "provider_dashboard" %} aria-current="page"{% endif %}
                                     href="{% url 'surveys:provider_dashboard' %}"
                                 >
-                                    <i class="bi bi-speedometer2 me-1"></i>Provider Dashboard
+                                    <i class="bi bi-speedometer2 me-1"></i>Provider dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -65,7 +65,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "survey_list" %} aria-current="page"{% endif %}
                                     href="{% url 'surveys:survey_list' %}"
                                 >
-                                    <i class="bi bi-list-check me-1"></i>My Surveys
+                                    <i class="bi bi-list-check me-1"></i>My surveys
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -73,7 +73,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "create_survey" %} aria-current="page"{% endif %}
                                     href="{% url 'surveys:create_survey' %}"
                                 >
-                                    <i class="bi bi-plus-circle me-1"></i>Create Survey
+                                    <i class="bi bi-plus-circle me-1"></i>Create survey
                                 </a>
                             </li>
                         {% elif user.user_type == "RESPONDENT" %}
@@ -82,7 +82,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "respondent_dashboard" %} aria-current="page"{% endif %}
                                     href="{% url 'responses:respondent_dashboard' %}"
                                 >
-                                    <i class="bi bi-speedometer2 me-1"></i>Respondent Dashboard
+                                    <i class="bi bi-speedometer2 me-1"></i>Respondent dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -90,7 +90,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "demographic_profile" %} aria-current="page"{% endif %}
                                     href="{% url 'responses:demographic_profile' %}"
                                 >
-                                    <i class="bi bi-person-vcard me-1"></i>Demographic Profile
+                                    <i class="bi bi-person-vcard me-1"></i>Demographic profile
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -98,7 +98,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "eligible_surveys" %} aria-current="page"{% endif %}
                                     href="{% url 'responses:eligible_surveys' %}"
                                 >
-                                    <i class="bi bi-ui-checks-grid me-1"></i>Eligible Surveys
+                                    <i class="bi bi-ui-checks-grid me-1"></i>Eligible surveys
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -106,7 +106,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "answered_surveys" %} aria-current="page"{% endif %}
                                     href="{% url 'responses:answered_surveys' %}"
                                 >
-                                    <i class="bi bi-check2-square me-1"></i>Answered Surveys
+                                    <i class="bi bi-check2-square me-1"></i>Answered surveys
                                 </a>
                             </li>
                         {% elif user.user_type == "ADMIN" %}
@@ -115,7 +115,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "admin_dashboard" %} aria-current="page"{% endif %}
                                     href="{% url 'admin_panel:admin_dashboard' %}"
                                 >
-                                    <i class="bi bi-speedometer2 me-1"></i>Admin Dashboard
+                                    <i class="bi bi-speedometer2 me-1"></i>Admin dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -123,7 +123,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "user_management" %} aria-current="page"{% endif %}
                                     href="{% url 'admin_panel:user_management' %}"
                                 >
-                                    <i class="bi bi-people me-1"></i>User Management
+                                    <i class="bi bi-people me-1"></i>User management
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -131,7 +131,7 @@
                                     class="nav-link"{% if request.resolver_match.url_name == "system_reports" %} aria-current="page"{% endif %}
                                     href="{% url 'admin_panel:system_reports' %}"
                                 >
-                                    <i class="bi bi-clipboard-data me-1"></i>System Reports
+                                    <i class="bi bi-clipboard-data me-1"></i>System reports
                                 </a>
                             </li>
                         {% endif %}
@@ -157,7 +157,7 @@
                                 class="nav-link"{% if request.resolver_match.url_name == "register_service_provider" %} aria-current="page"{% endif %}
                                 href="{% url 'users:register_service_provider' %}"
                             >
-                                <i class="bi bi-briefcase me-1"></i>Register Service Provider
+                                <i class="bi bi-briefcase me-1"></i>Register service provider
                             </a>
                         </li>
                         <li class="nav-item">
@@ -165,7 +165,7 @@
                                 class="nav-link"{% if request.resolver_match.url_name == "register_respondent" %} aria-current="page"{% endif %}
                                 href="{% url 'users:register_respondent' %}"
                             >
-                                <i class="bi bi-person-plus me-1"></i>Register Respondent
+                                <i class="bi bi-person-plus me-1"></i>Register respondent
                             </a>
                         </li>
                     {% endif %}
@@ -205,7 +205,7 @@
         >
             <span class="footer-brand">
                 <span class="footer-mark">
-                    <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle cx="14" cy="14" r="4" fill="#e3a21a"/><path d="M7.5 20.5a9 9 0 0 1 0-13M20.5 7.5a9 9 0 0 1 0 13" stroke="#0e5a66" stroke-width="2" stroke-linecap="round"/><path d="M3.8 24.2a14 14 0 0 1 0-20.4M24.2 3.8a14 14 0 0 1 0 20.4" stroke="#0e5a66" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle class="mark-dot" cx="14" cy="14" r="4"/><path class="mark-ring" d="M7.5 20.5a9 9 0 0 1 0-13M20.5 7.5a9 9 0 0 1 0 13" stroke-width="2" stroke-linecap="round"/><path class="mark-ring" d="M3.8 24.2a14 14 0 0 1 0-20.4M24.2 3.8a14 14 0 0 1 0 20.4" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/></svg>
                 </span>
                 Smart Survey Platform
             </span>

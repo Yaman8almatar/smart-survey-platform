@@ -63,10 +63,25 @@
                             </span>
                         </div>
                         {% if has_responses %}
-                            {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
-                            <div class="chart-panel">
-                                <canvas id="sentimentDistributionChart"></canvas>
-                            </div>
+                            {% if results.failed_count > 0 %}
+                                <div class="alert alert-danger d-flex gap-2" role="status">
+                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>Sentiment analysis failed for {{ results.failed_count }} open-text answer{{ results.failed_count|pluralize }}.</strong>
+                                        <div>The answers are saved and counted in the results. The analysis service could not process them.</div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if results.has_completed_sentiment %}
+                                {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
+                                <div class="chart-panel">
+                                    <canvas id="sentimentDistributionChart"></canvas>
+                                </div>
+                            {% elif results.failed_count == 0 %}
+                                <div class="empty-state">
+                                    Sentiment analysis results are not yet available.
+                                </div>
+                            {% endif %}
                         {% else %}
                             <div class="empty-state">
                                 No responses have been submitted for this survey yet.
@@ -225,45 +240,41 @@
                     canvas.parentNode.appendChild(notice);
                 });
         } else {
-        /* Render the sentiment distribution doughnut only when at least one
-           completed result exists. An all-zero dataset renders as a plain
-           grey ring and gives no information to the provider. */
-        const sentimentDataEl = document.getElementById("sentiment-chart-data");
-        if (sentimentDataEl) {
-            const chartPayload = JSON.parse(sentimentDataEl.textContent);
-            const totalCompleted = chartPayload.values.reduce((a, b) => a + b, 0);
-            const sentimentCanvas = document.getElementById("sentimentDistributionChart");
+        /* Colours come from tokens.css through the helper defined in site.js,
+           which loads before this block. */
+        const ssToken = window.ssToken;
 
-            if (sentimentCanvas && totalCompleted > 0) {
-                new Chart(sentimentCanvas.getContext("2d"), {
-                    type: "doughnut",
-                    data: {
-                        labels: chartPayload.labels,
-                        datasets: [{
-                            data: chartPayload.values,
-                            backgroundColor: ["#0f766e", "#64748b", "#b42318"],
-                            borderColor: "#ffffff",
-                            borderWidth: 3
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: "bottom"
-                            }
+        /* The template renders the canvas only when at least one completed
+           sentiment result exists; the empty and failure messages are server-side. */
+        const sentimentDataEl = document.getElementById("sentiment-chart-data");
+        const sentimentCanvas = document.getElementById("sentimentDistributionChart");
+        if (sentimentDataEl && sentimentCanvas) {
+            const chartPayload = JSON.parse(sentimentDataEl.textContent);
+            new Chart(sentimentCanvas.getContext("2d"), {
+                type: "doughnut",
+                data: {
+                    labels: chartPayload.labels,
+                    datasets: [{
+                        data: chartPayload.values,
+                        backgroundColor: [
+                            ssToken("--ss-sentiment-positive"),
+                            ssToken("--ss-sentiment-neutral"),
+                            ssToken("--ss-sentiment-negative")
+                        ],
+                        borderColor: ssToken("--ss-surface-raised"),
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: "bottom"
                         }
                     }
-                });
-            } else if (sentimentCanvas && totalCompleted === 0) {
-                /* Responses exist but no sentiment analysis has completed yet. */
-                sentimentCanvas.style.display = "none";
-                const notice = document.createElement("div");
-                notice.className = "empty-state";
-                notice.textContent = "Sentiment analysis results are not yet available.";
-                sentimentCanvas.parentNode.appendChild(notice);
-            }
+                }
+            });
         }
 
         /* Render a bar chart for every multiple-choice and rating question.
@@ -286,8 +297,8 @@
                     datasets: [{
                         label: "Responses",
                         data: payload.values,
-                        backgroundColor: "#12355b",
-                        borderColor: "#0b2239",
+                        backgroundColor: ssToken("--ss-chart-1"),
+                        borderColor: ssToken("--ss-brand-deep"),
                         borderWidth: 1,
                         borderRadius: 6
                     }]

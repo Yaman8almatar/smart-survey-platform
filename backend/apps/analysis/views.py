@@ -61,11 +61,19 @@ def _results_view(results):
         "positive_count": results.get("positive_count", 0),
         "neutral_count": results.get("neutral_count", 0),
         "negative_count": results.get("negative_count", 0),
+        "failed_count": results.get("failed_count", 0),
         "positive_rate": results.get("positive_rate", 0),
         "neutral_rate": results.get("neutral_rate", 0),
         "negative_rate": results.get("negative_rate", 0),
         "question_summaries": results.get("question_summaries", []),
     }
+
+    # The sentiment chart is drawn only when at least one result completed.
+    results_view["has_completed_sentiment"] = (
+        results_view["positive_count"]
+        + results_view["neutral_count"]
+        + results_view["negative_count"]
+    ) > 0
 
     # Preformat percentage labels for the template.
     results_view["positive_rate_label"] = _rate_label(results_view["positive_rate"])

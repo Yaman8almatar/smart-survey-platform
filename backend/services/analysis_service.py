@@ -78,8 +78,13 @@ class AnalysisService:
         positive_count = 0
         neutral_count = 0
         negative_count = 0
+        failed_count = 0
 
         for result in sentiment_results:
+            if self._is_failed_result(result.status):
+                failed_count += 1
+                continue
+
             if not self._is_completed_result(result.status):
                 continue
 
@@ -99,6 +104,7 @@ class AnalysisService:
             "positive_count": positive_count,
             "neutral_count": neutral_count,
             "negative_count": negative_count,
+            "failed_count": failed_count,
             "positive_rate": self._rate(positive_count, completed_count),
             "neutral_rate": self._rate(neutral_count, completed_count),
             "negative_rate": self._rate(negative_count, completed_count),
@@ -144,6 +150,10 @@ class AnalysisService:
     def _is_completed_result(self, status):
         """Return whether a sentiment result is completed."""
         return self._normalized_value(status) == AnalysisStatus.COMPLETED.value
+
+    def _is_failed_result(self, status):
+        """Return whether a sentiment result failed (for example the provider refused it)."""
+        return self._normalized_value(status) == AnalysisStatus.FAILED.value
 
     def _build_question_summaries(self, questions, answers):
         """Build question-level analytics summaries from submitted answers."""
