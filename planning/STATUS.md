@@ -1,12 +1,13 @@
 # STATUS — 2026-11-13
-Branch: fix/inc1-web-audit
-Task: TASK-24 — web audit fixes: colour tokens, sentence case, visible sentiment failure (A-15, A-16, A-209), refs #61
-Done: chart and mark colours read from tokens.css (ssToken/withAlpha in site.js); 29 labels in sentence case; .btn radius 12 px;
-  AnalysisService.get_survey_results returns failed_count and the sentiment card shows a server-side failure notice.
-Changes: 13 modified, 1 new, 0 deleted — backend/static/js/site.js, backend/apps/analysis/templates/analysis/analytics_dashboard.html,
-  backend/services/analysis_service.py, backend/templates/base.html, backend/tests/views/test_analytics_dashboard_view.py
-Tests: changed and new files only (D-129): 47 passed (4 new); full suite runs in CI (562 before)
-Check: OK (System check identified no issues)
-Committed: yes (fix: web colour tokens, sentence case and visible sentiment failure (TASK-24))
-Open questions: none; manual check passed (screenshot approved by the advisor); session ran in bypass permissions mode
+Branch: fix/question-type-labels
+Task: TASK-24B — question type labels in sentence case, Arabic answers right to left, refs #61
+Done: QUESTION_TYPE_LABELS map next to QuestionType (enum labels unchanged, no migration); the question form and the analytics badge
+  use it; each text answer on the analytics page has dir="auto", and the icon spacing uses margin-inline-end.
+Changes: 6 modified, 1 new, 0 deleted — backend/core/enums.py, backend/apps/surveys/forms.py, backend/apps/analysis/views.py,
+  backend/apps/analysis/templates/analysis/analytics_dashboard.html, backend/tests/views/test_question_form.py
+Tests: changed and new files only (D-129): 9 passed (6 new); full suite runs in CI
+Check: OK (System check identified no issues); makemigrations --check: No changes detected
+Committed: yes (fix: sentence-case question type labels and answer direction (TASK-24B))
+Open questions: the acceptance grep still finds {{ form.question_type }} (manage_questions.html:105), which is the form widget, not a raw value;
+  not fixed: home.html:31 {{ user_type }} and :35 {{ account_status }} print raw values; user_management.html:45 shows "Service Provider"
 Next: review, then Yaman merges into develop; FR-01, FR-02 and FR-06 stay code complete.

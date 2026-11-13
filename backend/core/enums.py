@@ -33,6 +33,16 @@ class QuestionType(models.TextChoices):
     OPEN_TEXT = "OPEN_TEXT", "Open Text"
 
 
+# Sentence-case display labels for web pages. QuestionType's own labels stay
+# unchanged because they are part of the model field's choices (a change
+# would need a migration).
+QUESTION_TYPE_LABELS = {
+    QuestionType.MULTIPLE_CHOICE: "Multiple choice",
+    QuestionType.RATING_SCALE: "Rating scale",
+    QuestionType.OPEN_TEXT: "Open text",
+}
+
+
 class Gender(models.TextChoices):
     """Defines gender values used by profiles and targeting criteria."""
 
