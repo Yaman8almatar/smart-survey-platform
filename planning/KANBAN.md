@@ -73,7 +73,12 @@ All three develop, test, review and document.
 | Work item age | Now minus the first commit on the item's branch, for unfinished items | Open pull requests and branches |
 | Cycle time | Merge time minus the first commit on the item's branch, for finished items | Merged pull requests |
 
-T-5 builds a small script that exports these values with the GitHub CLI.
+T-5 builds a small script that exports these values with the GitHub CLI. Run it from the repository root for the
+Increment's dates (Increment 1 report: [flow-metrics-increment1.md](flow-metrics-increment1.md)):
+
+```
+.venv/Scripts/python.exe tools/flow_metrics.py --since 2026-11-02 --until 2026-11-15 --out planning/flow-metrics-increment1.md
+```
 
 ## Commits and credit
 
