@@ -22,4 +22,22 @@ class SurveysRepository {
       throw const ApiException.unexpectedResponse(200);
     }
   }
+
+  /// Surveys the respondent has sent, in the server's order (newest first).
+  Future<List<AnsweredSurvey>> answeredSurveys() async {
+    final json = await _api.get('me/responses/');
+    if (json is! List) {
+      throw const ApiException.unexpectedResponse(200);
+    }
+    try {
+      return [
+        for (final item in json)
+          AnsweredSurvey.fromJson(item as Map<String, dynamic>),
+      ];
+    } on TypeError {
+      throw const ApiException.unexpectedResponse(200);
+    } on FormatException {
+      throw const ApiException.unexpectedResponse(200);
+    }
+  }
 }

@@ -21,13 +21,16 @@ const List<String> _months = [
   'December',
 ];
 
-/// "today" or "on 7 November", for a [local] time.
+/// "today", "on 7 November", or "on 7 November 2025" for another year,
+/// for a [local] time.
 String dayPhrase(DateTime local, DateTime now) {
   final today =
       local.year == now.year &&
       local.month == now.month &&
       local.day == now.day;
-  return today ? 'today' : 'on ${local.day} ${_months[local.month - 1]}';
+  if (today) return 'today';
+  final year = local.year == now.year ? '' : ' ${local.year}';
+  return 'on ${local.day} ${_months[local.month - 1]}$year';
 }
 
 /// Why a survey cannot be answered: the words that replace the screen.
