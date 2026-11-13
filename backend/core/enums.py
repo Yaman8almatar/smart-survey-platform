@@ -9,6 +9,16 @@ class UserType(models.TextChoices):
     ADMIN = "ADMIN", "Admin"
 
 
+# Sentence-case display labels for web pages. UserType's own labels stay
+# unchanged because they are part of the model field's choices (a change
+# would need a migration).
+USER_TYPE_LABELS = {
+    UserType.SERVICE_PROVIDER: "Service provider",
+    UserType.RESPONDENT: "Respondent",
+    UserType.ADMIN: "Admin",
+}
+
+
 class AccountStatus(models.TextChoices):
     """Defines account lifecycle states used by authentication and admin actions."""
 

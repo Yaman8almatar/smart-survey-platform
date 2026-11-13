@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
-from core.enums import AccountStatus, UserType
+from core.enums import USER_TYPE_LABELS, AccountStatus, UserType
 from core.exceptions import SmartSurveyException
 from services.admin_service import AdminService
 
@@ -125,7 +125,7 @@ def _user_row(item):
         "id": user.user_id,
         "name": user.name,
         "email": user.email,
-        "user_type": user.get_user_type_display(),
+        "user_type_label": USER_TYPE_LABELS[user.user_type],
         "account_status": user.account_status,
         "account_status_label": user.get_account_status_display(),
         "status_badge": _status_badge(user.account_status),
