@@ -193,16 +193,16 @@ classDiagram
     }
 
     User "1" *-- "0..1" RespondentProfile : respondent_profile
-    User "1" *-- "0..*" Survey : provider
-    User "1" *-- "0..*" Response : respondent
-    User "1" *-- "0..*" ResponseDraft : respondent
     Survey "1" *-- "0..1" TargetingCriteria : criteria
     Survey "1" *-- "0..*" Question : questions
     Survey "1" *-- "0..*" Response : responses
     Survey "1" *-- "0..*" ResponseDraft : drafts
     Question "1" *-- "0..*" QuestionOption : options
-    Question "1" *-- "0..*" Answer : answers
     Response "1" *-- "0..*" Answer : answers
+    User "1" -- "0..*" Survey : provider
+    User "1" -- "0..*" Response : respondent
+    User "1" -- "0..*" ResponseDraft : respondent
+    Question "1" -- "0..*" Answer : answers
     Answer "0..*" --> "0..1" QuestionOption : selected_option
     Answer "1" *-- "0..1" SentimentAnalysisResult : sentiment_analysis_result
 
@@ -251,8 +251,10 @@ classDiagram
 | `name()` and `name() type` | Method, with its return type when it returns a value. |
 | `type?` | Optional attribute: the field allows NULL. |
 | `list~T~` | List of T: `list~Interest~` is a PostgreSQL array, `list~dict~` is a JSON list. |
-| Line with filled diamond (`*--`) | Composition: the part is deleted with the whole (`on_delete=CASCADE`). The diamond is on the whole. Team convention: a part with two CASCADE parents (Response, ResponseDraft, Answer) shows both. |
+| Line with filled diamond (`*--`) | Composition: the part belongs to exactly one whole and is deleted with it (`on_delete=CASCADE`). The diamond is on the whole. |
+| Plain line (`--`) | Association between two classes, with its multiplicities and label. |
 | Line with open arrow (`-->`) | Association: Answer knows its selected option; deleting the option sets the link to NULL (`on_delete=SET_NULL`). |
+| (delete rules) | The ORM delete rules of the plain associations are listed in erd.md. |
 | Dashed arrow (`..>`) | Dependency: the attribute type is that enumeration. |
 | `1`, `0..1`, `0..*` | Multiplicity at that end of the line. |
 | Label on a line | The Django field or `related_name` that holds the link. |

@@ -1,7 +1,7 @@
 # Sequence diagram: UC-04 Answer a survey, with draft and resume (FR-06)
 
 ```
-Basis: team convention; diagrams/README.md (layers Presentation / Business / Data Source); known issue K-02 (CLAUDE.md)
+Basis: team convention; diagrams/README.md (layers Presentation / Business / Data Source); planning/API.md (known limit K-02)
 Source of truth: frontend/lib/features/answer/survey_start_screen.dart, frontend/lib/features/answer/survey_answer_screen.dart,
   frontend/lib/features/answer/answer_repository.dart, backend/apps/api/urls.py, backend/apps/api/views.py
   (SurveyDetailView, DraftView, SubmitResponseView), backend/apps/api/exceptions.py, backend/services/question_service.py,
