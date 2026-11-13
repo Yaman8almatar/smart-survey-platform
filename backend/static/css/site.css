@@ -1324,6 +1324,7 @@ textarea.form-control {
 }
 
 .text-answer-item .bi {
+    margin-inline-end: 0.5rem;
     color: var(--ssp-accent);
 }
 

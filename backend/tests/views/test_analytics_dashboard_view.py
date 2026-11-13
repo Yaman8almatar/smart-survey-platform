@@ -4,6 +4,7 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.analysis.views import _question_summaries_view
 from apps.core.models import (
     Answer,
     Question,
@@ -107,3 +108,39 @@ def test_dashboard_shows_no_failure_notice_when_nothing_failed(client):
 
     assert "Sentiment analysis failed" not in content
     assert NOTICE_BODY not in content
+
+
+@pytest.mark.django_db
+def test_dashboard_shows_sentence_case_question_type_not_raw_value(client):
+    provider, survey = create_survey_with_results(failed=0, completed=1)
+
+    content = get_dashboard(client, provider, survey)
+
+    assert "Open text" in content
+    assert "OPEN_TEXT" not in content
+
+
+@pytest.mark.django_db
+def test_dashboard_text_answer_follows_its_own_direction(client):
+    provider, survey = create_survey_with_results(failed=0, completed=1)
+
+    content = get_dashboard(client, provider, survey)
+
+    assert '<div class="text-answer-item" dir="auto">' in content
+
+
+@pytest.mark.parametrize(
+    ("question_type", "label"),
+    [
+        (QuestionType.MULTIPLE_CHOICE, "Multiple choice"),
+        (QuestionType.RATING_SCALE, "Rating scale"),
+        (QuestionType.OPEN_TEXT, "Open text"),
+    ],
+)
+def test_question_summaries_view_adds_sentence_case_type_label(question_type, label):
+    summary = {"question_id": 7, "question_type": question_type}
+
+    [view] = _question_summaries_view([summary])
+
+    assert view["question_type_label"] == label
+    assert view["question_type"] == question_type

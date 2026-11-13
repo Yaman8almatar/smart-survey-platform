@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
+from core.enums import QUESTION_TYPE_LABELS
 from core.exceptions import SmartSurveyException
 from services.analysis_service import AnalysisService
 from services.survey_service import SurveyService
@@ -80,7 +81,7 @@ def _results_view(results):
     results_view["neutral_rate_label"] = _rate_label(results_view["neutral_rate"])
     results_view["negative_rate_label"] = _rate_label(results_view["negative_rate"])
 
-    # Annotate each question summary with a unique chart element id.
+    # Annotate each question summary with a chart element id and a type label.
     results_view["question_summaries"] = _question_summaries_view(
         results_view["question_summaries"],
     )
@@ -105,11 +106,12 @@ def _sentiment_chart_data(results):
 
 
 def _question_summaries_view(question_summaries):
-    """Add chart element ids to question-level analytics summaries."""
+    """Add chart element ids and type labels to question-level analytics summaries."""
     return [
         {
             **summary,
             "chart_id": f"question-chart-{summary['question_id']}",
+            "question_type_label": QUESTION_TYPE_LABELS[summary["question_type"]],
         }
         for summary in question_summaries
     ]

@@ -1,6 +1,6 @@
 from django import forms
 
-from core.enums import Gender, Governorate, QuestionType
+from core.enums import QUESTION_TYPE_LABELS, Gender, Governorate, QuestionType
 
 
 class BootstrapFormMixin:
@@ -26,7 +26,9 @@ class SurveyForm(BootstrapFormMixin, forms.Form):
 
 class QuestionForm(BootstrapFormMixin, forms.Form):
     question_text = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}))
-    question_type = forms.ChoiceField(choices=QuestionType.choices)
+    question_type = forms.ChoiceField(
+        choices=[(value, QUESTION_TYPE_LABELS[value]) for value in QuestionType.values],
+    )
     is_required = forms.BooleanField(required=False, initial=True)
     order_index = forms.IntegerField()
     options = forms.CharField(

@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from apps.core.models import Question, QuestionOption
-from core.enums import QuestionType, UserType
+from core.enums import QUESTION_TYPE_LABELS, QuestionType, UserType
 from core.exceptions import (
     NotEditable,
     QuestionNotFound,
@@ -283,7 +283,7 @@ class QuestionService:
             ],
             "id": question_id,
             "text": question.question_text,
-            "type_label": question.get_question_type_display(),
+            "type_label": QUESTION_TYPE_LABELS[question.question_type],
             "required_label": "Required" if question.is_required else "Optional",
         }
 
@@ -309,7 +309,7 @@ class QuestionService:
             ],
             "id": question_id,
             "text": question.question_text,
-            "type_label": question.get_question_type_display(),
+            "type_label": QUESTION_TYPE_LABELS[question.question_type],
             "required_label": "Required" if question.is_required else "Optional",
             "is_open_text": question.question_type == QuestionType.OPEN_TEXT,
             "is_rating_scale": question.question_type == QuestionType.RATING_SCALE,
