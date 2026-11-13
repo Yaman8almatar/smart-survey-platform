@@ -1,6 +1,10 @@
 (function () {
     "use strict";
 
+    /* Page scripts (for example the analytics dashboard) read colours through these helpers. */
+    window.ssToken = ssToken;
+    window.ssWithAlpha = withAlpha;
+
     runWhenReady(function () {
         initOptionBuilders();
         initSystemReportChart();
@@ -132,8 +136,8 @@
             type: "doughnut",
             label: "Users",
             keys: ["SERVICE_PROVIDER", "RESPONDENT", "ADMIN"],
-            labels: ["Service Providers", "Respondents", "Admins"],
-            colors: ["#12355b", "#0f766e", "#64748b"],
+            labels: ["Service providers", "Respondents", "Admins"],
+            colors: [ssToken("--ss-chart-1"), ssToken("--ss-chart-2"), ssToken("--ss-chart-3")],
             emptyMessage: "No user data is available.",
         });
 
@@ -144,7 +148,7 @@
             label: "Surveys",
             keys: ["DRAFT", "PUBLISHED", "CLOSED"],
             labels: ["Draft", "Published", "Closed"],
-            colors: ["#64748b", "#2463eb", "#0f766e"],
+            colors: [ssToken("--ss-chart-other"), ssToken("--ss-chart-1"), ssToken("--ss-chart-5")],
             emptyMessage: "No survey data is available.",
         });
 
@@ -152,14 +156,14 @@
             "responsesOverTimeChart",
             "responses-over-time-data",
             "Responses",
-            "#2463eb",
+            ssToken("--ss-chart-1"),
             "No responses were submitted in the selected range."
         );
         renderTimeSeriesChart(
             "userGrowthChart",
             "user-growth-data",
             "New users",
-            "#0f766e",
+            ssToken("--ss-chart-3"),
             "No new users were created in the selected range."
         );
         renderMostActiveSurveysChart();
@@ -248,7 +252,7 @@
                         label: label,
                         data: values,
                         borderColor: color,
-                        backgroundColor: transparentize(color),
+                        backgroundColor: withAlpha(color, 0.14),
                         borderWidth: 2,
                         fill: true,
                         tension: 0.3,
@@ -306,8 +310,8 @@
                     {
                         label: "Responses",
                         data: values,
-                        backgroundColor: "#12355b",
-                        borderColor: "#081f38",
+                        backgroundColor: ssToken("--ss-chart-1"),
+                        borderColor: ssToken("--ss-brand-deep"),
                         borderWidth: 1,
                         borderRadius: 8,
                     },
@@ -418,10 +422,15 @@
         });
     }
 
-    function transparentize(color) {
-        return color === "#0f766e"
-            ? "rgba(15, 118, 110, 0.14)"
-            : "rgba(36, 99, 235, 0.14)";
+    /* Read a design token from tokens.css; the only place colours are defined. */
+    function ssToken(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    /* Add an alpha channel to a 6-digit hex token value, returned as 8-digit hex. */
+    function withAlpha(hex, alpha) {
+        var channel = Math.round(alpha * 255).toString(16).padStart(2, "0");
+        return hex + channel;
     }
 
     function readNumber(value) {

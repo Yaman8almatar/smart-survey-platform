@@ -263,6 +263,20 @@ a:hover {
     height: 20px;
 }
 
+/* Signal mark colours (navbar on brand-deep, footer on surface) */
+.brand-mark .mark-dot,
+.footer-mark .mark-dot {
+    fill: var(--ss-accent);
+}
+
+.brand-mark .mark-ring {
+    stroke: var(--ss-on-brand);
+}
+
+.footer-mark .mark-ring {
+    stroke: var(--ss-brand);
+}
+
 .footer-meta {
     color: var(--ssp-muted);
 }
@@ -421,7 +435,7 @@ textarea.form-control {
 }
 
 .btn {
-    border-radius: var(--ss-radius-sm);
+    border-radius: var(--ss-radius-md);
     font-weight: 600;
 }
 

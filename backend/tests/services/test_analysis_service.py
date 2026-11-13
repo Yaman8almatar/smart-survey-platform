@@ -395,6 +395,7 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
         "positive_count": 0,
         "neutral_count": 0,
         "negative_count": 0,
+        "failed_count": 0,
         "positive_rate": 0,
         "neutral_rate": 0,
         "negative_rate": 0,
@@ -412,6 +413,25 @@ def test_get_survey_results_calculates_positive_neutral_and_negative_counts():
     assert summary["positive_count"] == 1
     assert summary["neutral_count"] == 1
     assert summary["negative_count"] == 1
+
+
+@pytest.mark.django_db
+def test_get_survey_results_counts_failed_results():
+    survey, response = create_survey_response()
+    failed_question = create_question(survey, QuestionType.OPEN_TEXT, text="First?")
+    completed_question = create_question(survey, QuestionType.OPEN_TEXT, text="Second?")
+    failed_answer = create_answer(response, failed_question, answer_value="Refused text")
+    completed_answer = create_answer(
+        response, completed_question, answer_value="Great service"
+    )
+    create_sentiment_result(failed_answer, None, status=AnalysisStatus.FAILED)
+    create_sentiment_result(completed_answer, SentimentLabel.POSITIVE)
+    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+
+    summary = service.get_survey_results(survey.provider, survey.survey_id)
+
+    assert summary["failed_count"] == 1
+    assert summary["positive_count"] == 1
 
 
 @pytest.mark.django_db

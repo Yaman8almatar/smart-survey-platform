@@ -1,12 +1,12 @@
 # STATUS — 2026-11-13
-Branch: feat/fr01-answered-screen
-Task: TASK-23 — FR-01 answered surveys screen in the app (UC-06)
-Done: new Answered surveys screen (history icon on the survey list) with loading, empty and error states and pull to refresh;
-  SurveysRepository.answeredSurveys (GET me/responses/); dayPhrase adds the year for another year; RefreshableList shared widget.
-Changes: 7 modified, 4 new, 0 deleted — frontend/lib/features/surveys/answered_surveys_screen.dart, surveys_repository.dart,
-  eligible_surveys_screen.dart, frontend/lib/widgets/refreshable_list.dart, frontend/test/features/surveys/answered_surveys_screen_test.dart
-Tests: pytest skipped (no Python changes); flutter test surveys+answer+widgets 134 passed (13 new); flutter analyze no issues
+Branch: fix/inc1-web-audit
+Task: TASK-24 — web audit fixes: colour tokens, sentence case, visible sentiment failure (A-15, A-16, A-209), refs #61
+Done: chart and mark colours read from tokens.css (ssToken/withAlpha in site.js); 29 labels in sentence case; .btn radius 12 px;
+  AnalysisService.get_survey_results returns failed_count and the sentiment card shows a server-side failure notice.
+Changes: 13 modified, 1 new, 0 deleted — backend/static/js/site.js, backend/apps/analysis/templates/analysis/analytics_dashboard.html,
+  backend/services/analysis_service.py, backend/templates/base.html, backend/tests/views/test_analytics_dashboard_view.py
+Tests: changed and new files only (D-129): 47 passed (4 new); full suite runs in CI (562 before)
 Check: OK (System check identified no issues)
-Committed: yes (feat: FR-01 answered surveys screen in the app (TASK-23))
-Open questions: none; manual check passed (screenshot approved by the advisor, pull to refresh reloads)
-Next: review, then Yaman merges into develop; FR-01 (#15) is then code complete, Done after TASK-25 and its report section.
+Committed: yes (fix: web colour tokens, sentence case and visible sentiment failure (TASK-24))
+Open questions: none; manual check passed (screenshot approved by the advisor); session ran in bypass permissions mode
+Next: review, then Yaman merges into develop; FR-01, FR-02 and FR-06 stay code complete.
