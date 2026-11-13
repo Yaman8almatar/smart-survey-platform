@@ -386,6 +386,13 @@ void main() {
         'on 7 November',
       );
     });
+
+    test('another year adds the year', () {
+      expect(
+        dayPhrase(DateTime(2025, 11, 7, 23), DateTime(2026, 11, 8, 1)),
+        'on 7 November 2025',
+      );
+    });
   });
 
   group('sentAtText', () {

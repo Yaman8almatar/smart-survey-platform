@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/api/api_exception.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/match_badge.dart';
+import '../../widgets/refreshable_list.dart';
 import '../../widgets/state_message.dart';
 import '../answer/answer_repository.dart';
 import '../answer/survey_start_screen.dart';
@@ -11,6 +12,7 @@ import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
 import '../profile/profile_repository.dart';
 import '../profile/profile_screen.dart';
+import 'answered_surveys_screen.dart';
 import 'surveys_models.dart';
 import 'surveys_repository.dart';
 
@@ -98,6 +100,19 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
     if (mounted) _retry();
   }
 
+  /// Read-only history, so the list does not reload on return.
+  void _openAnswered() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AnsweredSurveysScreen(
+          surveysRepository: widget.surveysRepository,
+          onSessionExpired: () =>
+              _openLogin(notice: 'Your session ended. Please log in again.'),
+        ),
+      ),
+    );
+  }
+
   /// An answered survey leaves the list, so it reloads on return.
   Future<void> _openSurvey(EligibleSurvey survey) async {
     await Navigator.of(context).push(
@@ -136,6 +151,11 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
         title: Text(widget.user.displayName),
         actions: [
           IconButton(
+            tooltip: 'Answered surveys',
+            icon: const Icon(Icons.history),
+            onPressed: _loggingOut ? null : _openAnswered,
+          ),
+          IconButton(
             tooltip: 'Your profile',
             icon: const Icon(Icons.account_circle_outlined),
             onPressed: _loggingOut ? null : _openProfile,
@@ -167,7 +187,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return _Scrollable(
+                return RefreshableList(
                   onRefresh: _refresh,
                   children: [
                     StateMessage(
@@ -184,7 +204,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
               }
               final surveys = snapshot.data ?? const <EligibleSurvey>[];
               if (surveys.isEmpty) {
-                return _Scrollable(
+                return RefreshableList(
                   onRefresh: _refresh,
                   children: [
                     StateMessage(
@@ -205,7 +225,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                   ],
                 );
               }
-              return _Scrollable(
+              return RefreshableList(
                 onRefresh: _refresh,
                 children: [
                   Text(
@@ -236,26 +256,6 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
           : error.message;
     }
     return 'Something went wrong. Please try again.';
-  }
-}
-
-/// Always scrollable so pull-to-refresh also works on short content.
-class _Scrollable extends StatelessWidget {
-  const _Scrollable({required this.onRefresh, required this.children});
-
-  final Future<void> Function() onRefresh;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsetsDirectional.all(SsSpace.s4),
-        children: children,
-      ),
-    );
   }
 }
 

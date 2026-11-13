@@ -6,7 +6,8 @@ import '../../widgets/signal_ring.dart';
 import '../profile/profile_hero.dart';
 import 'survey_parts.dart';
 
-/// "Sent today at 17:42." or "Sent on 7 November at 17:42.", in local time.
+/// "Sent today at 17:42." or "Sent on 7 November at 17:42.", in local time;
+/// another year adds it: "Sent on 7 November 2025 at 17:42.".
 String sentAtText(DateTime submittedAt, DateTime now) {
   final local = submittedAt.toLocal();
   final hour = local.hour.toString().padLeft(2, '0');

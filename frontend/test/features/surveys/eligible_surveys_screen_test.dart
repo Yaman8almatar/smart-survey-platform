@@ -7,6 +7,7 @@ import 'package:smart_survey_app/core/api/token_store.dart';
 import 'package:smart_survey_app/features/auth/auth_models.dart';
 import 'package:smart_survey_app/features/auth/login_screen.dart';
 import 'package:smart_survey_app/features/profile/profile_screen.dart';
+import 'package:smart_survey_app/features/surveys/answered_surveys_screen.dart';
 import 'package:smart_survey_app/features/surveys/eligible_surveys_screen.dart';
 
 import '../../support/test_api.dart';
@@ -183,6 +184,17 @@ void main() {
 
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.text('Your profile'), findsOneWidget);
+  });
+
+  testWidgets('the app bar opens the answered surveys', (tester) async {
+    final test = TestApi((request) async => jsonResponse([]));
+    await pumpList(tester, test);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Answered surveys'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AnsweredSurveysScreen), findsOneWidget);
   });
 
   testWidgets('the empty state opens the profile', (tester) async {
