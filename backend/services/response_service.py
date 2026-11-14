@@ -1,6 +1,3 @@
-import logging
-
-from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from apps.core.models import Answer, Response, ResponseDraft
@@ -21,11 +18,9 @@ from repositories.survey_repository import SurveyRepository
 from services.analysis_service import AnalysisService
 from services.targeting_service import TargetingService
 
-logger = logging.getLogger(__name__)
-
 
 class ResponseService:
-    """Handles Response submission, answer validation, and analysis triggering."""
+    """Handles Response submission, answer validation, and analysis queueing."""
 
     MIN_RATING = 1
     MAX_RATING = 5
@@ -94,6 +89,7 @@ class ResponseService:
                     )
                 )
 
+                saved_answers = []
                 for answer_data in answer_map.values():
                     question = question_map.get(answer_data.get("question_id"))
                     if question is None:
@@ -102,16 +98,11 @@ class ResponseService:
                     answer = self._build_answer(response, question, answer_data)
                     if answer is not None:
                         self.response_repository.save_answer(answer)
+                        saved_answers.append(answer)
 
+                # PENDING rows commit with the answers; the analysis worker reads them later.
+                self.analysis_service.queue_open_text_answers(saved_answers)
                 self.draft_repository.delete(survey_id, respondent_user.user_id)
-
-                if response.has_open_text_answers():
-                    # Sentiment analysis runs only after the submission is committed.
-                    response_id = response.response_id
-                    transaction.on_commit(
-                        lambda: self._dispatch_sentiment_analysis(response_id),
-                        robust=True,
-                    )
         except IntegrityError as exc:
             # A parallel submit can pass the pre-check; only this constraint means a duplicate.
             if "unique_response_per_survey_respondent" in str(exc):
@@ -174,22 +165,6 @@ class ResponseService:
             if answer_data.get(key) is not None:
                 stored[key] = answer_data[key]
         return stored
-
-    def _dispatch_sentiment_analysis(self, response_id):
-        """Dispatch sentiment analysis asynchronously via Celery or fallback synchronously."""
-        if settings.CELERY_ENABLED:
-            try:
-                from apps.core.tasks import analyze_open_text_answers_task
-
-                analyze_open_text_answers_task.delay(response_id)
-                return
-            except Exception:
-                logger.exception(
-                    "Celery dispatch failed for response_id=%s; running analysis directly.",
-                    response_id,
-                )
-
-        self.analysis_service.analyze_open_text_answers(response_id)
 
     def validate_duplicate_response(self, respondent_user, survey_id):
         """Prevent a respondent from submitting more than one response to the same survey."""

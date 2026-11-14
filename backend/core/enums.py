@@ -146,5 +146,7 @@ class AnalysisStatus(models.TextChoices):
     """Defines sentiment analysis processing states."""
 
     PENDING = "PENDING", "Pending"
+    RUNNING = "RUNNING", "Running"
     COMPLETED = "COMPLETED", "Completed"
     FAILED = "FAILED", "Failed"
+    SKIPPED = "SKIPPED", "Skipped"

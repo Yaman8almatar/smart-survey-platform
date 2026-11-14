@@ -3,7 +3,13 @@ import os
 
 import requests
 
-from core.exceptions import ExternalAnalysisServiceError
+from core.exceptions import (
+    AnalysisBadOutput,
+    AnalysisConfigError,
+    AnalysisPaymentRequired,
+    AnalysisUnavailable,
+    ExternalAnalysisServiceError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +28,7 @@ class HuggingFaceClient:
         "LABEL_1": "NEUTRAL",
         "1": "NEUTRAL",
     }
+    MODEL_PATH_MARKER = "/models/"
 
     def __init__(self, api_token=None, model_url=None, timeout=15):
         """Configure Hugging Face credentials, model endpoint, and timeout."""
@@ -33,12 +40,19 @@ class HuggingFaceClient:
         )
         self.timeout = timeout
 
+    @property
+    def model_id(self):
+        """Return the model name: the part of the model URL after "/models/"."""
+        if not self.model_url or self.MODEL_PATH_MARKER not in self.model_url:
+            return ""
+        return self.model_url.split(self.MODEL_PATH_MARKER, 1)[1]
+
     def analyze_sentiment(self, text):
         """Send open-text content to Hugging Face and return normalized sentiment output."""
         if not self.api_token:
-            raise ExternalAnalysisServiceError("HF_API_TOKEN is not configured.")
+            raise AnalysisConfigError("HF_API_TOKEN is not configured.")
         if not self.model_url:
-            raise ExternalAnalysisServiceError("HF_SENTIMENT_MODEL_URL is not configured.")
+            raise AnalysisConfigError("HF_SENTIMENT_MODEL_URL is not configured.")
         if not isinstance(text, str) or not text.strip():
             raise ExternalAnalysisServiceError("Input text must not be empty.")
 
@@ -57,13 +71,23 @@ class HuggingFaceClient:
         except requests.HTTPError as exc:
             status_code = getattr(exc.response, "status_code", None)
             logger.warning("Hugging Face request failed with HTTP %s.", status_code)
-            raise ExternalAnalysisServiceError(
+            error_class = self._http_error_class(status_code)
+            raise error_class(
                 f"Hugging Face request failed with HTTP {status_code}."
             ) from exc
         except requests.RequestException as exc:
-            raise ExternalAnalysisServiceError("Hugging Face request failed.") from exc
+            # Timeouts, connection errors and other transport failures may pass later.
+            raise AnalysisUnavailable("Hugging Face request failed.") from exc
 
         return self._parse_response(response)
+
+    def _http_error_class(self, status_code):
+        """Choose the error class for an HTTP error status."""
+        if status_code == 402:
+            return AnalysisPaymentRequired
+        if status_code is None or status_code == 429 or status_code >= 500:
+            return AnalysisUnavailable
+        return AnalysisConfigError
 
     def _clean_value(self, value):
         """Normalize optional configuration values from arguments or environment."""
@@ -76,7 +100,7 @@ class HuggingFaceClient:
         try:
             payload = response.json()
         except ValueError as exc:
-            raise ExternalAnalysisServiceError("Hugging Face response is invalid.") from exc
+            raise AnalysisBadOutput("Hugging Face response is invalid.") from exc
 
         predictions = self._extract_predictions(payload)
         best_prediction = self._best_prediction(predictions)
@@ -94,13 +118,13 @@ class HuggingFaceClient:
             predictions = payload
 
         if not isinstance(predictions, list) or not predictions:
-            raise ExternalAnalysisServiceError("Hugging Face response is invalid.")
+            raise AnalysisBadOutput("Hugging Face response is invalid.")
 
         for prediction in predictions:
             if not isinstance(prediction, dict):
-                raise ExternalAnalysisServiceError("Hugging Face response is invalid.")
+                raise AnalysisBadOutput("Hugging Face response is invalid.")
             if "label" not in prediction or "score" not in prediction:
-                raise ExternalAnalysisServiceError("Hugging Face response is invalid.")
+                raise AnalysisBadOutput("Hugging Face response is invalid.")
             self._normalize_label(prediction["label"])
             self._normalize_score(prediction["score"])
 
@@ -119,7 +143,7 @@ class HuggingFaceClient:
         # Normalize provider labels into the internal sentiment labels.
         mapped_label = self.LABEL_MAP.get(normalized_label)
         if mapped_label is None:
-            raise ExternalAnalysisServiceError("Unknown sentiment label.")
+            raise AnalysisBadOutput("Unknown sentiment label.")
         return mapped_label
 
     def _normalize_score(self, score):
@@ -127,4 +151,4 @@ class HuggingFaceClient:
         try:
             return float(score)
         except (TypeError, ValueError) as exc:
-            raise ExternalAnalysisServiceError("Hugging Face response is invalid.") from exc
+            raise AnalysisBadOutput("Hugging Face response is invalid.") from exc
