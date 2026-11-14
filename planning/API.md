@@ -182,7 +182,7 @@ Throttling limits abuse; it is not complete brute-force protection, because clie
 - URLs that do not exist (or a non-numeric survey id) return Django's HTML 404, not the JSON error shape.
 - Use a `SECRET_KEY` of at least 32 bytes: JWT signing reuses it, and shorter keys trigger a PyJWT warning.
 - The eligible list runs one count query per survey (small lists).
-- K-02: sentiment analysis still runs in the request after the commit, so a submit with open-text answers can take longer when the AI service is slow.
+- Sentiment analysis runs in a separate worker (`python manage.py run_analysis_worker`); a submit no longer waits for it. Results are PENDING until the worker runs.
 - F-27: two parallel submits of the same survey can raise a database error, returned as 500 `internal_error` instead of 409.
 - F-26: emails are case sensitive.
 - Passwords are not checked for strength (same as the web form).

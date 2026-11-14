@@ -1,11 +1,12 @@
 from collections import Counter, defaultdict
+from datetime import timedelta
 
-from django.db import transaction
 from django.utils import timezone
 
-from apps.core.models import SentimentAnalysisResult
 from core.enums import AnalysisStatus, QuestionType, SentimentLabel, UserType
 from core.exceptions import (
+    AnalysisBadOutput,
+    AnalysisUnavailable,
     ExternalAnalysisServiceError,
     SurveyNotFound,
     UnauthorizedAction,
@@ -15,6 +16,7 @@ from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
+from services.text_language import detect_language
 
 
 class AnalysisService:
@@ -22,6 +24,14 @@ class AnalysisService:
 
     RATING_LABELS = [1, 2, 3, 4, 5]
     MAX_TEXT_ANSWERS_SHOWN = 50
+
+    # Worker rules (T-9). A full batch (8 calls x 15 s client timeout) ends well
+    # before LOCK_TIMEOUT, so a row that is still being analysed is never reclaimed.
+    BATCH_SIZE = 8
+    LOCK_TIMEOUT = timedelta(minutes=5)
+    RETRY_DELAYS_SECONDS = (30, 120)  # after attempt 1 and attempt 2
+    MAX_ATTEMPTS = 3
+    NO_TEXT_CODE = "no_text"
 
     def __init__(
         self,
@@ -38,32 +48,94 @@ class AnalysisService:
         self.huggingface_client = huggingface_client or HuggingFaceClient()
         self.survey_repository = survey_repository or SurveyRepository()
 
-    @transaction.atomic
-    def analyze_open_text_answers(self, response_id):
-        """Run sentiment analysis for open-text answers through the infrastructure client."""
-        results = []
-        answers = self.response_repository.find_answers_by_response_id(response_id)
+    def queue_open_text_answers(self, answers):
+        """Store one PENDING result per saved open-text answer that has text."""
+        pending_answers = [
+            answer
+            for answer in answers
+            if answer.requires_sentiment_analysis()
+            and isinstance(answer.answer_value, str)
+            and answer.answer_value.strip()
+        ]
+        if not pending_answers:
+            return []
+        return self.analysis_repository.create_pending(pending_answers)
 
-        for answer in answers:
-            if not answer.requires_sentiment_analysis():
-                continue
+    def process_pending_batch(self, limit=BATCH_SIZE):
+        """Claim due results, analyse them with no transaction open, store each outcome."""
+        now = timezone.now()
+        claimed, expired = self.analysis_repository.claim_batch(
+            limit=limit,
+            now=now,
+            stale_before=now - self.LOCK_TIMEOUT,
+            max_attempts=self.MAX_ATTEMPTS,
+            expired_error_code=AnalysisUnavailable.error_code,
+        )
 
-            result = self._get_or_create_pending_result(answer)
+        for result in claimed:
+            self._analyse_claimed_result(result)
+            # Each outcome is stored on its own; one failed write keeps the others.
+            self.analysis_repository.update(result)
 
-            try:
-                # Hugging Face integration is isolated behind the infrastructure client.
-                analysis = self.huggingface_client.analyze_sentiment(answer.answer_value)
-                label = self._map_external_label(analysis.get("label"))
-                if label is None:
-                    raise ExternalAnalysisServiceError("Unknown sentiment label.")
+        return expired + claimed
 
-                result.mark_completed(label, analysis.get("score"), timezone.now())
-            except ExternalAnalysisServiceError:
-                result.mark_failed()
+    def sentiment_status_counts(self, survey_id):
+        """Return analysed, waiting, failed and skipped counts and the oldest wait."""
+        counts = Counter()
+        for status, total in self.analysis_repository.count_by_status(survey_id).items():
+            counts[self._normalized_value(status)] += total
 
-            results.append(self.analysis_repository.update(result))
+        oldest = self.analysis_repository.oldest_waiting_submitted_at(survey_id)
+        return {
+            "analysed": counts[AnalysisStatus.COMPLETED.value],
+            "waiting": counts[AnalysisStatus.PENDING.value]
+            + counts[AnalysisStatus.RUNNING.value],
+            "failed": counts[AnalysisStatus.FAILED.value],
+            "skipped": counts[AnalysisStatus.SKIPPED.value],
+            "oldest_waiting_seconds": (
+                None if oldest is None else int((timezone.now() - oldest).total_seconds())
+            ),
+        }
 
-        return results
+    def retry_failed(self, provider_user, survey_id):
+        """Return the survey's FAILED results to the queue; only the owner may do it."""
+        self._ensure_survey_owner(provider_user, survey_id)
+        return self.analysis_repository.reset_failed(survey_id)
+
+    def _analyse_claimed_result(self, result):
+        """Set the outcome of one claimed result on the object (not saved here)."""
+        text = result.answer.answer_value
+        language = detect_language(text)
+        if language is None:
+            result.mark_skipped(self.NO_TEXT_CODE)
+            return
+
+        try:
+            analysis = self.huggingface_client.analyze_sentiment(text)
+        except AnalysisUnavailable:
+            if result.attempts >= self.MAX_ATTEMPTS:
+                result.mark_failed(AnalysisUnavailable.error_code)
+            else:
+                delay = self.RETRY_DELAYS_SECONDS[result.attempts - 1]
+                result.schedule_retry(timezone.now() + timedelta(seconds=delay))
+            return
+        except ExternalAnalysisServiceError as exc:
+            # Config, payment and bad-output errors do not pass by waiting.
+            result.mark_failed(exc.error_code)
+            return
+
+        label = self._map_external_label(analysis.get("label"))
+        if label is None:
+            result.mark_failed(AnalysisBadOutput.error_code)
+            return
+
+        result.mark_completed(
+            label,
+            analysis.get("score"),
+            timezone.now(),
+            language=language,
+            model_id=self.huggingface_client.model_id,
+        )
 
     def get_survey_results(self, provider_user, survey_id):
         """Build survey analytics including sentiment counts and question-level summaries."""
@@ -79,10 +151,19 @@ class AnalysisService:
         neutral_count = 0
         negative_count = 0
         failed_count = 0
+        waiting_count = 0
+        skipped_count = 0
 
         for result in sentiment_results:
-            if self._is_failed_result(result.status):
+            status = self._normalized_value(result.status)
+            if status == AnalysisStatus.FAILED.value:
                 failed_count += 1
+                continue
+            if status in (AnalysisStatus.PENDING.value, AnalysisStatus.RUNNING.value):
+                waiting_count += 1
+                continue
+            if status == AnalysisStatus.SKIPPED.value:
+                skipped_count += 1
                 continue
 
             if not self._is_completed_result(result.status):
@@ -105,6 +186,8 @@ class AnalysisService:
             "neutral_count": neutral_count,
             "negative_count": negative_count,
             "failed_count": failed_count,
+            "waiting_count": waiting_count,
+            "skipped_count": skipped_count,
             "positive_rate": self._rate(positive_count, completed_count),
             "neutral_rate": self._rate(neutral_count, completed_count),
             "negative_rate": self._rate(negative_count, completed_count),
@@ -123,19 +206,6 @@ class AnalysisService:
         if survey.provider_id != provider_user.user_id:
             raise UnauthorizedAction("Only the survey owner can view survey analytics.")
 
-    def _get_or_create_pending_result(self, answer):
-        """Prepare a pending sentiment result before external analysis runs."""
-        result = self.analysis_repository.find_by_answer_id(answer.answer_id)
-        if result is None:
-            result = SentimentAnalysisResult(answer=answer, status=AnalysisStatus.PENDING)
-            return self.analysis_repository.save(result)
-
-        result.status = AnalysisStatus.PENDING
-        result.sentiment_label = None
-        result.sentiment_score = None
-        result.analyzed_at = None
-        return self.analysis_repository.update(result)
-
     def _map_external_label(self, label):
         """Map an external sentiment label to an internal enum value."""
         if label is None:
@@ -150,10 +220,6 @@ class AnalysisService:
     def _is_completed_result(self, status):
         """Return whether a sentiment result is completed."""
         return self._normalized_value(status) == AnalysisStatus.COMPLETED.value
-
-    def _is_failed_result(self, status):
-        """Return whether a sentiment result failed (for example the provider refused it)."""
-        return self._normalized_value(status) == AnalysisStatus.FAILED.value
 
     def _build_question_summaries(self, questions, answers):
         """Build question-level analytics summaries from submitted answers."""

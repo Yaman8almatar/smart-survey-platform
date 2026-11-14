@@ -144,115 +144,6 @@ def fail_if_hugging_face_is_called(*args, **kwargs):
     raise AssertionError("The real Hugging Face API must not be called in tests.")
 
 
-@pytest.mark.django_db
-def test_analyze_open_text_answers_analyzes_only_open_text_answers():
-    survey, response = create_survey_response()
-    open_question = create_question(survey, QuestionType.OPEN_TEXT)
-    choice_question = create_question(survey, QuestionType.MULTIPLE_CHOICE)
-    rating_question = create_question(survey, QuestionType.RATING_SCALE)
-    option = QuestionRepository().save_option(
-        QuestionOption(question=choice_question, option_text="Good", order_index=0)
-    )
-    create_answer(response, open_question, answer_value="Great service")
-    create_answer(response, choice_question, selected_option=option)
-    create_answer(response, rating_question, rating_value=5)
-    fake_client = FakeHuggingFaceClient()
-    service = AnalysisService(huggingface_client=fake_client)
-
-    results = service.analyze_open_text_answers(response.response_id)
-
-    assert len(results) == 1
-    assert fake_client.calls == ["Great service"]
-
-
-@pytest.mark.django_db
-def test_multiple_choice_answers_are_not_sent_to_huggingface_client():
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.MULTIPLE_CHOICE)
-    option = QuestionRepository().save_option(
-        QuestionOption(question=question, option_text="Good", order_index=0)
-    )
-    create_answer(response, question, selected_option=option)
-    fake_client = FakeHuggingFaceClient()
-    service = AnalysisService(huggingface_client=fake_client)
-
-    results = service.analyze_open_text_answers(response.response_id)
-
-    assert results == []
-    assert fake_client.calls == []
-
-
-@pytest.mark.django_db
-def test_rating_scale_answers_are_not_sent_to_huggingface_client():
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.RATING_SCALE)
-    create_answer(response, question, rating_value=4)
-    fake_client = FakeHuggingFaceClient()
-    service = AnalysisService(huggingface_client=fake_client)
-
-    results = service.analyze_open_text_answers(response.response_id)
-
-    assert results == []
-    assert fake_client.calls == []
-
-
-@pytest.mark.django_db
-def test_successful_external_analysis_creates_completed_result(analysis_repository):
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-    answer = create_answer(response, question, answer_value="Great service")
-    fake_client = FakeHuggingFaceClient(
-        responses=[{"label": "positive", "score": 0.95}]
-    )
-    service = AnalysisService(huggingface_client=fake_client)
-
-    service.analyze_open_text_answers(response.response_id)
-
-    result = analysis_repository.find_by_answer_id(answer.answer_id)
-    assert result.status == AnalysisStatus.COMPLETED
-    assert result.sentiment_label == SentimentLabel.POSITIVE
-    assert result.sentiment_score == 0.95
-    assert result.analyzed_at is not None
-
-
-@pytest.mark.django_db
-def test_failed_external_analysis_creates_failed_result(analysis_repository):
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-    answer = create_answer(response, question, answer_value="Great service")
-    fake_client = FakeHuggingFaceClient(
-        error=ExternalAnalysisServiceError("External service failed.")
-    )
-    service = AnalysisService(huggingface_client=fake_client)
-
-    service.analyze_open_text_answers(response.response_id)
-
-    result = analysis_repository.find_by_answer_id(answer.answer_id)
-    assert result.status == AnalysisStatus.FAILED
-    assert result.sentiment_label is None
-    assert result.sentiment_score is None
-
-
-@pytest.mark.django_db
-def test_analysis_service_maps_normalized_client_result_to_sentiment_label(
-    analysis_repository,
-):
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-    answer = create_answer(response, question, answer_value="Bad service")
-    fake_client = FakeHuggingFaceClient(
-        responses=[{"label": "NEGATIVE", "score": 0.88}]
-    )
-    service = AnalysisService(huggingface_client=fake_client)
-
-    service.analyze_open_text_answers(response.response_id)
-
-    result = analysis_repository.find_by_answer_id(answer.answer_id)
-    assert result.status == AnalysisStatus.COMPLETED
-    assert result.sentiment_label == SentimentLabel.NEGATIVE
-    assert result.sentiment_score == 0.88
-
-
 def test_single_label_hugging_face_response_is_normalized(monkeypatch):
     calls = mock_hugging_face_response(
         monkeypatch,
@@ -396,6 +287,8 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
         "neutral_count": 0,
         "negative_count": 0,
         "failed_count": 0,
+        "waiting_count": 0,
+        "skipped_count": 0,
         "positive_rate": 0,
         "neutral_rate": 0,
         "negative_rate": 0,
@@ -839,61 +732,19 @@ def test_failed_sentiment_result_is_not_counted():
 def create_completed_sentiment_results():
     provider = create_user("provider-summary@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
-    labels = [
-        {"label": "positive", "score": 0.9},
-        {"label": "neutral", "score": 0.7},
-        {"label": "negative", "score": 0.8},
-    ]
-    fake_client = FakeHuggingFaceClient(responses=labels)
-    service = AnalysisService(huggingface_client=fake_client)
+    labels = [SentimentLabel.POSITIVE, SentimentLabel.NEUTRAL, SentimentLabel.NEGATIVE]
 
-    for index in range(3):
+    for index, label in enumerate(labels):
         respondent = create_user(
             f"respondent-summary-{index}@example.com",
             UserType.RESPONDENT,
         )
         response = create_response(survey, respondent)
         question = create_question(survey, QuestionType.OPEN_TEXT, text=f"Question {index}?")
-        create_answer(response, question, answer_value=f"Answer {index}")
-        service.analyze_open_text_answers(response.response_id)
+        answer = create_answer(response, question, answer_value=f"Answer {index}")
+        create_sentiment_result(answer, label)
 
     return survey
-
-
-class FailingSecondUpdateAnalysisRepository(AnalysisRepository):
-    def __init__(self):
-        self.update_calls = 0
-
-    def update(self, result):
-        self.update_calls += 1
-        if self.update_calls == 2:
-            raise RuntimeError("Result storage failed.")
-        return super().update(result)
-
-
-@pytest.mark.django_db
-def test_analyze_open_text_answers_rolls_back_all_results_when_a_write_fails():
-    survey, response = create_survey_response()
-    first_question = create_question(survey, QuestionType.OPEN_TEXT)
-    second_question = create_question(survey, QuestionType.OPEN_TEXT)
-    create_answer(response, first_question, answer_value="Great service")
-    create_answer(response, second_question, answer_value="Slow delivery")
-    service = AnalysisService(
-        analysis_repository=FailingSecondUpdateAnalysisRepository(),
-        huggingface_client=FakeHuggingFaceClient(
-            responses=[
-                {"label": "positive", "score": 0.9},
-                {"label": "negative", "score": 0.8},
-            ]
-        ),
-    )
-
-    with pytest.raises(RuntimeError):
-        service.analyze_open_text_answers(response.response_id)
-
-    assert not SentimentAnalysisResult.objects.filter(
-        answer__response=response,
-    ).exists()
 
 
 @pytest.mark.django_db

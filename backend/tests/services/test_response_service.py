@@ -1,6 +1,5 @@
-import logging
 import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.db import IntegrityError, connection, transaction
@@ -12,10 +11,18 @@ from apps.core.models import (
     RespondentProfile,
     Response,
     ResponseDraft,
+    SentimentAnalysisResult,
     Survey,
     User,
 )
-from core.enums import AccountStatus, Gender, QuestionType, SurveyStatus, UserType
+from core.enums import (
+    AccountStatus,
+    AnalysisStatus,
+    Gender,
+    QuestionType,
+    SurveyStatus,
+    UserType,
+)
 from core.exceptions import (
     DraftNotFound,
     DuplicateResponse,
@@ -31,6 +38,7 @@ from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
+from services.analysis_service import AnalysisService
 from services.response_service import ResponseService
 
 
@@ -38,8 +46,8 @@ class FakeAnalysisService:
     def __init__(self):
         self.calls = []
 
-    def analyze_open_text_answers(self, response_id):
-        self.calls.append(response_id)
+    def queue_open_text_answers(self, answers):
+        self.calls.append(list(answers))
 
 
 @pytest.fixture
@@ -461,79 +469,110 @@ def test_selected_option_from_another_question_is_rejected(response_service):
         )
 
 
+class FailingClient:
+    """A gateway that must never be called during a submit."""
+
+    model_id = ""
+
+    def analyze_sentiment(self, text):
+        raise AssertionError("The submit must not call the analysis gateway.")
+
+
+def real_analysis_response_service():
+    return ResponseService(
+        analysis_service=AnalysisService(huggingface_client=FailingClient())
+    )
+
+
+def submit_survey(label, questions_and_answers):
+    """Create a survey with the given (question_type, is_required, answer_builder) list and submit it."""
+    provider = create_user(f"provider-{label}@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user(f"respondent-{label}@example.com", UserType.RESPONDENT)
+    create_profile(respondent)
+    survey = create_survey(provider)
+    answers = []
+    for question_type, is_required, build in questions_and_answers:
+        question = create_question(survey, question_type, is_required=is_required)
+        answers.append(build(question))
+    response = real_analysis_response_service().submit_response(
+        respondent, survey.survey_id, answers
+    )
+    return response
+
+
 @pytest.mark.django_db
-def test_open_text_response_triggers_analysis_service(
-    response_service,
-    fake_analysis_service,
-    django_capture_on_commit_callbacks,
-):
-    provider = create_user(
-        "provider-analysis-trigger@example.com",
-        UserType.SERVICE_PROVIDER,
+def test_submit_writes_one_pending_row_per_open_text_answer_without_a_gateway_call():
+    response = submit_survey(
+        "queue-two",
+        [
+            (QuestionType.OPEN_TEXT, True, lambda q: open_text_answer(q, "Great service")),
+            (QuestionType.OPEN_TEXT, True, lambda q: open_text_answer(q, "خدمة بطيئة")),
+        ],
     )
-    respondent = create_user(
-        "respondent-analysis-trigger@example.com",
-        UserType.RESPONDENT,
+
+    rows = SentimentAnalysisResult.objects.filter(answer__response=response)
+    assert rows.count() == 2
+    assert {row.status for row in rows} == {AnalysisStatus.PENDING}
+    assert {row.attempts for row in rows} == {0}
+
+
+@pytest.mark.django_db
+def test_submit_writes_no_pending_row_for_a_blank_or_skipped_optional_open_text_answer():
+    response = submit_survey(
+        "queue-blank",
+        [
+            (QuestionType.OPEN_TEXT, False, lambda q: open_text_answer(q, "   ")),
+            (QuestionType.OPEN_TEXT, False, lambda q: open_text_answer(q, None)),
+        ],
     )
+
+    assert not SentimentAnalysisResult.objects.filter(answer__response=response).exists()
+
+
+@pytest.mark.django_db
+def test_submit_writes_no_pending_row_for_rating_and_choice_answers():
+    response = submit_survey(
+        "queue-other",
+        [
+            (QuestionType.RATING_SCALE, True, lambda q: rating_answer(q, 4)),
+            (
+                QuestionType.MULTIPLE_CHOICE,
+                True,
+                lambda q: choice_answer(q, create_option(q)),
+            ),
+        ],
+    )
+
+    assert response.answers.count() == 2
+    assert not SentimentAnalysisResult.objects.filter(answer__response=response).exists()
+
+
+class FailingAfterQueueAnalysisService(AnalysisService):
+    def queue_open_text_answers(self, answers):
+        super().queue_open_text_answers(answers)
+        raise RuntimeError("Failure after the PENDING rows were written.")
+
+
+@pytest.mark.django_db
+def test_pending_rows_roll_back_with_the_response():
+    provider = create_user("provider-queue-rollback@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-queue-rollback@example.com", UserType.RESPONDENT)
     create_profile(respondent)
     survey = create_survey(provider)
     question = create_question(survey, QuestionType.OPEN_TEXT)
+    service = ResponseService(
+        analysis_service=FailingAfterQueueAnalysisService(huggingface_client=FailingClient())
+    )
 
-    with django_capture_on_commit_callbacks(execute=True):
-        response = response_service.submit_response(
-            respondent,
-            survey.survey_id,
-            [open_text_answer(question)],
-        )
+    with pytest.raises(RuntimeError):
+        service.submit_response(respondent, survey.survey_id, [open_text_answer(question)])
 
-    assert fake_analysis_service.calls == [response.response_id]
-
-
-@pytest.mark.django_db
-def test_response_without_open_text_answers_does_not_trigger_analysis_service(
-    response_service,
-    fake_analysis_service,
-    django_capture_on_commit_callbacks,
-):
-    provider = create_user("provider-no-analysis@example.com", UserType.SERVICE_PROVIDER)
-    respondent = create_user("respondent-no-analysis@example.com", UserType.RESPONDENT)
-    create_profile(respondent)
-    survey = create_survey(provider)
-    question = create_question(survey, QuestionType.RATING_SCALE)
-
-    with django_capture_on_commit_callbacks(execute=True):
-        response_service.submit_response(
-            respondent,
-            survey.survey_id,
-            [rating_answer(question, 5)],
-        )
-
-    assert fake_analysis_service.calls == []
+    assert not Response.objects.filter(survey=survey).exists()
+    assert not SentimentAnalysisResult.objects.exists()
 
 
-@pytest.mark.django_db
-def test_analysis_runs_only_after_response_commit(
-    response_service,
-    fake_analysis_service,
-    django_capture_on_commit_callbacks,
-):
-    provider = create_user("provider-after-commit@example.com", UserType.SERVICE_PROVIDER)
-    respondent = create_user("respondent-after-commit@example.com", UserType.RESPONDENT)
-    create_profile(respondent)
-    survey = create_survey(provider)
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-
-    with django_capture_on_commit_callbacks(execute=False) as callbacks:
-        response = response_service.submit_response(
-            respondent,
-            survey.survey_id,
-            [open_text_answer(question)],
-        )
-        assert fake_analysis_service.calls == []
-
-    assert len(callbacks) == 1
-    callbacks[0]()
-    assert fake_analysis_service.calls == [response.response_id]
+def test_response_service_has_no_after_commit_dispatch():
+    assert not hasattr(ResponseService, "_dispatch_sentiment_analysis")
 
 
 class FailingAnswerResponseRepository(ResponseRepository):
@@ -672,41 +711,6 @@ def test_database_refuses_two_answers_for_one_response_and_question():
     with pytest.raises(IntegrityError, match="unique_answer_per_response_question"):
         with transaction.atomic():
             repository.save_answer(Answer(response=response, question=question, rating_value=5))
-
-
-def test_dispatch_logs_celery_failure_and_runs_analysis_directly(
-    fake_analysis_service, settings, caplog
-):
-    settings.CELERY_ENABLED = True
-    task = MagicMock()
-    task.delay.side_effect = ConnectionError("broker unavailable")
-    service = ResponseService(analysis_service=fake_analysis_service)
-
-    with patch("apps.core.tasks.analyze_open_text_answers_task", task):
-        with caplog.at_level(logging.ERROR, logger="services.response_service"):
-            service._dispatch_sentiment_analysis(42)
-
-    task.delay.assert_called_once_with(42)
-    assert fake_analysis_service.calls == [42]
-    [record] = caplog.records
-    assert record.levelno == logging.ERROR
-    assert record.exc_info is not None
-
-
-def test_dispatch_without_celery_never_calls_delay(
-    fake_analysis_service, settings, monkeypatch
-):
-    settings.CELERY_ENABLED = False
-    # Only the setting decides; the raw environment variable is not read again.
-    monkeypatch.setenv("USE_CELERY", "true")
-    task = MagicMock()
-    service = ResponseService(analysis_service=fake_analysis_service)
-
-    with patch("apps.core.tasks.analyze_open_text_answers_task", task):
-        service._dispatch_sentiment_analysis(7)
-
-    task.delay.assert_not_called()
-    assert fake_analysis_service.calls == [7]
 
 
 # Response drafts (FR-06)
