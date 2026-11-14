@@ -1,4 +1,4 @@
-from core.enums import Gender, UserType
+from core.enums import Gender, Governorate, UserType
 from core.exceptions import (
     NotEditable,
     SurveyNotFound,
@@ -115,8 +115,8 @@ class TargetingService:
         if age_min is not None and age_max is not None and age_min > age_max:
             raise ValidationError("Minimum age must be less than or equal to maximum age.")
 
-        if region is not None and (not isinstance(region, str) or not region.strip()):
-            raise ValidationError("Region must be None or a non-empty string.")
+        if region is not None and region not in Governorate.values:
+            raise ValidationError("Choose a governorate from the list.")
 
     def _validate_age(self, field_name, age):
         """Validate optional targeting age bounds."""
@@ -138,12 +138,6 @@ class TargetingService:
             return False
         if criteria.age_max is not None and profile.age > criteria.age_max:
             return False
-        if criteria.region and self._normalized_region(
-            criteria.region
-        ) != self._normalized_region(profile.region):
+        if criteria.region and criteria.region != profile.region:
             return False
         return True
-
-    def _normalized_region(self, region):
-        """Normalize free-text regions so spacing and letter case do not block a match."""
-        return (region or "").strip().casefold()

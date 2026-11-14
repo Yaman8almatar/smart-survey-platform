@@ -16,7 +16,7 @@ class ApiClient {
        _tokens = tokenStore,
        _baseUrl = baseUrl;
 
-  static const Duration _timeout = Duration(seconds: 15);
+  static const Duration _defaultTimeout = Duration(seconds: 15);
 
   final http.Client _http;
   final TokenStore _tokens;
@@ -32,24 +32,35 @@ class ApiClient {
     String path, {
     Object? body,
     bool authenticated = true,
-  }) => _send('POST', path, body: body, authenticated: authenticated);
+    Duration? timeout,
+  }) => _send(
+    'POST',
+    path,
+    body: body,
+    authenticated: authenticated,
+    timeout: timeout,
+  );
 
   Future<Object?> put(String path, {Object? body, bool authenticated = true}) =>
       _send('PUT', path, body: body, authenticated: authenticated);
+
+  Future<Object?> delete(String path) =>
+      _send('DELETE', path, authenticated: true);
 
   Future<Object?> _send(
     String method,
     String path, {
     Object? body,
     required bool authenticated,
+    Duration? timeout,
   }) async {
     final usedToken = authenticated ? await _tokens.readAccess() : null;
-    var response = await _request(method, path, body, usedToken);
+    var response = await _request(method, path, body, usedToken, timeout);
 
     if (response.statusCode == 401 && authenticated) {
       await _refreshAfterRejection(usedToken);
       final fresh = await _tokens.readAccess();
-      response = await _request(method, path, body, fresh);
+      response = await _request(method, path, body, fresh, timeout);
     }
     return _decode(response);
   }
@@ -91,8 +102,9 @@ class ApiClient {
     String method,
     String path,
     Object? body,
-    String? accessToken,
-  ) async {
+    String? accessToken, [
+    Duration? timeout,
+  ]) async {
     final request = http.Request(method, _baseUrl.resolve(path))
       ..headers['Accept'] = 'application/json';
     if (accessToken != null) {
@@ -103,7 +115,9 @@ class ApiClient {
       request.body = jsonEncode(body);
     }
     try {
-      final streamed = await _http.send(request).timeout(_timeout);
+      final streamed = await _http
+          .send(request)
+          .timeout(timeout ?? _defaultTimeout);
       return await http.Response.fromStream(streamed);
     } on Exception {
       throw const ApiException.network();

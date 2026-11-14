@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_survey_app/core/api/api_exception.dart';
@@ -6,6 +8,39 @@ import 'package:smart_survey_app/core/api/token_store.dart';
 import '../../support/test_api.dart';
 
 void main() {
+  testWidgets('a request fails after the 15 s default', (tester) async {
+    final gate = Completer<http.Response>();
+    final client = TestApi((request) => gate.future);
+    Object? failure;
+    client.api.post('x/', body: {}).catchError((Object e) => failure = e);
+
+    await tester.pump(const Duration(seconds: 16));
+
+    expect(
+      failure,
+      isA<ApiException>().having(
+        (e) => e.code,
+        'code',
+        ApiException.networkError,
+      ),
+    );
+  });
+
+  testWidgets('a per-request timeout replaces the default', (tester) async {
+    final gate = Completer<http.Response>();
+    final client = TestApi((request) => gate.future);
+    Object? failure;
+    client.api
+        .post('x/', body: {}, timeout: const Duration(seconds: 60))
+        .catchError((Object e) => failure = e);
+
+    await tester.pump(const Duration(seconds: 16));
+    expect(failure, isNull);
+
+    await tester.pump(const Duration(seconds: 45));
+    expect(failure, isA<ApiException>());
+  });
+
   test('adds the Bearer header when an access token exists', () async {
     String? seen;
     final test = TestApi((request) async {

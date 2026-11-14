@@ -1,0 +1,52 @@
+# Optional production-style stack. Daily work and the demo use docker-compose.yml.
+name: smart-survey-prod
+
+x-backend: &backend
+  build:
+    context: ./backend
+  env_file: backend/.env.prod
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:15
+    env_file: backend/.env.prod
+    volumes:
+      - prod_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    <<: *backend
+    environment:
+      RUN_MIGRATIONS: "true"
+      COLLECT_STATIC: "true"
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *backend
+    environment:
+      RUN_MIGRATIONS: "false"
+      COLLECT_STATIC: "false"
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-c", "2"]
+    healthcheck:
+      disable: true
+
+volumes:
+  prod_postgres_data:

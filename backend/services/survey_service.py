@@ -40,10 +40,11 @@ class SurveyService:
     def create_survey(self, provider_user, title, description):
         """Create a draft survey for a service provider."""
         self._ensure_service_provider(provider_user)
+        self._validate_survey_data(title)
 
         survey = Survey(
             provider=provider_user,
-            title=title,
+            title=title.strip(),
             description=description,
         )
         return self.survey_repository.save(survey)
@@ -51,13 +52,19 @@ class SurveyService:
     def update_survey(self, provider_user, survey_id, title, description):
         """Update the title and description of an owned draft survey."""
         survey = self._get_owned_survey(provider_user, survey_id)
+        self._validate_survey_data(title)
 
         if not survey.can_edit():
             raise NotEditable("Only draft surveys can be updated.")
 
-        survey.title = title
+        survey.title = title.strip()
         survey.description = description
         return self.survey_repository.update(survey)
+
+    def _validate_survey_data(self, title):
+        """Validate required survey fields."""
+        if not isinstance(title, str) or not title.strip():
+            raise ValidationError("Survey title must be a non-empty string.")
 
     def delete_survey(self, provider_user, survey_id):
         """Delete an owned draft or closed survey."""
@@ -139,36 +146,32 @@ class SurveyService:
         if profile is None or not profile.is_complete():
             return []
 
-        eligible_surveys = []
-        for survey in self.survey_repository.find_published():
-            criteria = self.targeting_repository.find_by_survey_id(survey.survey_id)
-            if criteria is None:
-                continue
-
-            # UC-15 keeps targeting and duplicate-response filtering in the service layer.
-            if not self.targeting_service.profile_matches_criteria(criteria, profile):
-                continue
-
-            if self.response_repository.has_response_for_survey(
-                survey.survey_id,
-                respondent_user.user_id,
-            ):
-                continue
-
-            eligible_surveys.append(survey)
-
-        return eligible_surveys
+        return list(
+            self.survey_repository.find_eligible_for_respondent(
+                profile=profile,
+                respondent_user_id=respondent_user.user_id,
+            )
+        )
 
     def get_eligible_survey_items(self, respondent_user):
         """Return eligible surveys with their question counts."""
+        self._ensure_respondent(respondent_user)
+
+        profile = self.profile_repository.find_by_user_id(respondent_user.user_id)
+        if profile is None or not profile.is_complete():
+            return []
+
+        surveys = self.survey_repository.find_eligible_for_respondent(
+            profile=profile,
+            respondent_user_id=respondent_user.user_id,
+        )
+
         return [
             {
                 "survey": survey,
-                "question_count": self.question_repository.find_by_survey_id(
-                    survey.survey_id
-                ).count(),
+                "question_count": getattr(survey, "question_count", 0),
             }
-            for survey in self.get_eligible_surveys(respondent_user)
+            for survey in surveys
         ]
 
     def _get_owned_survey(self, provider_user, survey_id):

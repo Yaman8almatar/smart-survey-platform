@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import NoReverseMatch, reverse
 from django.views.decorators.http import require_POST
 
-from core.enums import UserType
+from core.enums import USER_TYPE_LABELS, UserType
 from core.exceptions import SmartSurveyException
 from services.authentication_service import AuthenticationService
 
@@ -30,9 +30,7 @@ def home_redirect(request):
         "is_personal_home": True,
         "user_name": getattr(user, "name", "") or user.email,
         "user_email": user.email,
-        "user_type": user.user_type,
-        "account_status": user.account_status,
-        "role_label": user.get_user_type_display(),
+        "role_label": USER_TYPE_LABELS[user.user_type],
         "account_status_label": user.get_account_status_display(),
         "role_badge_class": _role_badge_class(user.user_type),
         "status_badge_class": _status_badge_class(user.account_status),

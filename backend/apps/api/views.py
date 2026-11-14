@@ -4,6 +4,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -15,11 +16,15 @@ from services.survey_service import SurveyService
 
 from .serializers import (
     AnsweredSurveySerializer,
+    DraftSerializer,
     EligibleSurveySerializer,
     ErrorSerializer,
+    LogoutSerializer,
+    ProfileOptionsSerializer,
     ProfileSerializer,
     RegisterSerializer,
     ResponseCreatedSerializer,
+    SaveDraftSerializer,
     SubmitResponseSerializer,
     SurveyDetailSerializer,
     TokenPairSerializer,
@@ -29,6 +34,7 @@ from .serializers import (
 
 AUTH_TAG = ["auth"]
 ME_TAG = ["me"]
+PROFILE_TAG = ["profile"]
 SURVEY_TAG = ["surveys"]
 
 
@@ -40,6 +46,8 @@ class PublicAPIView(APIView):
 
 
 class RegisterView(PublicAPIView):
+    throttle_scope = "auth_register"
+
     @extend_schema(
         tags=AUTH_TAG,
         request=RegisterSerializer,
@@ -65,6 +73,8 @@ class RegisterView(PublicAPIView):
 
 
 class TokenView(PublicAPIView):
+    throttle_scope = "auth_token"
+
     @extend_schema(
         tags=AUTH_TAG,
         request=LoginSerializer,
@@ -84,7 +94,36 @@ class TokenView(PublicAPIView):
         return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
 
 
+class LogoutView(PublicAPIView):
+    throttle_scope = "auth_logout"
+
+    @extend_schema(
+        tags=AUTH_TAG,
+        request=LogoutSerializer,
+        responses={
+            204: None,
+            400: ErrorSerializer,
+        },
+        summary="Revoke and blacklist a refresh token on logout",
+    )
+    def post(self, request):
+        """Blacklist the provided refresh token."""
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            token = RefreshToken(serializer.validated_data["refresh"])
+            token.blacklist()
+        except TokenError:
+            return Response(
+                {"error": {"code": "invalid_token", "message": "Invalid or expired token."}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class TokenRefresh(TokenRefreshView):
+    throttle_scope = "auth_refresh"
+
     @extend_schema(tags=AUTH_TAG, summary="Exchange a refresh token for a new access token")
     def post(self, request, *args, **kwargs):
         """Return a new access token for a valid refresh token."""
@@ -127,14 +166,31 @@ class ProfileView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        # Full replace: an omitted optional field arrives as "" and clears the stored value.
         profile = ProfileService().update_profile(
             request.user,
             data["age"],
             data["gender"],
             data["region"],
             data["interests"],
+            data["education"],
+            data["occupation"],
+            data["marital_status"],
         )
         return Response(ProfileSerializer(profile).data)
+
+
+class ProfileOptionsView(PublicAPIView):
+    # No throttle_scope: ScopedRateThrottle does not limit this public read.
+
+    @extend_schema(
+        tags=PROFILE_TAG,
+        responses={200: ProfileOptionsSerializer},
+        summary="Fixed lists for the profile fields (public)",
+    )
+    def get(self, request):
+        """Return the profile lists through ProfileService."""
+        return Response(ProfileOptionsSerializer(ProfileService().options()).data)
 
 
 class EligibleSurveysView(APIView):
@@ -221,6 +277,86 @@ class SubmitResponseView(APIView):
             ResponseCreatedSerializer(response).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+DRAFT_REQUEST_EXAMPLE = OpenApiExample(
+    "Save the answers given so far",
+    value={
+        "answers": [
+            {"question_id": 1, "selected_option_id": 2},
+            {"question_id": 3, "answer_value": "Clear so far."},
+        ]
+    },
+    request_only=True,
+)
+DRAFT_RESPONSE_EXAMPLE = OpenApiExample(
+    "Stored draft",
+    value={
+        "survey_id": 5,
+        "answers": [
+            {"question_id": 1, "selected_option_id": 2},
+            {"question_id": 3, "answer_value": "Clear so far."},
+        ],
+        "started_at": "2026-11-08T09:30:00Z",
+        "updated_at": "2026-11-08T09:34:00Z",
+    },
+    response_only=True,
+    status_codes=["200"],
+)
+
+
+class DraftView(APIView):
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={
+            200: DraftSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        summary="Load the respondent's draft for a survey",
+    )
+    def get(self, request, survey_id):
+        """Return the stored draft through ResponseService."""
+        draft = ResponseService().get_draft(request.user, survey_id)
+        return Response(DraftSerializer(draft).data)
+
+    @extend_schema(
+        tags=SURVEY_TAG,
+        request=SaveDraftSerializer,
+        responses={
+            200: DraftSerializer,
+            400: ErrorSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        examples=[DRAFT_REQUEST_EXAMPLE, DRAFT_RESPONSE_EXAMPLE],
+        summary="Save the respondent's draft for a survey (full replace)",
+    )
+    def put(self, request, survey_id):
+        """Validate and store the draft through ResponseService."""
+        serializer = SaveDraftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        answers = [dict(answer) for answer in serializer.validated_data["answers"]]
+
+        draft = ResponseService().save_draft(request.user, survey_id, answers)
+        return Response(DraftSerializer(draft).data)
+
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={
+            204: None,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+        },
+        summary="Delete the respondent's draft for a survey",
+    )
+    def delete(self, request, survey_id):
+        """Delete the draft through ResponseService."""
+        ResponseService().delete_draft(request.user, survey_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AnsweredSurveysView(APIView):

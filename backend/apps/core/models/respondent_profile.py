@@ -1,12 +1,32 @@
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from core.enums import Gender, UserType
+from core.enums import (
+    Education,
+    Gender,
+    Governorate,
+    Interest,
+    MaritalStatus,
+    Occupation,
+    UserType,
+)
 
 
 class RespondentProfile(models.Model):
     """Stores respondent demographic data used for survey eligibility."""
+
+    # The seven details that make up the completion percentage, each counted equally.
+    COMPLETION_FIELDS = (
+        "age",
+        "gender",
+        "region",
+        "interests",
+        "education",
+        "occupation",
+        "marital_status",
+    )
 
     profile_id = models.BigAutoField(primary_key=True)
     user = models.OneToOneField(
@@ -16,8 +36,23 @@ class RespondentProfile(models.Model):
     )
     age = models.PositiveIntegerField()
     gender = models.CharField(max_length=16, choices=Gender.choices)
-    region = models.CharField(max_length=255)
-    interests = models.TextField()
+    # The field keeps the name "region"; its values are Governorate codes.
+    # blank=True only for old rows the data migration could not map.
+    region = models.CharField(max_length=32, choices=Governorate.choices, blank=True)
+    interests = ArrayField(
+        models.CharField(max_length=32, choices=Interest.choices),
+        default=list,
+        blank=True,
+    )
+    education = models.CharField(
+        max_length=32, choices=Education.choices, blank=True, default=""
+    )
+    occupation = models.CharField(
+        max_length=32, choices=Occupation.choices, blank=True, default=""
+    )
+    marital_status = models.CharField(
+        max_length=32, choices=MaritalStatus.choices, blank=True, default=""
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -40,13 +75,38 @@ class RespondentProfile(models.Model):
         if errors:
             raise ValidationError(errors)
 
-    def update_profile(self, age, gender, region, interests):
-        """Update demographic values used for targeting."""
+    def update_profile(
+        self,
+        age,
+        gender,
+        region,
+        interests,
+        education=None,
+        occupation=None,
+        marital_status=None,
+    ):
+        """Update demographic values; an optional value of None keeps the stored one."""
         self.age = age
         self.gender = gender
         self.region = region
-        self.interests = interests
+        self.interests = list(interests)
+        if education is not None:
+            self.education = education
+        if occupation is not None:
+            self.occupation = occupation
+        if marital_status is not None:
+            self.marital_status = marital_status
 
     def is_complete(self):
-        """Return whether all required demographic fields are present."""
-        return all([self.age, self.gender, self.region, self.interests])
+        """Return whether the four details required for targeting are present."""
+        return bool(
+            self.age
+            and self.gender
+            and self.region in Governorate.values
+            and self.interests
+        )
+
+    def completion_percent(self):
+        """Return the share of the seven profile details that are filled, in percent."""
+        filled = sum(1 for name in self.COMPLETION_FIELDS if getattr(self, name))
+        return round(filled * 100 / len(self.COMPLETION_FIELDS))

@@ -2,6 +2,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 
 from apps.core.models import User
+from repositories.date_ranges import aware_day_range
 
 
 class UserRepository:
@@ -12,12 +13,16 @@ class UserRepository:
         return User.objects.filter(user_id=user_id).first()
 
     def find_by_email(self, email):
-        """Return a user account by email address."""
-        return User.objects.filter(email=email).first()
+        """Return a user account by email address (case-insensitive)."""
+        if not email:
+            return None
+        return User.objects.filter(email__iexact=email.strip()).first()
 
     def email_exists(self, email):
-        """Return whether an email is already registered."""
-        return User.objects.filter(email=email).exists()
+        """Return whether an email is already registered (case-insensitive)."""
+        if not email:
+            return False
+        return User.objects.filter(email__iexact=email.strip()).exists()
 
     def save(self, user):
         """Persist a user account."""
@@ -47,10 +52,10 @@ class UserRepository:
 
     def count_created_by_date(self, date_from, date_to):
         """Return new user counts grouped by creation date."""
+        start_dt, end_dt = aware_day_range(date_from, date_to)
         return (
             User.objects.filter(
-                created_at__date__gte=date_from,
-                created_at__date__lte=date_to,
+                created_at__range=(start_dt, end_dt),
             )
             .annotate(created_date=TruncDate("created_at"))
             .values("created_date")

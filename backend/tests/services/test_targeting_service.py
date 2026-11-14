@@ -35,14 +35,14 @@ def publish_survey(survey):
     return SurveyRepository().update(survey)
 
 
-def create_profile(user, age=30, gender=Gender.FEMALE, region="Damascus"):
+def create_profile(user, age=30, gender=Gender.FEMALE, region="DAMASCUS"):
     return ProfileRepository().save(
         RespondentProfile(
             user=user,
             age=age,
             gender=gender,
             region=region,
-            interests="Technology",
+            interests=["TECHNOLOGY"],
         )
     )
 
@@ -58,7 +58,7 @@ def test_provider_can_save_criteria_for_own_draft_survey(targeting_service):
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
 
     assert criteria.survey == survey
@@ -138,7 +138,7 @@ def test_get_criteria_initial_returns_existing_criteria_data(targeting_service):
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
 
     initial = targeting_service.get_criteria_initial(provider, survey.survey_id)
@@ -147,7 +147,7 @@ def test_get_criteria_initial_returns_existing_criteria_data(targeting_service):
         "gender": Gender.FEMALE,
         "age_min": 18,
         "age_max": 40,
-        "region": "Damascus",
+        "region": "DAMASCUS",
     }
 
 
@@ -201,14 +201,14 @@ def test_exact_respondent_match_returns_true(targeting_service):
     provider = create_user("provider-exact@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-exact@example.com", UserType.RESPONDENT)
     survey = create_survey(provider)
-    create_profile(respondent, age=30, gender=Gender.FEMALE, region="Damascus")
+    create_profile(respondent, age=30, gender=Gender.FEMALE, region="DAMASCUS")
     targeting_service.save_criteria(
         provider,
         survey.survey_id,
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
 
     assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
@@ -219,7 +219,7 @@ def test_gender_any_matches_any_respondent_gender(targeting_service):
     provider = create_user("provider-any-match@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-any-match@example.com", UserType.RESPONDENT)
     survey = create_survey(provider)
-    create_profile(respondent, age=30, gender=Gender.MALE, region="Damascus")
+    create_profile(respondent, age=30, gender=Gender.MALE, region="DAMASCUS")
     targeting_service.save_criteria(provider, survey.survey_id, gender=Gender.ANY)
 
     assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
@@ -230,7 +230,7 @@ def test_age_mismatch_returns_false(targeting_service):
     provider = create_user("provider-age-mismatch@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-age-mismatch@example.com", UserType.RESPONDENT)
     survey = create_survey(provider)
-    create_profile(respondent, age=17, gender=Gender.FEMALE, region="Damascus")
+    create_profile(respondent, age=17, gender=Gender.FEMALE, region="DAMASCUS")
     targeting_service.save_criteria(provider, survey.survey_id, age_min=18, age_max=40)
 
     assert not targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
@@ -241,8 +241,8 @@ def test_region_mismatch_returns_false(targeting_service):
     provider = create_user("provider-region-mismatch@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-region-mismatch@example.com", UserType.RESPONDENT)
     survey = create_survey(provider)
-    create_profile(respondent, age=30, gender=Gender.FEMALE, region="Aleppo")
-    targeting_service.save_criteria(provider, survey.survey_id, region="Damascus")
+    create_profile(respondent, age=30, gender=Gender.FEMALE, region="ALEPPO")
+    targeting_service.save_criteria(provider, survey.survey_id, region="DAMASCUS")
 
     assert not targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
 
@@ -268,7 +268,7 @@ def test_incomplete_respondent_profile_returns_false(targeting_service):
             age=30,
             gender=Gender.FEMALE,
             region="",
-            interests="Technology",
+            interests=["TECHNOLOGY"],
         )
     )
     targeting_service.save_criteria(provider, survey.survey_id, gender=Gender.ANY)
@@ -277,11 +277,41 @@ def test_incomplete_respondent_profile_returns_false(targeting_service):
 
 
 @pytest.mark.django_db
-def test_region_match_ignores_case_and_surrounding_spaces(targeting_service):
-    provider = create_user("provider-region-casefold@example.com", UserType.SERVICE_PROVIDER)
-    respondent = create_user("respondent-region-casefold@example.com", UserType.RESPONDENT)
+@pytest.mark.parametrize("region", ["Damascus", "damascus", " DAMASCUS ", "AMMAN", ""])
+def test_save_criteria_rejects_unknown_or_padded_governorate(targeting_service, region):
+    provider = create_user("provider-region-unknown@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
-    create_profile(respondent, age=30, gender=Gender.FEMALE, region=" damascus ")
-    targeting_service.save_criteria(provider, survey.survey_id, region="Damascus")
+
+    with pytest.raises(ValidationError, match="Choose a governorate from the list."):
+        targeting_service.save_criteria(provider, survey.survey_id, region=region)
+
+    assert TargetingRepository().find_by_survey_id(survey.survey_id) is None
+
+
+@pytest.mark.django_db
+def test_save_criteria_accepts_a_governorate_code_or_none(targeting_service):
+    provider = create_user("provider-region-code@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+
+    criteria = targeting_service.save_criteria(
+        provider, survey.survey_id, region="OUTSIDE_SYRIA"
+    )
+    assert criteria.region == "OUTSIDE_SYRIA"
+
+    criteria = targeting_service.save_criteria(provider, survey.survey_id, region=None)
+    assert criteria.region is None
+
+
+@pytest.mark.django_db
+def test_region_match_needs_equal_codes(targeting_service):
+    provider = create_user("provider-region-equal@example.com", UserType.SERVICE_PROVIDER)
+    respondent = create_user("respondent-region-equal@example.com", UserType.RESPONDENT)
+    survey = create_survey(provider)
+    create_profile(respondent, age=30, gender=Gender.FEMALE, region="RIF_DIMASHQ")
+    targeting_service.save_criteria(provider, survey.survey_id, region="DAMASCUS")
+
+    assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id) is False
+
+    targeting_service.save_criteria(provider, survey.survey_id, region="RIF_DIMASHQ")
 
     assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id) is True

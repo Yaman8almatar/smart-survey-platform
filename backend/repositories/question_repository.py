@@ -1,3 +1,5 @@
+from django.db.models import Prefetch
+
 from apps.core.models import Question, QuestionOption
 
 
@@ -16,6 +18,12 @@ class QuestionRepository:
     def find_by_survey_id(self, survey_id):
         """Return questions belonging to a survey."""
         return Question.objects.filter(survey_id=survey_id)
+
+    def find_by_survey_id_with_options(self, survey_id):
+        """Return questions belonging to a survey with options prefetched."""
+        return Question.objects.filter(survey_id=survey_id).prefetch_related(
+            Prefetch("options", queryset=QuestionOption.objects.order_by("order_index", "option_id"))
+        )
 
     def update(self, question):
         """Persist changes to a question."""
