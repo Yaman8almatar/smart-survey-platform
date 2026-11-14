@@ -16,8 +16,8 @@ because its Daily Scrum and separate roles did not fit this pattern.
 
 | Element | Policy |
 |---|---|
-| Work item | One backlog issue: a requirement FR-01..FR-20 (user story) or a technical item T-1..T-5. |
-| Started | When the item's branch is created (the card moves to **In Progress**). |
+| Work item | One backlog issue: a requirement FR-01..FR-20 (user story) or a technical item T-1..T-8. |
+| Started | When the item's branch is created (the card moves to **In Progress**). Right after creating the branch, make an empty start commit, `git commit --allow-empty -m "chore: start TASK-NN"`, so the branch's first commit marks the start of the work for cycle time; the squash merge keeps it out of `develop`. |
 | Finished | When its pull request is merged into `develop` (the card moves to **Done**). |
 | States | Backlog → Ready → In Progress → Review → Done → Released |
 | WIP control | **In Progress ≤ 3** (one item per member). **Review ≤ 2**. Shown as column limits on the board view. GitHub highlights a column above its limit but does not block it, so the limit is a team rule. |
@@ -35,7 +35,8 @@ because its Daily Scrum and separate roles did not fit this pattern.
 | Released | The release pull request is merged into `main` and tagged; GitHub closes the issue. | — |
 
 **Definition of Done:** tests green in CI; the pull request reviewed by another member; affected diagrams
-updated; the item's report section and its three defence questions written.
+updated; the item's report section and its three defence questions written; every screen is designed and approved by
+the team before it is coded (D-106).
 
 **Blocked items:** add the label `blocked`, write the reason in a comment and mention a teammate; the teammate
 answers within 24 hours.
@@ -72,7 +73,12 @@ All three develop, test, review and document.
 | Work item age | Now minus the first commit on the item's branch, for unfinished items | Open pull requests and branches |
 | Cycle time | Merge time minus the first commit on the item's branch, for finished items | Merged pull requests |
 
-T-5 builds a small script that exports these values with the GitHub CLI.
+T-5 builds a small script that exports these values with the GitHub CLI. Run it from the repository root for the
+Increment's dates (Increment 1 report: [flow-metrics-increment1.md](flow-metrics-increment1.md)):
+
+```
+.venv/Scripts/python.exe tools/flow_metrics.py --since 2026-11-02 --until 2026-11-15 --out planning/flow-metrics-increment1.md
+```
 
 ## Commits and credit
 

@@ -1,0 +1,94 @@
+[
+  {
+    "number": 10,
+    "title": "feat: first item",
+    "body": "Closes #5.",
+    "state": "MERGED",
+    "createdAt": "2026-11-03T09:00:00Z",
+    "mergedAt": "2026-11-04T12:00:00Z",
+    "headRefName": "feat/first",
+    "baseRefName": "develop",
+    "commits": [
+      {"authoredDate": "2026-11-03T08:00:00Z"},
+      {"authoredDate": "2026-11-02T10:00:00Z"}
+    ]
+  },
+  {
+    "number": 11,
+    "title": "fix: follow-up",
+    "body": "Refs #5, #7.",
+    "state": "MERGED",
+    "createdAt": "2026-11-10T09:00:00Z",
+    "mergedAt": "2026-11-12T12:00:00Z",
+    "headRefName": "fix/follow-up",
+    "baseRefName": "develop",
+    "commits": [
+      {"authoredDate": "2026-11-03T12:00:00Z"}
+    ]
+  },
+  {
+    "number": 12,
+    "title": "docs: two issues | one PR",
+    "body": "Refs #8 and #9",
+    "state": "MERGED",
+    "createdAt": "2026-11-09T06:00:00Z",
+    "mergedAt": "2026-11-10T00:00:00Z",
+    "headRefName": "docs/two",
+    "baseRefName": "develop",
+    "commits": [
+      {"authoredDate": "2026-11-09T00:00:00Z"}
+    ]
+  },
+  {
+    "number": 13,
+    "title": "feat: abandoned",
+    "body": "Refs #6.",
+    "state": "CLOSED",
+    "createdAt": "2026-11-05T00:00:00Z",
+    "mergedAt": null,
+    "headRefName": "feat/abandoned",
+    "baseRefName": "develop",
+    "commits": [
+      {"authoredDate": "2026-11-04T00:00:00Z"}
+    ]
+  },
+  {
+    "number": 14,
+    "title": "feat: still open",
+    "body": "Refs #4.",
+    "state": "OPEN",
+    "createdAt": "2026-11-12T06:00:00Z",
+    "mergedAt": null,
+    "headRefName": "feat/open",
+    "baseRefName": "develop",
+    "commits": [
+      {"authoredDate": "2026-11-12T00:00:00Z"}
+    ]
+  },
+  {
+    "number": 15,
+    "title": "chore: before the range",
+    "body": "",
+    "state": "MERGED",
+    "createdAt": "2026-10-29T00:00:00Z",
+    "mergedAt": "2026-10-30T00:00:00Z",
+    "headRefName": "chore/early",
+    "baseRefName": "develop",
+    "commits": [
+      {"authoredDate": "2026-10-28T00:00:00Z"}
+    ]
+  },
+  {
+    "number": 16,
+    "title": "release: into main",
+    "body": "Closes #5.",
+    "state": "MERGED",
+    "createdAt": "2026-11-13T00:00:00Z",
+    "mergedAt": "2026-11-14T00:00:00Z",
+    "headRefName": "develop",
+    "baseRefName": "main",
+    "commits": [
+      {"authoredDate": "2026-11-01T00:00:00Z"}
+    ]
+  }
+]

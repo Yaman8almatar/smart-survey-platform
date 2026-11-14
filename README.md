@@ -257,6 +257,7 @@ smart-survey-platform/
 ├── planning/                 status, Kanban workflow, API contract, backend audit
 ├── .github/workflows/        CI (Django CI, Flutter CI)
 ├── docker-compose.yml        PostgreSQL 15 for local development
+├── docker-compose.prod.yml   optional production-style stack (not used by the demo)
 ├── CONTRIBUTING.md           workflow, branching and commit rules
 └── README.md
 ```
@@ -311,6 +312,21 @@ Open:
 ```text
 http://127.0.0.1:8000/
 ```
+
+### Optional: production-style stack
+
+`docker-compose.prod.yml` is optional. Daily work and the demo use `docker-compose.yml` only.
+It runs PostgreSQL, Redis, the Gunicorn web server and one Celery worker under the project name
+`smart-survey-prod`, with its own database volume, so it never touches the demo database.
+
+```powershell
+copy backend\.env.prod.example backend\.env.prod
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml down
+```
+
+Edit `backend\.env.prod` first and replace every `change-this` value. Never commit `backend\.env.prod`.
+Port 8000 must be free, so stop `runserver` before starting the stack.
 
 
 ---

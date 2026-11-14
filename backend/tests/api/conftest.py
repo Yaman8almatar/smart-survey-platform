@@ -1,4 +1,5 @@
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -19,6 +20,12 @@ from core.enums import (
 )
 
 PASSWORD = "strong-password"
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Start every test with empty throttle counters."""
+    cache.clear()
 
 
 @pytest.fixture
@@ -50,8 +57,8 @@ def make_respondent(make_user):
         email="respondent@example.com",
         age=30,
         gender=Gender.MALE,
-        region="Damascus",
-        interests="sports",
+        region="DAMASCUS",
+        interests=("SPORTS",),
         account_status=AccountStatus.ACTIVE,
     ):
         user = make_user(email, UserType.RESPONDENT, account_status)
@@ -60,7 +67,7 @@ def make_respondent(make_user):
             age=age,
             gender=gender,
             region=region,
-            interests=interests,
+            interests=list(interests),
         )
         return user
 

@@ -2,6 +2,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 
 from apps.core.models import Answer, Response
+from repositories.date_ranges import aware_day_range
 
 
 class ResponseRepository:
@@ -55,16 +56,20 @@ class ResponseRepository:
 
     def count_submitted_by_date(self, date_from, date_to):
         """Return response counts grouped by submission date."""
+        start_dt, end_dt = aware_day_range(date_from, date_to)
         return (
             Response.objects.filter(
-                submitted_at__date__gte=date_from,
-                submitted_at__date__lte=date_to,
+                submitted_at__range=(start_dt, end_dt),
             )
             .annotate(submitted_date=TruncDate("submitted_at"))
             .values("submitted_date")
             .annotate(count=Count("response_id"))
             .order_by("submitted_date")
         )
+
+    def total_responses(self):
+        """Return total number of submitted responses across all surveys."""
+        return Response.objects.count()
 
     def count_by_survey(self):
         """Return response counts grouped by survey."""

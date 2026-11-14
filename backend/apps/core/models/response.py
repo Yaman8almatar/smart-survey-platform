@@ -18,6 +18,7 @@ class Response(models.Model):
         on_delete=models.CASCADE,
         related_name="responses",
     )
+    started_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -27,6 +28,10 @@ class Response(models.Model):
                 fields=["survey", "respondent"],
                 name="unique_response_per_survey_respondent",
             )
+        ]
+        indexes = [
+            models.Index(fields=["submitted_at"], name="responses_sub_at_idx"),
+            models.Index(fields=["respondent", "submitted_at"], name="responses_resp_sub_idx"),
         ]
 
     def __str__(self):

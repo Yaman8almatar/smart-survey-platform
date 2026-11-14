@@ -58,6 +58,11 @@ class User(AbstractUser):
 
     class Meta:
         db_table = "users"
+        indexes = [
+            models.Index(fields=["created_at"], name="users_created_at_idx"),
+            models.Index(fields=["user_type"], name="users_user_type_idx"),
+            models.Index(fields=["account_status"], name="users_account_status_idx"),
+        ]
 
     def __str__(self):
         """Return the email used to identify the account."""

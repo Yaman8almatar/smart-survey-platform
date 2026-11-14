@@ -42,7 +42,7 @@ def test_eligible_is_empty_when_nothing_matches(client, authenticate, respondent
 def test_eligible_excludes_surveys_that_do_not_match_the_profile(
     client, authenticate, respondent, make_survey
 ):
-    make_survey(title="Wrong region", region="Aleppo")
+    make_survey(title="Wrong region", region="ALEPPO")
     make_survey(title="Wrong gender", gender=Gender.FEMALE)
     make_survey(title="Too old", age_max=20)
     authenticate(respondent)

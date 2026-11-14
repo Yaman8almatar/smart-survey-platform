@@ -34,7 +34,7 @@ jobs:
           --health-retries 5
 
     env:
-      SECRET_KEY: django-ci-secret-key
+      SECRET_KEY: ci-only-not-for-production-django-secret-key-0123456789-abcdefghij
       DEBUG: "False"
       ALLOWED_HOSTS: localhost,127.0.0.1
       DB_NAME: smart_survey_ci
@@ -44,6 +44,7 @@ jobs:
       DB_PORT: "5432"
       HF_API_TOKEN: dummy-ci-token
       HF_SENTIMENT_MODEL_URL: https://example.invalid/huggingface/sentiment
+      SECURE_SSL_REDIRECT: "false"
 
     steps:
       - name: Check out repository

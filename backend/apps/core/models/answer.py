@@ -29,6 +29,16 @@ class Answer(models.Model):
 
     class Meta:
         db_table = "answers"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["response", "question"],
+                name="unique_answer_per_response_question",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["question", "selected_option"], name="answers_q_opt_idx"),
+            models.Index(fields=["question", "rating_value"], name="answers_q_rating_idx"),
+        ]
 
     def __str__(self):
         """Return a readable answer label."""

@@ -21,6 +21,7 @@ class AnalysisService:
     """Handles Sentiment analysis orchestration and survey analytics summaries."""
 
     RATING_LABELS = [1, 2, 3, 4, 5]
+    MAX_TEXT_ANSWERS_SHOWN = 50
 
     def __init__(
         self,
@@ -77,8 +78,13 @@ class AnalysisService:
         positive_count = 0
         neutral_count = 0
         negative_count = 0
+        failed_count = 0
 
         for result in sentiment_results:
+            if self._is_failed_result(result.status):
+                failed_count += 1
+                continue
+
             if not self._is_completed_result(result.status):
                 continue
 
@@ -98,6 +104,7 @@ class AnalysisService:
             "positive_count": positive_count,
             "neutral_count": neutral_count,
             "negative_count": negative_count,
+            "failed_count": failed_count,
             "positive_rate": self._rate(positive_count, completed_count),
             "neutral_rate": self._rate(neutral_count, completed_count),
             "negative_rate": self._rate(negative_count, completed_count),
@@ -144,6 +151,10 @@ class AnalysisService:
         """Return whether a sentiment result is completed."""
         return self._normalized_value(status) == AnalysisStatus.COMPLETED.value
 
+    def _is_failed_result(self, status):
+        """Return whether a sentiment result failed (for example the provider refused it)."""
+        return self._normalized_value(status) == AnalysisStatus.FAILED.value
+
     def _build_question_summaries(self, questions, answers):
         """Build question-level analytics summaries from submitted answers."""
         answers_by_question_id = defaultdict(list)
@@ -178,6 +189,7 @@ class AnalysisService:
             "labels": [],
             "values": [],
             "text_answers": [],
+            "text_answer_total": 0,
         }
 
     def _multiple_choice_summary(self, question, answers):
@@ -218,11 +230,13 @@ class AnalysisService:
     def _open_text_summary(self, question, answers):
         """Build the submitted text answer list for an open-text question."""
         summary = self._base_question_summary(question, "text")
-        summary["text_answers"] = [
+        text_answers = [
             answer.answer_value.strip()
             for answer in answers
             if isinstance(answer.answer_value, str) and answer.answer_value.strip()
         ]
+        summary["text_answer_total"] = len(text_answers)
+        summary["text_answers"] = text_answers[: self.MAX_TEXT_ANSWERS_SHOWN]
         return summary
 
     def _normalized_value(self, value):

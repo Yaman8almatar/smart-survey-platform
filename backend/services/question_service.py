@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from apps.core.models import Question, QuestionOption
-from core.enums import QuestionType, UserType
+from core.enums import QUESTION_TYPE_LABELS, QuestionType, UserType
 from core.exceptions import (
     NotEditable,
     QuestionNotFound,
@@ -134,7 +134,7 @@ class QuestionService:
         survey = self._ensure_respondent_can_answer(respondent_user, survey_id)
 
         questions = sorted(
-            self.question_repository.find_by_survey_id(survey_id),
+            self.question_repository.find_by_survey_id_with_options(survey_id),
             key=lambda question: (question.order_index, question.question_id),
         )
         return {
@@ -146,7 +146,7 @@ class QuestionService:
         """Return ordered survey questions and options for the management page."""
         self._get_owned_survey(provider_user, survey_id)
         questions = sorted(
-            self.question_repository.find_by_survey_id(survey_id),
+            self.question_repository.find_by_survey_id_with_options(survey_id),
             key=lambda question: (question.order_index, question.question_id),
         )
         return [self._survey_question_row(question) for question in questions]
@@ -251,50 +251,65 @@ class QuestionService:
             if not isinstance(option_text, str) or not option_text.strip():
                 raise ValidationError("Option text must not be blank.")
 
+    def _get_options_for_question(self, question):
+        """Return ordered options from prefetch cache or fallback to repository query."""
+        if hasattr(question, "_prefetched_objects_cache") and "options" in question._prefetched_objects_cache:
+            return sorted(
+                question.options.all(),
+                key=lambda option: (option.order_index, option.option_id),
+            )
+        return sorted(
+            self.question_repository.find_options_by_question_id(question.question_id),
+            key=lambda option: (option.order_index, option.option_id),
+        )
+
     def _survey_question_row(self, question):
         """Build one provider-facing question row."""
         question_id = question.question_id
+        options = self._get_options_for_question(question)
         return {
             "question_id": question_id,
             "question_text": question.question_text,
             "question_type": question.question_type,
             "is_required": question.is_required,
             "order_index": question.order_index,
-            "options": self._management_options(question_id),
+            "options": [
+                {
+                    "option_id": option.option_id,
+                    "option_text": option.option_text,
+                    "order_index": option.order_index,
+                }
+                for option in options
+            ],
             "id": question_id,
             "text": question.question_text,
-            "type_label": question.get_question_type_display(),
+            "type_label": QUESTION_TYPE_LABELS[question.question_type],
             "required_label": "Required" if question.is_required else "Optional",
         }
-
-    def _management_options(self, question_id):
-        """Return ordered option data for the question management page."""
-        options = sorted(
-            self.question_repository.find_options_by_question_id(question_id),
-            key=lambda option: (option.order_index, option.option_id),
-        )
-        return [
-            {
-                "option_id": option.option_id,
-                "option_text": option.option_text,
-                "order_index": option.order_index,
-            }
-            for option in options
-        ]
 
     def _response_form_question(self, question):
         """Build one respondent-facing response form question."""
         question_id = question.question_id
+        options = self._get_options_for_question(question)
         return {
             "question_id": question_id,
             "question_text": question.question_text,
             "question_type": question.question_type,
             "is_required": question.is_required,
             "order_index": question.order_index,
-            "options": self._response_form_options(question_id),
+            "options": [
+                {
+                    "option_id": option.option_id,
+                    "option_text": option.option_text,
+                    "order_index": option.order_index,
+                    "id": option.option_id,
+                    "text": option.option_text,
+                }
+                for option in options
+            ],
             "id": question_id,
             "text": question.question_text,
-            "type_label": question.get_question_type_display(),
+            "type_label": QUESTION_TYPE_LABELS[question.question_type],
             "required_label": "Required" if question.is_required else "Optional",
             "is_open_text": question.question_type == QuestionType.OPEN_TEXT,
             "is_rating_scale": question.question_type == QuestionType.RATING_SCALE,
@@ -304,20 +319,3 @@ class QuestionService:
             "option_name": f"selected_option_id_{question_id}",
             "rating_values": self.RATING_VALUES,
         }
-
-    def _response_form_options(self, question_id):
-        """Return ordered option data for the respondent form."""
-        options = sorted(
-            self.question_repository.find_options_by_question_id(question_id),
-            key=lambda option: (option.order_index, option.option_id),
-        )
-        return [
-            {
-                "option_id": option.option_id,
-                "option_text": option.option_text,
-                "order_index": option.order_index,
-                "id": option.option_id,
-                "text": option.option_text,
-            }
-            for option in options
-        ]

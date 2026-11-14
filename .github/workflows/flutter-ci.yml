@@ -7,12 +7,14 @@ on:
       - develop
     paths:
       - "frontend/**"
+      - ".github/workflows/flutter-ci.yml"
   pull_request:
     branches:
       - main
       - develop
     paths:
       - "frontend/**"
+      - ".github/workflows/flutter-ci.yml"
 
 jobs:
   flutter:
@@ -26,10 +28,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter (stable)
+      # Pinned to the laptop's Flutter (D-116). Upgrade both together in one task.
+      - name: Set up Flutter (3.41.9, pinned)
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.41.9
           cache: true
 
       - name: Install dependencies

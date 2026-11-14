@@ -53,8 +53,8 @@ def make_survey_answerable(survey, target_gender=Gender.ANY):
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region="Damascus",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
     return respondent
@@ -499,6 +499,45 @@ def test_get_survey_question_rows_returns_options_ordered_by_order_index(
             "order_index": 2,
         },
     ]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("question_type", "label"),
+    [
+        (QuestionType.MULTIPLE_CHOICE, "Multiple choice"),
+        (QuestionType.RATING_SCALE, "Rating scale"),
+        (QuestionType.OPEN_TEXT, "Open text"),
+    ],
+)
+def test_get_survey_question_rows_returns_sentence_case_type_label(
+    question_service, question_type, label
+):
+    provider = create_user(
+        f"provider-type-label-{question_type}@example.com",
+        UserType.SERVICE_PROVIDER,
+    )
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey, question_type)
+
+    rows = question_service.get_survey_question_rows(provider, survey.survey_id)
+
+    assert rows[0]["type_label"] == label
+
+
+@pytest.mark.django_db
+def test_get_response_form_questions_returns_sentence_case_type_label(question_service):
+    provider = create_user(
+        "provider-form-type-label@example.com",
+        UserType.SERVICE_PROVIDER,
+    )
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey, QuestionType.RATING_SCALE)
+    respondent = make_survey_answerable(survey)
+
+    questions = question_service.get_response_form_questions(respondent, survey.survey_id)
+
+    assert questions[0]["type_label"] == "Rating scale"
 
 
 @pytest.mark.django_db

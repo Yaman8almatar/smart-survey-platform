@@ -28,6 +28,10 @@ class Survey(models.Model):
 
     class Meta:
         db_table = "surveys"
+        indexes = [
+            models.Index(fields=["status"], name="surveys_status_idx"),
+            models.Index(fields=["status", "published_at"], name="surveys_status_pub_idx"),
+        ]
 
     def __str__(self):
         """Return the survey title."""

@@ -14,6 +14,7 @@ CORE_ERRORS = {
     core_exceptions.QuestionNotFound: (404, "question_not_found"),
     core_exceptions.AccountNotFound: (404, "account_not_found"),
     core_exceptions.ResponseNotFound: (404, "response_not_found"),
+    core_exceptions.DraftNotFound: (404, "draft_not_found"),
     core_exceptions.TargetingCriteriaNotFound: (404, "targeting_criteria_not_found"),
     core_exceptions.UnauthorizedAction: (403, "unauthorized_action"),
     core_exceptions.DuplicateResponse: (409, "duplicate_response"),

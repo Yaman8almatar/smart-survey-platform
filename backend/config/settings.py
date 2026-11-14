@@ -15,8 +15,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 if not SECRET_KEY:
     if not DEBUG:
         raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG is False.")
-    # Local development fallback only; never used when DEBUG is False.
-    SECRET_KEY = "replace-this-secret-key"
+    # Local development fallback only; minimum 32 chars to satisfy SHA256 length.
+    SECRET_KEY = "django-insecure-dev-fallback-secret-key-32chars"
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "").split(",")
@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "apps.core.apps.CoreConfig",
     "apps.users.apps.UsersConfig",
     "apps.surveys.apps.SurveysConfig",
@@ -44,6 +46,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -106,6 +109,7 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "core.User"
@@ -119,11 +123,28 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["apps.api.permissions.IsRespondent"],
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {
+        "auth_token": "10/min",
+        "auth_refresh": "30/min",
+        "auth_register": "5/min",
+        "auth_logout": "30/min",
+    },
+    "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0")),
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.api.exceptions.api_exception_handler",
 }
+
+REDIS_URL = os.getenv("REDIS_URL", "").strip()
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
 
 # The User primary key is user_id, not id.
 SIMPLE_JWT = {
@@ -133,6 +154,8 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "user_id",
     "UPDATE_LAST_LOGIN": False,
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 SPECTACULAR_SETTINGS = {
@@ -152,4 +175,41 @@ API_CORS_LOCAL_ORIGIN_REGEXES = [
     r"^http://127\.0\.0\.1:\d+$",
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = API_CORS_LOCAL_ORIGIN_REGEXES if DEBUG else []
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 CORS_URLS_REGEX = r"^/api/.*$"
+
+# Production SSL & security headers
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "true").lower() in {"true", "1", "yes"}
+    SESSION_COOKIE_SECURE = SECURE_SSL_REDIRECT
+    CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    if SECURE_SSL_REDIRECT:
+        SECURE_HSTS_SECONDS = 31536000
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_ENABLED = os.getenv("USE_CELERY", "false").lower() in {"true", "1", "yes"}

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'features/answer/answer_repository.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/auth/login_screen.dart';
+import 'features/profile/profile_repository.dart';
 import 'features/surveys/eligible_surveys_screen.dart';
 import 'features/surveys/surveys_repository.dart';
 import 'theme/app_theme.dart';
@@ -12,10 +14,14 @@ class SmartSurveyApp extends StatelessWidget {
     super.key,
     required this.authRepository,
     required this.surveysRepository,
+    required this.profileRepository,
+    required this.answerRepository,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
+  final ProfileRepository profileRepository;
+  final AnswerRepository answerRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +32,8 @@ class SmartSurveyApp extends StatelessWidget {
       home: AuthGate(
         authRepository: authRepository,
         surveysRepository: surveysRepository,
+        profileRepository: profileRepository,
+        answerRepository: answerRepository,
       ),
     );
   }
@@ -37,10 +45,14 @@ class AuthGate extends StatefulWidget {
     super.key,
     required this.authRepository,
     required this.surveysRepository,
+    required this.profileRepository,
+    required this.answerRepository,
   });
 
   final AuthRepository authRepository;
   final SurveysRepository surveysRepository;
+  final ProfileRepository profileRepository;
+  final AnswerRepository answerRepository;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -57,6 +69,8 @@ class _AuthGateState extends State<AuthGate> {
         return EligibleSurveysScreen(
           authRepository: auth,
           surveysRepository: widget.surveysRepository,
+          profileRepository: widget.profileRepository,
+          answerRepository: widget.answerRepository,
           user: user,
         );
       } on Exception {
@@ -66,6 +80,8 @@ class _AuthGateState extends State<AuthGate> {
     return LoginScreen(
       authRepository: auth,
       surveysRepository: widget.surveysRepository,
+      profileRepository: widget.profileRepository,
+      answerRepository: widget.answerRepository,
     );
   }
 

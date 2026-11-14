@@ -15,6 +15,7 @@ from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
 from services.survey_service import SurveyService
+from services.targeting_service import TargetingService
 
 
 @pytest.fixture
@@ -99,6 +100,29 @@ def test_provider_can_update_own_draft_survey(survey_service):
 
     assert updated.title == "New Title"
     assert updated.description == "New Description"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("title", ["", "   ", None])
+def test_blank_title_is_rejected_on_create(survey_service, title):
+    provider = create_user("provider-blank-create@example.com", UserType.SERVICE_PROVIDER)
+
+    with pytest.raises(ValidationError):
+        survey_service.create_survey(provider, title, "Description")
+
+    assert not SurveyRepository().find_by_provider_id(provider.user_id).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("title", ["", "   ", None])
+def test_blank_title_is_rejected_on_update(survey_service, title):
+    provider = create_user("provider-blank-update@example.com", UserType.SERVICE_PROVIDER)
+    survey = survey_service.create_survey(provider, "Old Title", "Old Description")
+
+    with pytest.raises(ValidationError):
+        survey_service.update_survey(provider, survey.survey_id, title, "New Description")
+
+    assert SurveyRepository().find_by_id(survey.survey_id).title == "Old Title"
 
 
 @pytest.mark.django_db
@@ -345,8 +369,8 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region="Damascus",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
 
@@ -357,7 +381,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
     survey_service.publish_survey(provider, eligible.survey_id)
 
@@ -373,7 +397,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
     survey_service.publish_survey(provider, answered.survey_id)
     ResponseRepository().save(Response(survey=answered, respondent=respondent))
@@ -385,7 +409,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="Damascus",
+        region="DAMASCUS",
     )
 
     surveys = survey_service.get_eligible_surveys(respondent)
@@ -394,7 +418,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
 
 
 @pytest.mark.django_db
-def test_eligible_surveys_match_region_ignoring_case_and_spaces(survey_service):
+def test_eligible_surveys_match_equal_governorate_codes_only(survey_service):
     provider = create_user("provider-eligible-region@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-eligible-region@example.com", UserType.RESPONDENT)
     ProfileRepository().save(
@@ -402,18 +426,22 @@ def test_eligible_surveys_match_region_ignoring_case_and_spaces(survey_service):
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region=" damascus ",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
-    survey = survey_service.create_survey(provider, "Regional", "Description")
-    add_question(survey)
-    add_targeting(survey, region="Damascus")
-    survey_service.publish_survey(provider, survey.survey_id)
+    matching = survey_service.create_survey(provider, "Damascus", "Description")
+    add_question(matching)
+    add_targeting(matching, region="DAMASCUS")
+    survey_service.publish_survey(provider, matching.survey_id)
+    other = survey_service.create_survey(provider, "Rif Dimashq", "Description")
+    add_question(other)
+    add_targeting(other, region="RIF_DIMASHQ")
+    survey_service.publish_survey(provider, other.survey_id)
 
     surveys = survey_service.get_eligible_surveys(respondent)
 
-    assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
+    assert [eligible.survey_id for eligible in surveys] == [matching.survey_id]
 
 
 def add_choice_question(survey, option_count):
@@ -476,8 +504,8 @@ def test_eligible_survey_items_include_question_count_for_eligible_surveys_only(
             user=respondent,
             age=30,
             gender=Gender.FEMALE,
-            region="Damascus",
-            interests="Technology",
+            region="DAMASCUS",
+            interests=["TECHNOLOGY"],
         )
     )
 
@@ -513,3 +541,104 @@ def test_non_respondent_cannot_get_eligible_survey_items(survey_service):
 
     with pytest.raises(UnauthorizedAction):
         survey_service.get_eligible_survey_items(provider)
+
+
+def published_survey_with_targeting(survey_service, provider, **targeting):
+    survey = survey_service.create_survey(provider, "Targeted", "Description")
+    add_question(survey)
+    add_targeting(survey, **targeting)
+    return survey_service.publish_survey(provider, survey.survey_id)
+
+
+def respondent_with_profile(email, age=30, gender=Gender.FEMALE, region="DAMASCUS"):
+    respondent = create_user(email, UserType.RESPONDENT)
+    profile = ProfileRepository().save(
+        RespondentProfile(
+            user=respondent,
+            age=age,
+            gender=gender,
+            region=region,
+            interests=["TECHNOLOGY"],
+        )
+    )
+    return respondent, profile
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("targeting", "age", "eligible"),
+    [
+        ({"age_min": 18}, 17, False),
+        ({"age_min": 18}, 18, True),
+        ({"age_min": 18}, 19, True),
+        ({"age_max": 35}, 34, True),
+        ({"age_max": 35}, 35, True),
+        ({"age_max": 35}, 36, False),
+    ],
+)
+def test_eligible_surveys_include_age_bounds(survey_service, targeting, age, eligible):
+    provider = create_user("provider-age-bound@example.com", UserType.SERVICE_PROVIDER)
+    respondent, _ = respondent_with_profile("respondent-age-bound@example.com", age=age)
+    survey = published_survey_with_targeting(survey_service, provider, **targeting)
+
+    surveys = survey_service.get_eligible_surveys(respondent)
+
+    assert (survey in surveys) is eligible
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("gender", [Gender.MALE, Gender.FEMALE])
+def test_eligible_surveys_with_gender_any_include_every_gender(survey_service, gender):
+    provider = create_user("provider-gender-any@example.com", UserType.SERVICE_PROVIDER)
+    respondent, _ = respondent_with_profile("respondent-gender-any@example.com", gender=gender)
+    survey = published_survey_with_targeting(survey_service, provider, gender=Gender.ANY)
+
+    surveys = survey_service.get_eligible_surveys(respondent)
+
+    assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
+
+
+REGION_PAIRS = [
+    # Codes only: the old free-text cases (case, spaces, a trailing tab) cannot exist any more.
+    pytest.param("DAMASCUS", "DAMASCUS", id="same-code"),
+    pytest.param(None, "DAMASCUS", id="no-criteria-region"),
+    pytest.param("", "DAMASCUS", id="blank-criteria-region"),
+    pytest.param("DAMASCUS", "RIF_DIMASHQ", id="different-code"),
+    pytest.param("DAMASCUS", "", id="unmapped-profile-region"),
+]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("criteria_region", "profile_region"), REGION_PAIRS)
+def test_database_and_python_targeting_rules_agree(
+    survey_service, criteria_region, profile_region
+):
+    provider = create_user("provider-agree@example.com", UserType.SERVICE_PROVIDER)
+    respondent, profile = respondent_with_profile(
+        "respondent-agree@example.com", region=profile_region
+    )
+    survey = published_survey_with_targeting(survey_service, provider, region=criteria_region)
+    criteria = TargetingRepository().find_by_survey_id(survey.survey_id)
+
+    matched_by_query = survey in SurveyRepository().find_eligible_for_respondent(
+        profile, respondent.user_id
+    )
+    matched_by_service = TargetingService().profile_matches_criteria(criteria, profile)
+
+    assert matched_by_query == matched_by_service
+
+
+@pytest.mark.django_db
+def test_eligible_survey_items_use_a_fixed_number_of_queries(
+    survey_service, django_assert_max_num_queries
+):
+    provider = create_user("provider-items-queries@example.com", UserType.SERVICE_PROVIDER)
+    respondent, _ = respondent_with_profile("respondent-items-queries@example.com")
+    for _ in range(5):
+        published_survey_with_targeting(survey_service, provider, gender=Gender.FEMALE)
+
+    with django_assert_max_num_queries(3):
+        items = survey_service.get_eligible_survey_items(respondent)
+        question_counts = [item["question_count"] for item in items]
+
+    assert question_counts == [1] * 5

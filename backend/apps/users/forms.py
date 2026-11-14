@@ -1,17 +1,20 @@
 from django import forms
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
-from core.enums import Gender
+from core.enums import Gender, Governorate, Interest
 
 
 class BootstrapFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            css_class = (
-                "form-select"
-                if isinstance(field.widget, forms.Select)
-                else "form-control"
-            )
+            if isinstance(field.widget, forms.CheckboxSelectMultiple):
+                css_class = "form-check-input"
+            elif isinstance(field.widget, forms.Select):
+                css_class = "form-select"
+            else:
+                css_class = "form-control"
             field.widget.attrs["class"] = css_class
 
 
@@ -26,8 +29,14 @@ class ServiceProviderRegistrationForm(BootstrapFormMixin, forms.Form):
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
 
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError("Passwords do not match.")
+        if password and confirm_password:
+            if password != confirm_password:
+                self.add_error("confirm_password", "Passwords do not match.")
+            else:
+                try:
+                    validate_password(password)
+                except DjangoValidationError as err:
+                    self.add_error("password", err)
 
         return cleaned_data
 
@@ -44,16 +53,27 @@ class RespondentRegistrationForm(BootstrapFormMixin, forms.Form):
             (Gender.FEMALE, Gender.FEMALE.label),
         ]
     )
-    region = forms.CharField(max_length=255)
-    interests = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}))
+    region = forms.ChoiceField(
+        choices=[("", "Choose your governorate"), *Governorate.choices]
+    )
+    interests = forms.MultipleChoiceField(
+        choices=Interest.choices,
+        widget=forms.CheckboxSelectMultiple,
+    )
 
     def clean(self):
         cleaned_data = super().clean()
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
 
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError("Passwords do not match.")
+        if password and confirm_password:
+            if password != confirm_password:
+                self.add_error("confirm_password", "Passwords do not match.")
+            else:
+                try:
+                    validate_password(password)
+                except DjangoValidationError as err:
+                    self.add_error("password", err)
 
         return cleaned_data
 
