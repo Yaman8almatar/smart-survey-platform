@@ -47,21 +47,21 @@
                 <div class="metric-card">
                     <span>Positive</span>
                     <strong>{{ results.positive_count }}</strong>
-                    <small>{{ results.positive_rate_label }}</small>
+                    <small>{{ results.positive_rate_label }} of {{ sentiment.analysed }} analysed</small>
                 </div>
             </div>
             <div class="col-sm-6 col-lg-3">
                 <div class="metric-card">
                     <span>Neutral</span>
                     <strong>{{ results.neutral_count }}</strong>
-                    <small>{{ results.neutral_rate_label }}</small>
+                    <small>{{ results.neutral_rate_label }} of {{ sentiment.analysed }} analysed</small>
                 </div>
             </div>
             <div class="col-sm-6 col-lg-3">
                 <div class="metric-card">
                     <span>Negative</span>
                     <strong>{{ results.negative_count }}</strong>
-                    <small>{{ results.negative_rate_label }}</small>
+                    <small>{{ results.negative_rate_label }} of {{ sentiment.analysed }} analysed</small>
                 </div>
             </div>
         </div>
@@ -71,38 +71,73 @@
             <div class="col-lg-7">
                 <div class="card table-card h-100">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h2 class="section-title mb-0">
-                                Sentiment distribution
-                            </h2>
-                            <span class="badge text-bg-light">
-                                <i class="bi bi-pie-chart me-1"></i>Chart.js
-                            </span>
-                        </div>
-                        {% if has_responses %}
-                            {% if results.failed_count > 0 %}
-                                <div class="alert alert-danger d-flex gap-2" role="status">
-                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        <h2 class="section-title mb-3">Sentiment of open answers</h2>
+                        <!-- W-05a: count line, worker hint, failed notice, chart, waiting, skipped -->
+                        {% if not open_text_question %}
+                            <div class="empty-state">
+                                This survey has no open-text question, so there is no sentiment to show.
+                            </div>
+                        {% elif sentiment.total == 0 %}
+                            <div class="empty-state">No open answers to analyse yet.</div>
+                        {% else %}
+                            <p class="sentiment-count-line">Analysed {{ sentiment.analysed }} of {{ sentiment.total }} open answers.{% if sentiment.waiting > 0 %} {{ sentiment.waiting }} waiting.{% endif %}{% if sentiment.failed > 0 %} {{ sentiment.failed }} failed.{% endif %}</p>
+
+                            {% if sentiment.analysis_overdue %}
+                                <div class="alert alert-warning d-flex gap-2" role="status">
+                                    <i class="bi bi-hourglass-split" aria-hidden="true"></i>
                                     <div>
-                                        <strong>Sentiment analysis failed for {{ results.failed_count }} open-text answer{{ results.failed_count|pluralize }}.</strong>
-                                        <div>The answers are saved and counted in the results. The analysis service could not process them.</div>
+                                        <strong>Analysis is waiting.</strong>
+                                        <div>The analysis worker may not be running. The answers are saved and counted; each one gets a label when the worker runs.</div>
                                     </div>
                                 </div>
                             {% endif %}
-                            {% if results.has_completed_sentiment %}
-                                {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
-                                <div class="chart-panel">
-                                    <canvas id="sentimentDistributionChart"></canvas>
-                                </div>
-                            {% elif results.failed_count == 0 %}
-                                <div class="empty-state">
-                                    Sentiment analysis results are not yet available.
+
+                            {% if sentiment.failed > 0 %}
+                                <div class="alert alert-danger d-flex gap-2" role="status">
+                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>{% if sentiment.failed == 1 %}1 answer could not be analysed.{% else %}{{ sentiment.failed }} answers could not be analysed.{% endif %}</strong>
+                                        <ul class="sentiment-reasons">
+                                            {% for reason in sentiment.failed_reasons %}
+                                                <li>{% if reason.code == "payment_required" %}The analysis service needs payment.{% elif reason.code == "config" %}The analysis service is not set up.{% elif reason.code == "unavailable" %}The analysis service could not be reached after 3 tries.{% elif reason.code == "bad_output" %}The analysis service returned an unknown result.{% else %}The reason was not recorded.{% endif %} ({{ reason.count }})</li>
+                                            {% endfor %}
+                                        </ul>
+                                        <div>The answers are saved and counted in the results.</div>
+                                        <form method="post" action="{% url 'analysis:retry_failed' results.survey_id %}" class="mt-2">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Retry failed answers
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             {% endif %}
-                        {% else %}
-                            <div class="empty-state">
-                                No responses have been submitted for this survey yet.
-                            </div>
+
+                            {% if sentiment.analysed > 0 %}
+                                {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
+                                <div class="chart-panel sentiment-chart">
+                                    <canvas id="sentimentDistributionChart" aria-label="Sentiment of the analysed answers" role="img"></canvas>
+                                    <div class="sentiment-chart-centre" aria-hidden="true">
+                                        <strong>{{ sentiment.analysed }}</strong>
+                                        <span>analysed</span>
+                                    </div>
+                                </div>
+                                <ul class="sentiment-legend">
+                                    <li><span class="sentiment-swatch sentiment-swatch-positive"></span>Positive <strong>{{ results.positive_count }}</strong> <span>{{ results.positive_rate_label }}</span></li>
+                                    <li><span class="sentiment-swatch sentiment-swatch-neutral"></span>Neutral <strong>{{ results.neutral_count }}</strong> <span>{{ results.neutral_rate_label }}</span></li>
+                                    <li><span class="sentiment-swatch sentiment-swatch-negative"></span>Negative <strong>{{ results.negative_count }}</strong> <span>{{ results.negative_rate_label }}</span></li>
+                                </ul>
+                            {% else %}
+                                <div class="empty-state">The chart appears when the first answer is analysed.</div>
+                            {% endif %}
+
+                            {% if sentiment.waiting > 0 %}
+                                <p class="sentiment-caption">{% if sentiment.waiting == 1 %}1 answer is waiting for the analysis worker.{% else %}{{ sentiment.waiting }} answers are waiting for the analysis worker.{% endif %} Reload the page to update.</p>
+                            {% endif %}
+                        {% endif %}
+
+                        {% if open_text_question and sentiment.skipped > 0 %}
+                            <p class="sentiment-caption">{% if sentiment.skipped == 1 %}1 answer had no words to analyse and is left out.{% else %}{{ sentiment.skipped }} answers had no words to analyse and are left out.{% endif %}</p>
                         {% endif %}
                     </div>
                 </div>
@@ -257,13 +292,16 @@
                     notice.textContent = "Charts are unavailable right now.";
                     canvas.parentNode.appendChild(notice);
                 });
+            document.querySelectorAll(".sentiment-chart-centre").forEach((centre) => {
+                centre.style.display = "none";
+            });
         } else {
         /* Colours come from tokens.css through the helper defined in site.js,
            which loads before this block. */
         const ssToken = window.ssToken;
 
-        /* The template renders the canvas only when at least one completed
-           sentiment result exists; the empty and failure messages are server-side. */
+        /* W-05a: the template renders the canvas only when at least one answer is
+           analysed; the centre total, the legend and every message are server-side. */
         const sentimentDataEl = document.getElementById("sentiment-chart-data");
         const sentimentCanvas = document.getElementById("sentimentDistributionChart");
         if (sentimentDataEl && sentimentCanvas) {
@@ -286,9 +324,10 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    cutout: "68%",
                     plugins: {
                         legend: {
-                            position: "bottom"
+                            display: false
                         }
                     }
                 }

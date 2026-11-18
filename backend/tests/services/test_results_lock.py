@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from apps.core.models import Answer, Question, Response, SentimentAnalysisResult, Survey, User
 from core.enums import AccountStatus, AnalysisStatus, QuestionType, SentimentLabel, UserType
-from core.exceptions import UnauthorizedAction
+from core.exceptions import UnauthorizedAction, ValidationError
 from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
@@ -122,6 +122,55 @@ def test_five_responses_open_the_results():
     assert results["response_count"] == 5
     assert results["positive_count"] == 5
     assert results["question_summaries"][0]["text_answer_total"] == 5
+
+
+def mark_failed(survey, count):
+    """Turn `count` of the survey's results into FAILED ones."""
+    ids = list(
+        SentimentAnalysisResult.objects.filter(answer__response__survey=survey)
+        .order_by("result_id")
+        .values_list("result_id", flat=True)[:count]
+    )
+    SentimentAnalysisResult.objects.filter(result_id__in=ids).update(
+        status=AnalysisStatus.FAILED, error_code="payment_required"
+    )
+
+
+@pytest.mark.django_db
+def test_retry_failed_is_refused_while_results_are_locked():
+    provider, survey = create_survey_with_responses(4)
+    mark_failed(survey, 2)
+
+    with pytest.raises(ValidationError, match="Results open at 5 responses."):
+        AnalysisService(huggingface_client=FakeClient()).retry_failed(provider, survey.survey_id)
+
+    assert SentimentAnalysisResult.objects.filter(status=AnalysisStatus.FAILED).count() == 2
+
+
+@pytest.mark.django_db
+def test_retry_failed_returns_the_count_when_results_are_open():
+    provider, survey = create_survey_with_responses(5)
+    mark_failed(survey, 2)
+
+    reset = AnalysisService(huggingface_client=FakeClient()).retry_failed(
+        provider, survey.survey_id
+    )
+
+    assert reset == 2
+    assert SentimentAnalysisResult.objects.filter(status=AnalysisStatus.FAILED).count() == 0
+
+
+@pytest.mark.django_db
+def test_retry_failed_checks_the_owner_before_any_count():
+    _, survey = create_survey_with_responses(1)
+    other_provider = create_user("other-retry-lock@example.com", UserType.SERVICE_PROVIDER)
+    service = AnalysisService(
+        response_repository=ResponseRepositoryThatMustNotCount(),
+        huggingface_client=FakeClient(),
+    )
+
+    with pytest.raises(UnauthorizedAction):
+        service.retry_failed(other_provider, survey.survey_id)
 
 
 @pytest.mark.django_db

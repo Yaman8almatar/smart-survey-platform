@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.shortcuts import redirect, render
+from django.views.decorators.http import require_POST
 
 from core.enums import QUESTION_TYPE_LABELS, SurveyStatus
 from core.exceptions import SmartSurveyException
@@ -36,6 +37,11 @@ def analytics_dashboard(request, survey_id):
         {
             "results": results_view,
             "has_responses": results_view.get("response_count", 0) > 0,
+            "open_text_question": any(
+                summary["chart_type"] == "text"
+                for summary in results_view["question_summaries"]
+            ),
+            "sentiment": _sentiment_panel(results),
             "sentiment_chart_data": _sentiment_chart_data(results_view),
             "question_chart_data": _question_chart_data(
                 results_view["question_summaries"],
@@ -43,6 +49,41 @@ def analytics_dashboard(request, survey_id):
         }
     )
     return render(request, "analysis/analytics_dashboard.html", context)
+
+
+@require_POST
+def retry_failed(request, survey_id):
+    """Queue the survey's failed sentiment results again through AnalysisService."""
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return response
+
+    try:
+        count = AnalysisService().retry_failed(request.user, survey_id)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+    else:
+        if count == 1:
+            messages.success(request, "1 answer is queued for analysis again.")
+        else:
+            messages.success(request, f"{count} answers are queued for analysis again.")
+    return redirect("analysis:analytics_dashboard", survey_id)
+
+
+def _sentiment_panel(results):
+    """Build the W-05a panel counts from the open results of AnalysisService."""
+    analysed = results["positive_count"] + results["neutral_count"] + results["negative_count"]
+    waiting = results["waiting_count"]
+    failed = results["failed_count"]
+    return {
+        "analysed": analysed,
+        "waiting": waiting,
+        "failed": failed,
+        "skipped": results["skipped_count"],
+        "total": analysed + waiting + failed,
+        "failed_reasons": results["failed_reasons"],
+        "analysis_overdue": results["analysis_overdue"],
+    }
 
 
 def _redirect_if_unauthenticated(request):
@@ -75,19 +116,11 @@ def _results_view(results):
         "positive_count": results.get("positive_count", 0),
         "neutral_count": results.get("neutral_count", 0),
         "negative_count": results.get("negative_count", 0),
-        "failed_count": results.get("failed_count", 0),
         "positive_rate": results.get("positive_rate", 0),
         "neutral_rate": results.get("neutral_rate", 0),
         "negative_rate": results.get("negative_rate", 0),
         "question_summaries": results.get("question_summaries", []),
     }
-
-    # The sentiment chart is drawn only when at least one result completed.
-    results_view["has_completed_sentiment"] = (
-        results_view["positive_count"]
-        + results_view["neutral_count"]
-        + results_view["negative_count"]
-    ) > 0
 
     # Preformat percentage labels for the template.
     results_view["positive_rate_label"] = _rate_label(results_view["positive_rate"])

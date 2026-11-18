@@ -10,6 +10,7 @@ from core.exceptions import (
     ExternalAnalysisServiceError,
     SurveyNotFound,
     UnauthorizedAction,
+    ValidationError,
 )
 from infrastructure.huggingface_client import HuggingFaceClient
 from repositories.analysis_repository import AnalysisRepository
@@ -33,6 +34,8 @@ class AnalysisService:
     RETRY_DELAYS_SECONDS = (30, 120)  # after attempt 1 and attempt 2
     MAX_ATTEMPTS = 3
     NO_TEXT_CODE = "no_text"
+    # A due row older than this means the worker is probably not running (W-05a hint).
+    OVERDUE_AFTER = timedelta(minutes=2)
 
     def __init__(
         self,
@@ -80,28 +83,31 @@ class AnalysisService:
 
         return expired + claimed
 
-    def sentiment_status_counts(self, survey_id):
-        """Return analysed, waiting, failed and skipped counts and the oldest wait."""
-        counts = Counter()
-        for status, total in self.analysis_repository.count_by_status(survey_id).items():
-            counts[self._normalized_value(status)] += total
-
-        oldest = self.analysis_repository.oldest_waiting_submitted_at(survey_id)
-        return {
-            "analysed": counts[AnalysisStatus.COMPLETED.value],
-            "waiting": counts[AnalysisStatus.PENDING.value]
-            + counts[AnalysisStatus.RUNNING.value],
-            "failed": counts[AnalysisStatus.FAILED.value],
-            "skipped": counts[AnalysisStatus.SKIPPED.value],
-            "oldest_waiting_seconds": (
-                None if oldest is None else int((timezone.now() - oldest).total_seconds())
-            ),
-        }
-
     def retry_failed(self, provider_user, survey_id):
-        """Return the survey's FAILED results to the queue; only the owner may do it."""
+        """Return the survey's FAILED results to the queue, due now; owner only, results open.
+
+        A provider may retry a failure the worker does not retry on its own (for example
+        a 402 once the account has credit again). While the results are locked (P-20) the
+        provider sees no failure, so the page offers nothing to retry.
+        """
         self._ensure_survey_owner(provider_user, survey_id)
-        return self.analysis_repository.reset_failed(survey_id)
+        response_count = self.response_repository.find_by_survey_id(survey_id).count()
+        if not disclosure.results_open(response_count):
+            raise ValidationError(f"Results open at {disclosure.MIN_GROUP_SIZE} responses.")
+        return self.analysis_repository.reset_failed(survey_id, timezone.now())
+
+    def analysis_overdue(self, survey_id):
+        """Return whether the survey's analysis waits longer than the worker should take.
+
+        Overdue when the earliest due time of a PENDING row is more than OVERDUE_AFTER
+        ago, or a RUNNING row is locked for longer than LOCK_TIMEOUT. The due time is the
+        retry time when one is set, so a retried or reset old answer is not overdue at once.
+        """
+        now = timezone.now()
+        oldest_due = self.analysis_repository.oldest_due_at(survey_id)
+        if oldest_due is not None and oldest_due < now - self.OVERDUE_AFTER:
+            return True
+        return self.analysis_repository.has_stale_running(survey_id, now - self.LOCK_TIMEOUT)
 
     def _analyse_claimed_result(self, result):
         """Set the outcome of one claimed result on the object (not saved here)."""
@@ -163,11 +169,13 @@ class AnalysisService:
         failed_count = 0
         waiting_count = 0
         skipped_count = 0
+        failed_codes = Counter()
 
         for result in sentiment_results:
             status = self._normalized_value(result.status)
             if status == AnalysisStatus.FAILED.value:
                 failed_count += 1
+                failed_codes[result.error_code or ""] += 1
                 continue
             if status in (AnalysisStatus.PENDING.value, AnalysisStatus.RUNNING.value):
                 waiting_count += 1
@@ -200,6 +208,11 @@ class AnalysisService:
             "failed_count": failed_count,
             "waiting_count": waiting_count,
             "skipped_count": skipped_count,
+            "failed_reasons": [
+                {"code": code, "count": count}
+                for code, count in sorted(failed_codes.items(), key=lambda item: (-item[1], item[0]))
+            ],
+            "analysis_overdue": self.analysis_overdue(survey_id),
             "positive_rate": self._rate(positive_count, completed_count),
             "neutral_rate": self._rate(neutral_count, completed_count),
             "negative_rate": self._rate(negative_count, completed_count),
