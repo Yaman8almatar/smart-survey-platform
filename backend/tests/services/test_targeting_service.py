@@ -439,3 +439,99 @@ def test_unshared_detail_fails_a_non_empty_list_and_passes_an_empty_one(
     assert targeting_service.profile_matches_criteria(
         TargetingCriteria(**{list_name: []}), profile
     )
+
+
+def create_respondents(prefix, genders):
+    """One respondent with a complete Damascus profile, aged 30, per gender given."""
+    for index, gender in enumerate(genders):
+        create_profile(
+            create_user(f"{prefix}-{index}@example.com", UserType.RESPONDENT), gender=gender
+        )
+
+
+@pytest.mark.django_db
+def test_reach_of_open_criteria_is_everyone(targeting_service):
+    provider = create_user("provider-reach-everyone@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    create_respondents("reach-everyone", [Gender.FEMALE] * 3 + [Gender.MALE] * 3)
+
+    reach = targeting_service.reach(provider, survey.survey_id, gender=Gender.ANY)
+
+    assert reach == {"state": "everyone", "count": 6, "total": 6, "percent": 100}
+    assert not TargetingCriteria.objects.exists()
+
+
+@pytest.mark.django_db
+def test_reach_of_narrowed_criteria_has_count_and_percent(targeting_service):
+    provider = create_user("provider-reach-narrowed@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    create_respondents("reach-narrowed", [Gender.FEMALE] * 5 + [Gender.MALE] * 3)
+
+    reach = targeting_service.reach(
+        provider, survey.survey_id, gender=Gender.FEMALE, regions=["DAMASCUS"]
+    )
+
+    assert reach == {"state": "narrowed", "count": 5, "total": 8, "percent": 62}
+
+
+@pytest.mark.django_db
+def test_reach_of_one_to_four_people_hides_the_count(targeting_service):
+    provider = create_user("provider-reach-few@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    create_respondents("reach-few", [Gender.FEMALE] * 4 + [Gender.MALE] * 6)
+
+    reach = targeting_service.reach(provider, survey.survey_id, gender=Gender.FEMALE)
+
+    assert reach == {"state": "few", "count": None, "total": 10, "percent": None}
+
+
+@pytest.mark.django_db
+def test_reach_of_nobody_is_none(targeting_service):
+    provider = create_user("provider-reach-none@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    create_respondents("reach-none", [Gender.FEMALE] * 6)
+
+    reach = targeting_service.reach(provider, survey.survey_id, age_min=60)
+
+    assert reach == {"state": "none", "count": 0, "total": 6, "percent": None}
+
+
+@pytest.mark.django_db
+def test_reach_validates_like_save_criteria(targeting_service):
+    provider = create_user("provider-reach-invalid@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+
+    with pytest.raises(ValidationError, match="Minimum age"):
+        targeting_service.reach(provider, survey.survey_id, age_min=50, age_max=20)
+    with pytest.raises(ValidationError, match="governorates"):
+        targeting_service.reach(provider, survey.survey_id, regions=["ATLANTIS"])
+
+
+@pytest.mark.django_db
+def test_reach_is_for_the_owner_only(targeting_service):
+    owner = create_user("owner-reach@example.com", UserType.SERVICE_PROVIDER)
+    other = create_user("other-reach@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(owner)
+
+    with pytest.raises(UnauthorizedAction):
+        targeting_service.reach(other, survey.survey_id)
+
+
+@pytest.mark.django_db
+def test_reach_is_for_draft_surveys_only(targeting_service):
+    provider = create_user("provider-reach-published@example.com", UserType.SERVICE_PROVIDER)
+    survey = publish_survey(create_survey(provider))
+
+    with pytest.raises(NotEditable):
+        targeting_service.reach(provider, survey.survey_id)
+
+
+def test_build_criteria_returns_unsaved_clean_criteria(targeting_service):
+    criteria = targeting_service.build_criteria(
+        gender=Gender.MALE, age_min=20, regions=["HOMS", "HOMS", "DAMASCUS"]
+    )
+
+    assert criteria.pk is None
+    assert (criteria.gender, criteria.age_min, criteria.age_max) == (Gender.MALE, 20, None)
+    assert criteria.regions == ["HOMS", "DAMASCUS"]
+    assert criteria.interests == []

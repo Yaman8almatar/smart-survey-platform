@@ -77,6 +77,24 @@ class SurveyService:
 
     def publish_survey(self, provider_user, survey_id):
         """Publish a complete draft survey after validating questions and targeting criteria."""
+        survey, _, criteria = self._get_publishable_survey(provider_user, survey_id)
+
+        # Unbanded on purpose: every display of reach_at_publish goes through disclosure.band.
+        survey.reach_at_publish = self.profile_repository.count_matching(criteria)
+        survey.publish()
+        return self.survey_repository.update(survey)
+
+    def get_publish_preview(self, provider_user, survey_id):
+        """Return what the publish confirmation shows; raises what publishing would raise."""
+        _, question_count, criteria = self._get_publishable_survey(provider_user, survey_id)
+        return {
+            "reach": self.targeting_service.describe_reach(criteria),
+            "criteria": self.targeting_service.criteria_values(criteria),
+            "question_count": question_count,
+        }
+
+    def _get_publishable_survey(self, provider_user, survey_id):
+        """Run every publish check; return the survey, its question count and its criteria."""
         survey = self._get_owned_survey(provider_user, survey_id)
 
         # Validate the status transition before changing the survey state.
@@ -84,8 +102,8 @@ class SurveyService:
             raise NotEditable("Only draft surveys can be published.")
 
         # Published surveys must have at least one question.
-        questions = self.question_repository.find_by_survey_id(survey.survey_id)
-        if not questions.exists():
+        questions = list(self.question_repository.find_by_survey_id(survey.survey_id))
+        if not questions:
             raise ValidationError("A survey must have at least one question.")
 
         # Every multiple-choice question must offer a real choice to be answerable.
@@ -101,11 +119,11 @@ class SurveyService:
                     "Multiple-choice questions need at least two options before publishing."
                 )
 
-        if self.targeting_repository.find_by_survey_id(survey.survey_id) is None:
+        criteria = self.targeting_repository.find_by_survey_id(survey.survey_id)
+        if criteria is None:
             raise TargetingCriteriaNotFound("Survey targeting criteria is required.")
 
-        survey.publish()
-        return self.survey_repository.update(survey)
+        return survey, len(questions), criteria
 
     def close_survey(self, provider_user, survey_id):
         """Close a published survey and prevent future respondent submissions."""
