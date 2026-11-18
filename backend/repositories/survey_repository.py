@@ -1,6 +1,6 @@
 from django.db.models import Count, Exists, OuterRef, Q
 
-from apps.core.models import Response, Survey
+from apps.core.models import Response, Survey, TargetingCriteria
 from core.enums import Gender, SurveyStatus
 
 
@@ -41,10 +41,16 @@ class SurveyRepository:
             Q(criteria__age_max__isnull=True)
             | Q(criteria__age_max__gte=profile.age)
         )
-        region_filter = (
-            Q(criteria__region__isnull=True)
-            | Q(criteria__region="")
-            | Q(criteria__region=profile.region)
+        # P-17, query form; TargetingService.profile_matches_criteria is the Python form and
+        # the parity test keeps both equal (P-18). An empty list means no restriction.
+        list_filters = [
+            Q(**{f"criteria__{list_name}": []})
+            | Q(**{f"criteria__{list_name}__contains": [getattr(profile, profile_field)]})
+            for list_name, profile_field in TargetingCriteria.SINGLE_VALUE_LISTS
+        ]
+        interests_filter = (
+            Q(criteria__interests=[])
+            | Q(criteria__interests__overlap=list(profile.interests))
         )
 
         return (
@@ -56,7 +62,8 @@ class SurveyRepository:
                 gender_filter,
                 age_min_filter,
                 age_max_filter,
-                region_filter,
+                *list_filters,
+                interests_filter,
             )
             .filter(~Exists(has_responded))
             .annotate(question_count=Count("questions", distinct=True))

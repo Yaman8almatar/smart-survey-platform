@@ -1,7 +1,29 @@
-import pytest
+import random
 
-from apps.core.models import Question, QuestionOption, RespondentProfile, Response, User
-from core.enums import AccountStatus, Gender, QuestionType, SurveyStatus, UserType
+import pytest
+from django.utils import timezone
+
+from apps.core.models import (
+    Question,
+    QuestionOption,
+    RespondentProfile,
+    Response,
+    Survey,
+    TargetingCriteria,
+    User,
+)
+from core.enums import (
+    AccountStatus,
+    Education,
+    Gender,
+    Governorate,
+    Interest,
+    MaritalStatus,
+    Occupation,
+    QuestionType,
+    SurveyStatus,
+    UserType,
+)
 from core.exceptions import (
     NotEditable,
     SurveyNotFound,
@@ -45,13 +67,13 @@ def add_question(survey):
     )
 
 
-def add_targeting(survey, gender=Gender.ANY, age_min=None, age_max=None, region=None):
+def add_targeting(survey, gender=Gender.ANY, age_min=None, age_max=None, **lists):
     return TargetingRepository().create_or_update(
         survey=survey,
         gender=gender,
         age_min=age_min,
         age_max=age_max,
-        region=region,
+        **lists,
     )
 
 
@@ -381,7 +403,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="DAMASCUS",
+        regions=["DAMASCUS"],
     )
     survey_service.publish_survey(provider, eligible.survey_id)
 
@@ -397,7 +419,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="DAMASCUS",
+        regions=["DAMASCUS"],
     )
     survey_service.publish_survey(provider, answered.survey_id)
     ResponseRepository().save(Response(survey=answered, respondent=respondent))
@@ -409,7 +431,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="DAMASCUS",
+        regions=["DAMASCUS"],
     )
 
     surveys = survey_service.get_eligible_surveys(respondent)
@@ -432,11 +454,11 @@ def test_eligible_surveys_match_equal_governorate_codes_only(survey_service):
     )
     matching = survey_service.create_survey(provider, "Damascus", "Description")
     add_question(matching)
-    add_targeting(matching, region="DAMASCUS")
+    add_targeting(matching, regions=["DAMASCUS"])
     survey_service.publish_survey(provider, matching.survey_id)
     other = survey_service.create_survey(provider, "Rif Dimashq", "Description")
     add_question(other)
-    add_targeting(other, region="RIF_DIMASHQ")
+    add_targeting(other, regions=["RIF_DIMASHQ"])
     survey_service.publish_survey(provider, other.survey_id)
 
     surveys = survey_service.get_eligible_surveys(respondent)
@@ -598,34 +620,96 @@ def test_eligible_surveys_with_gender_any_include_every_gender(survey_service, g
     assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
 
 
-REGION_PAIRS = [
-    # Codes only: the old free-text cases (case, spaces, a trailing tab) cannot exist any more.
-    pytest.param("DAMASCUS", "DAMASCUS", id="same-code"),
-    pytest.param(None, "DAMASCUS", id="no-criteria-region"),
-    pytest.param("", "DAMASCUS", id="blank-criteria-region"),
-    pytest.param("DAMASCUS", "RIF_DIMASHQ", id="different-code"),
-    pytest.param("DAMASCUS", "", id="unmapped-profile-region"),
-]
+def without_prefer_not_to_say(enum):
+    return [value for value in enum.values if value != "PREFER_NOT_TO_SAY"]
+
+
+def random_list(rng, values):
+    """Empty half the time, otherwise one to four distinct values."""
+    if rng.random() < 0.5:
+        return []
+    return rng.sample(values, rng.randint(1, 4))
+
+
+def random_detail(rng, enum):
+    """An optional profile detail: "" a quarter, PREFER_NOT_TO_SAY an eighth, else a value."""
+    draw = rng.random()
+    if draw < 0.25:
+        return ""
+    if draw < 0.375:
+        return "PREFER_NOT_TO_SAY"
+    return rng.choice(without_prefer_not_to_say(enum))
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(("criteria_region", "profile_region"), REGION_PAIRS)
-def test_database_and_python_targeting_rules_agree(
-    survey_service, criteria_region, profile_region
-):
-    provider = create_user("provider-agree@example.com", UserType.SERVICE_PROVIDER)
-    respondent, profile = respondent_with_profile(
-        "respondent-agree@example.com", region=profile_region
-    )
-    survey = published_survey_with_targeting(survey_service, provider, region=criteria_region)
-    criteria = TargetingRepository().find_by_survey_id(survey.survey_id)
+def test_query_and_python_rule_agree_on_random_profiles_and_criteria():
+    """P-18: the query form and the Python form of the P-17 rule pick the same surveys."""
+    rng = random.Random(20261118)
+    provider = create_user("provider-parity@example.com", UserType.SERVICE_PROVIDER)
 
-    matched_by_query = survey in SurveyRepository().find_eligible_for_respondent(
-        profile, respondent.user_id
-    )
-    matched_by_service = TargetingService().profile_matches_criteria(criteria, profile)
+    for index in range(50):
+        survey = Survey.objects.create(
+            provider=provider,
+            title=f"Parity {index}",
+            status=SurveyStatus.PUBLISHED,
+            published_at=timezone.now(),
+        )
+        age_min = None if rng.random() < 0.5 else rng.randint(18, 50)
+        age_max = None if rng.random() < 0.5 else rng.randint(age_min or 18, 70)
+        TargetingCriteria.objects.create(
+            survey=survey,
+            gender=rng.choice([None, Gender.ANY, Gender.MALE, Gender.FEMALE]),
+            age_min=age_min,
+            age_max=age_max,
+            regions=random_list(rng, Governorate.values),
+            education_levels=random_list(rng, without_prefer_not_to_say(Education)),
+            occupations=random_list(rng, without_prefer_not_to_say(Occupation)),
+            marital_statuses=random_list(rng, without_prefer_not_to_say(MaritalStatus)),
+            interests=random_list(rng, Interest.values),
+        )
 
-    assert matched_by_query == matched_by_service
+    profiles = []
+    for index in range(200):
+        user = User.objects.create(
+            email=f"respondent-parity-{index}@example.com",
+            name="Parity",
+            user_type=UserType.RESPONDENT,
+        )
+        profile = RespondentProfile.objects.create(
+            user=user,
+            age=rng.randint(16, 75),
+            gender=rng.choice([Gender.MALE, Gender.FEMALE]),
+            region=rng.choice(Governorate.values),
+            interests=rng.sample(Interest.values, rng.randint(1, 4)),
+            education=random_detail(rng, Education),
+            occupation=random_detail(rng, Occupation),
+            marital_status=random_detail(rng, MaritalStatus),
+        )
+        assert profile.is_complete()
+        profiles.append(profile)
+
+    all_criteria = list(TargetingCriteria.objects.all())
+    targeting_service = TargetingService()
+    survey_repository = SurveyRepository()
+    matched_pairs = 0
+    for profile in profiles:
+        by_query = {
+            survey.survey_id
+            for survey in survey_repository.find_eligible_for_respondent(
+                profile, profile.user_id
+            )
+        }
+        by_python = {
+            criteria.survey_id
+            for criteria in all_criteria
+            if targeting_service.profile_matches_criteria(criteria, profile)
+        }
+        assert by_query == by_python, f"profile {profile.profile_id} disagrees"
+        matched_pairs += len(by_python)
+
+    share = matched_pairs / (len(profiles) * len(all_criteria))
+    # The bound stops a rule that matches nothing or everything from passing.
+    assert 0.05 <= share <= 0.95, f"matched share {share:.3f}"
 
 
 @pytest.mark.django_db

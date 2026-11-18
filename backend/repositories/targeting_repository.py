@@ -24,7 +24,11 @@ class TargetingRepository:
         gender=None,
         age_min=None,
         age_max=None,
-        region=None,
+        regions=(),
+        education_levels=(),
+        occupations=(),
+        marital_statuses=(),
+        interests=(),
     ):
         """Create or update the targeting criteria for a survey."""
         criteria, _created = TargetingCriteria.objects.update_or_create(
@@ -33,7 +37,11 @@ class TargetingRepository:
                 "gender": gender,
                 "age_min": age_min,
                 "age_max": age_max,
-                "region": region,
+                "regions": list(regions),
+                "education_levels": list(education_levels),
+                "occupations": list(occupations),
+                "marital_statuses": list(marital_statuses),
+                "interests": list(interests),
             },
         )
         return criteria

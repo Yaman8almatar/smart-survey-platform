@@ -1,6 +1,6 @@
 import pytest
 
-from apps.core.models import RespondentProfile, Survey, User
+from apps.core.models import RespondentProfile, Survey, TargetingCriteria, User
 from core.enums import AccountStatus, Gender, UserType
 from core.exceptions import NotEditable, UnauthorizedAction, ValidationError
 from repositories.profile_repository import ProfileRepository
@@ -58,7 +58,7 @@ def test_provider_can_save_criteria_for_own_draft_survey(targeting_service):
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="DAMASCUS",
+        regions=["DAMASCUS"],
     )
 
     assert criteria.survey == survey
@@ -138,7 +138,7 @@ def test_get_criteria_initial_returns_existing_criteria_data(targeting_service):
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="DAMASCUS",
+        regions=["DAMASCUS"],
     )
 
     initial = targeting_service.get_criteria_initial(provider, survey.survey_id)
@@ -147,7 +147,11 @@ def test_get_criteria_initial_returns_existing_criteria_data(targeting_service):
         "gender": Gender.FEMALE,
         "age_min": 18,
         "age_max": 40,
-        "region": "DAMASCUS",
+        "regions": ["DAMASCUS"],
+        "education_levels": [],
+        "occupations": [],
+        "marital_statuses": [],
+        "interests": [],
     }
 
 
@@ -208,7 +212,7 @@ def test_exact_respondent_match_returns_true(targeting_service):
         gender=Gender.FEMALE,
         age_min=18,
         age_max=40,
-        region="DAMASCUS",
+        regions=["DAMASCUS"],
     )
 
     assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
@@ -242,7 +246,7 @@ def test_region_mismatch_returns_false(targeting_service):
     respondent = create_user("respondent-region-mismatch@example.com", UserType.RESPONDENT)
     survey = create_survey(provider)
     create_profile(respondent, age=30, gender=Gender.FEMALE, region="ALEPPO")
-    targeting_service.save_criteria(provider, survey.survey_id, region="DAMASCUS")
+    targeting_service.save_criteria(provider, survey.survey_id, regions=["DAMASCUS"])
 
     assert not targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
 
@@ -276,30 +280,76 @@ def test_incomplete_respondent_profile_returns_false(targeting_service):
     assert not targeting_service.match_respondent_to_survey(respondent, survey.survey_id)
 
 
+LIST_MESSAGES = {
+    "regions": "Choose governorates from the list.",
+    "education_levels": "Choose education levels from the list.",
+    "occupations": "Choose occupations from the list.",
+    "marital_statuses": "Choose marital statuses from the list.",
+    "interests": "Choose interests from the list.",
+}
+
+VALID_LIST_VALUES = {
+    "regions": ["OUTSIDE_SYRIA", "HOMS"],
+    "education_levels": ["MASTER", "BASIC"],
+    "occupations": ["RETIRED", "STUDENT"],
+    "marital_statuses": ["WIDOWED", "SINGLE"],
+    "interests": ["ARTS", "TECHNOLOGY"],
+}
+
+
 @pytest.mark.django_db
-@pytest.mark.parametrize("region", ["Damascus", "damascus", " DAMASCUS ", "AMMAN", ""])
-def test_save_criteria_rejects_unknown_or_padded_governorate(targeting_service, region):
-    provider = create_user("provider-region-unknown@example.com", UserType.SERVICE_PROVIDER)
+@pytest.mark.parametrize("field", list(LIST_MESSAGES))
+@pytest.mark.parametrize("bad_value", ["Damascus", "damascus", " MASTER ", "AMMAN", "", None])
+def test_save_criteria_rejects_values_outside_each_lists_enum(
+    targeting_service, field, bad_value
+):
+    provider = create_user("provider-list-unknown@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
 
-    with pytest.raises(ValidationError, match="Choose a governorate from the list."):
-        targeting_service.save_criteria(provider, survey.survey_id, region=region)
+    with pytest.raises(ValidationError, match=LIST_MESSAGES[field]):
+        targeting_service.save_criteria(
+            provider, survey.survey_id, **{field: [VALID_LIST_VALUES[field][0], bad_value]}
+        )
 
     assert TargetingRepository().find_by_survey_id(survey.survey_id) is None
 
 
 @pytest.mark.django_db
-def test_save_criteria_accepts_a_governorate_code_or_none(targeting_service):
-    provider = create_user("provider-region-code@example.com", UserType.SERVICE_PROVIDER)
+@pytest.mark.parametrize("field", ["education_levels", "occupations", "marital_statuses"])
+def test_save_criteria_rejects_prefer_not_to_say(targeting_service, field):
+    provider = create_user("provider-list-pnts@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
 
-    criteria = targeting_service.save_criteria(
-        provider, survey.survey_id, region="OUTSIDE_SYRIA"
-    )
-    assert criteria.region == "OUTSIDE_SYRIA"
+    with pytest.raises(ValidationError, match=LIST_MESSAGES[field]):
+        targeting_service.save_criteria(
+            provider, survey.survey_id, **{field: ["PREFER_NOT_TO_SAY"]}
+        )
 
-    criteria = targeting_service.save_criteria(provider, survey.survey_id, region=None)
-    assert criteria.region is None
+
+@pytest.mark.django_db
+def test_save_criteria_drops_duplicates_keeping_first_order(targeting_service):
+    provider = create_user("provider-list-dupes@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    doubled = {field: [a, b, a, b, a] for field, (a, b) in VALID_LIST_VALUES.items()}
+
+    criteria = targeting_service.save_criteria(provider, survey.survey_id, **doubled)
+    criteria.refresh_from_db()
+
+    for field, values in VALID_LIST_VALUES.items():
+        assert getattr(criteria, field) == values
+
+
+@pytest.mark.django_db
+def test_save_criteria_defaults_every_list_to_empty(targeting_service):
+    provider = create_user("provider-list-empty@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    targeting_service.save_criteria(provider, survey.survey_id, regions=["HOMS"])
+
+    criteria = targeting_service.save_criteria(provider, survey.survey_id)
+
+    for field in LIST_MESSAGES:
+        assert getattr(criteria, field) == []
+    assert criteria.is_open_to_all()
 
 
 @pytest.mark.django_db
@@ -308,10 +358,84 @@ def test_region_match_needs_equal_codes(targeting_service):
     respondent = create_user("respondent-region-equal@example.com", UserType.RESPONDENT)
     survey = create_survey(provider)
     create_profile(respondent, age=30, gender=Gender.FEMALE, region="RIF_DIMASHQ")
-    targeting_service.save_criteria(provider, survey.survey_id, region="DAMASCUS")
+    targeting_service.save_criteria(provider, survey.survey_id, regions=["DAMASCUS"])
 
     assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id) is False
 
-    targeting_service.save_criteria(provider, survey.survey_id, region="RIF_DIMASHQ")
+    targeting_service.save_criteria(provider, survey.survey_id, regions=["RIF_DIMASHQ"])
 
     assert targeting_service.match_respondent_to_survey(respondent, survey.survey_id) is True
+
+
+# P-17 rule rows: one passing and one failing case per row, checked on unsaved objects.
+def rule_profile(**values):
+    return RespondentProfile(
+        **{
+            "age": 30,
+            "gender": Gender.FEMALE,
+            "region": "HOMS",
+            "interests": ["SPORTS", "ARTS"],
+            "education": "BACHELOR",
+            "occupation": "STUDENT",
+            "marital_status": "SINGLE",
+            **values,
+        }
+    )
+
+
+RULE_ROWS = [
+    pytest.param({"gender": None}, {}, True, id="gender-unset-passes"),
+    pytest.param({"gender": ""}, {}, True, id="gender-blank-passes"),
+    pytest.param({"gender": Gender.ANY}, {}, True, id="gender-any-passes"),
+    pytest.param({"gender": Gender.FEMALE}, {}, True, id="gender-equal-passes"),
+    pytest.param({"gender": Gender.MALE}, {}, False, id="gender-other-fails"),
+    pytest.param({"age_min": 30, "age_max": 30}, {}, True, id="age-bounds-inclusive-pass"),
+    pytest.param({"age_min": 31}, {}, False, id="age-below-min-fails"),
+    pytest.param({"age_max": 29}, {}, False, id="age-above-max-fails"),
+    pytest.param({"regions": ["ALEPPO", "HOMS"]}, {}, True, id="region-in-list-passes"),
+    pytest.param({"regions": ["ALEPPO"]}, {}, False, id="region-not-in-list-fails"),
+    pytest.param({"education_levels": ["BACHELOR"]}, {}, True, id="education-in-list-passes"),
+    pytest.param({"education_levels": ["MASTER"]}, {}, False, id="education-not-in-list-fails"),
+    pytest.param({"occupations": ["RETIRED", "STUDENT"]}, {}, True, id="occupation-in-list-passes"),
+    pytest.param({"occupations": ["RETIRED"]}, {}, False, id="occupation-not-in-list-fails"),
+    pytest.param({"marital_statuses": ["SINGLE"]}, {}, True, id="marital-in-list-passes"),
+    pytest.param({"marital_statuses": ["MARRIED"]}, {}, False, id="marital-not-in-list-fails"),
+    pytest.param({"interests": ["ARTS", "HEALTH"]}, {}, True, id="interests-one-common-passes"),
+    pytest.param({"interests": ["HEALTH", "FOOD"]}, {}, False, id="interests-none-common-fails"),
+    pytest.param({}, {}, True, id="no-restriction-passes"),
+    pytest.param(
+        {"regions": ["HOMS"], "education_levels": ["MASTER"]}, {}, False, id="fields-combine-with-and"
+    ),
+]
+
+
+@pytest.mark.parametrize(("criteria_values", "profile_values", "expected"), RULE_ROWS)
+def test_profile_matches_criteria_rule_rows(
+    targeting_service, criteria_values, profile_values, expected
+):
+    criteria = TargetingCriteria(**criteria_values)
+    profile = rule_profile(**profile_values)
+
+    assert targeting_service.profile_matches_criteria(criteria, profile) is expected
+
+
+@pytest.mark.parametrize(
+    ("list_name", "profile_field", "listed_value"),
+    [
+        ("education_levels", "education", "BACHELOR"),
+        ("occupations", "occupation", "STUDENT"),
+        ("marital_statuses", "marital_status", "SINGLE"),
+    ],
+)
+@pytest.mark.parametrize("unshared", ["", "PREFER_NOT_TO_SAY"])
+def test_unshared_detail_fails_a_non_empty_list_and_passes_an_empty_one(
+    targeting_service, list_name, profile_field, listed_value, unshared
+):
+    profile = rule_profile(**{profile_field: unshared})
+
+    assert not targeting_service.profile_matches_criteria(
+        TargetingCriteria(**{list_name: [listed_value]}), profile
+    )
+    assert targeting_service.profile_matches_criteria(
+        TargetingCriteria(**{list_name: []}), profile
+    )

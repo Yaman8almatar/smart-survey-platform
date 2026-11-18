@@ -156,7 +156,10 @@ def delete_question(request, survey_id, question_id):
 
 
 def targeting_criteria(request, survey_id):
-    """Render Targeting criteria and delegate changes to TargetingService."""
+    """Render Targeting criteria and delegate changes to TargetingService.
+
+    The page still offers one governorate; the W-03 web task replaces it with list choices.
+    """
     surveys, response = _load_provider_surveys_or_redirect(request)
     if response:
         return response
@@ -169,6 +172,7 @@ def targeting_criteria(request, survey_id):
     if request.method == "POST":
         form = TargetingCriteriaForm(request.POST)
         if form.is_valid():
+            region = form.cleaned_data["region"]
             try:
                 TargetingService().save_criteria(
                     request.user,
@@ -176,7 +180,7 @@ def targeting_criteria(request, survey_id):
                     _blank_to_none(form.cleaned_data["gender"]),
                     form.cleaned_data["age_min"],
                     form.cleaned_data["age_max"],
-                    _blank_to_none(form.cleaned_data["region"]),
+                    regions=[region] if region else [],
                 )
             except SmartSurveyException as error:
                 _show_service_error(request, error)
@@ -184,8 +188,15 @@ def targeting_criteria(request, survey_id):
                 messages.success(request, "Targeting criteria saved successfully.")
                 return redirect("surveys:survey_list")
     else:
+        initial = TargetingService().get_criteria_initial(request.user, survey_id)
+        regions = initial.get("regions") or [""]
         form = TargetingCriteriaForm(
-            initial=TargetingService().get_criteria_initial(request.user, survey_id)
+            initial={
+                "gender": initial.get("gender", ""),
+                "age_min": initial.get("age_min"),
+                "age_max": initial.get("age_max"),
+                "region": regions[0],
+            }
         )
 
     context = {"survey": _survey_row(survey), "form": form}

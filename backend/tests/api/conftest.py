@@ -104,7 +104,7 @@ def make_survey(provider):
     def _make_survey(
         title="Campus survey",
         status=SurveyStatus.PUBLISHED,
-        region=None,
+        regions=(),
         gender=None,
         age_min=None,
         age_max=None,
@@ -117,7 +117,7 @@ def make_survey(provider):
         )
         TargetingCriteria.objects.create(
             survey=survey,
-            region=region,
+            regions=list(regions),
             gender=gender,
             age_min=age_min,
             age_max=age_max,
