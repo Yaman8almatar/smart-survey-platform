@@ -641,9 +641,48 @@ def random_detail(rng, enum):
     return rng.choice(without_prefer_not_to_say(enum))
 
 
+def add_excluded_profiles(sources):
+    """Five profiles the reach count must never include, each copying a pool profile."""
+    provider = create_user("provider-excluded@example.com", UserType.SERVICE_PROVIDER)
+    cases = [
+        ({"account_status": AccountStatus.SUSPENDED}, {}),
+        ({"is_active": False}, {}),
+        ({}, {"interests": []}),
+        ({}, {"region": ""}),
+        (None, {}),
+    ]
+    excluded = []
+    for index, ((user_changes, profile_changes), source) in enumerate(zip(cases, sources)):
+        if user_changes is None:
+            user = provider
+        else:
+            user = User.objects.create(
+                email=f"respondent-excluded-{index}@example.com",
+                name="Excluded",
+                user_type=UserType.RESPONDENT,
+                **user_changes,
+            )
+        values = {
+            "age": source.age,
+            "gender": source.gender,
+            "region": source.region,
+            "interests": list(source.interests),
+            "education": source.education,
+            "occupation": source.occupation,
+            "marital_status": source.marital_status,
+            **profile_changes,
+        }
+        excluded.append(RespondentProfile.objects.create(user=user, **values))
+    return excluded
+
+
 @pytest.mark.django_db
 def test_query_and_python_rule_agree_on_random_profiles_and_criteria():
-    """P-18: the query form and the Python form of the P-17 rule pick the same surveys."""
+    """P-18: the three forms of the P-17 rule agree.
+
+    The survey query and the Python rule pick the same surveys for each profile, and the
+    reach count of each criteria is the number of pool profiles the Python rule accepts.
+    """
     rng = random.Random(20261118)
     provider = create_user("provider-parity@example.com", UserType.SERVICE_PROVIDER)
 
@@ -688,10 +727,14 @@ def test_query_and_python_rule_agree_on_random_profiles_and_criteria():
         assert profile.is_complete()
         profiles.append(profile)
 
+    excluded = add_excluded_profiles(profiles[:5])
+
     all_criteria = list(TargetingCriteria.objects.all())
     targeting_service = TargetingService()
     survey_repository = SurveyRepository()
+    profile_repository = ProfileRepository()
     matched_pairs = 0
+    python_counts = {criteria.survey_id: 0 for criteria in all_criteria}
     for profile in profiles:
         by_query = {
             survey.survey_id
@@ -706,10 +749,27 @@ def test_query_and_python_rule_agree_on_random_profiles_and_criteria():
         }
         assert by_query == by_python, f"profile {profile.profile_id} disagrees"
         matched_pairs += len(by_python)
+        for survey_id in by_python:
+            python_counts[survey_id] += 1
 
     share = matched_pairs / (len(profiles) * len(all_criteria))
     # The bound stops a rule that matches nothing or everything from passing.
     assert 0.05 <= share <= 0.95, f"matched share {share:.3f}"
+
+    # Third form: the count query counts exactly the pool profiles the Python rule accepts,
+    # so the five excluded profiles change no count.
+    for criteria in all_criteria:
+        assert profile_repository.count_matching(criteria) == python_counts[
+            criteria.survey_id
+        ], f"criteria of survey {criteria.survey_id} disagrees"
+    assert profile_repository.count_pool() == len(profiles)
+    assert profile_repository.count_matching(TargetingCriteria()) == len(profiles)
+    # The exclusion is tested only if the Python rule alone would have counted them.
+    assert any(
+        targeting_service.profile_matches_criteria(criteria, profile)
+        for criteria in all_criteria
+        for profile in excluded
+    )
 
 
 @pytest.mark.django_db
@@ -726,3 +786,95 @@ def test_eligible_survey_items_use_a_fixed_number_of_queries(
         question_counts = [item["question_count"] for item in items]
 
     assert question_counts == [1] * 5
+
+
+def seed_respondents():
+    """Twelve complete profiles: genders and governorates mixed, one suspended account."""
+    respondents = []
+    for index, (gender, region) in enumerate(
+        [(Gender.FEMALE, "DAMASCUS")] * 4
+        + [(Gender.FEMALE, "HOMS")] * 3
+        + [(Gender.MALE, "DAMASCUS")] * 3
+        + [(Gender.FEMALE, "LATAKIA")] * 2
+    ):
+        respondent, _ = respondent_with_profile(
+            f"respondent-reach-{index}@example.com", gender=gender, region=region
+        )
+        respondents.append(respondent)
+    suspended = respondents[0]
+    suspended.suspend()
+    suspended.save()
+    return respondents[1:]
+
+
+@pytest.mark.django_db
+def test_publish_stores_the_reach_that_matches_the_eligible_lists(survey_service):
+    provider = create_user("provider-reach-publish@example.com", UserType.SERVICE_PROVIDER)
+    active_respondents = seed_respondents()
+
+    survey = published_survey_with_targeting(
+        survey_service,
+        provider,
+        gender=Gender.FEMALE,
+        regions=["DAMASCUS", "HOMS"],
+    )
+
+    seeing = [
+        respondent
+        for respondent in active_respondents
+        if survey in survey_service.get_eligible_surveys(respondent)
+    ]
+    survey.refresh_from_db()
+    assert survey.reach_at_publish == len(seeing) == 6
+
+
+@pytest.mark.django_db
+def test_publish_preview_returns_reach_criteria_and_question_count(survey_service):
+    provider = create_user("provider-preview@example.com", UserType.SERVICE_PROVIDER)
+    seed_respondents()
+    survey = survey_service.create_survey(provider, "Preview", "Description")
+    add_question(survey)
+    add_question(survey)
+    add_targeting(survey, gender=Gender.FEMALE, regions=["DAMASCUS", "HOMS"])
+
+    preview = survey_service.get_publish_preview(provider, survey.survey_id)
+
+    assert preview["reach"] == {"state": "narrowed", "count": 6, "total": 11, "percent": 55}
+    assert preview["criteria"]["gender"] == Gender.FEMALE
+    assert preview["criteria"]["regions"] == ["DAMASCUS", "HOMS"]
+    assert preview["question_count"] == 2
+    survey.refresh_from_db()
+    assert survey.status == SurveyStatus.DRAFT
+
+
+@pytest.mark.django_db
+def test_publish_preview_raises_the_publish_errors(survey_service):
+    provider = create_user("provider-preview-errors@example.com", UserType.SERVICE_PROVIDER)
+
+    no_question = survey_service.create_survey(provider, "No question", "Description")
+    add_targeting(no_question)
+    with pytest.raises(ValidationError, match="at least one question"):
+        survey_service.get_publish_preview(provider, no_question.survey_id)
+
+    one_option = survey_service.create_survey(provider, "One option", "Description")
+    add_choice_question(one_option, option_count=1)
+    add_targeting(one_option)
+    with pytest.raises(ValidationError, match="at least two options"):
+        survey_service.get_publish_preview(provider, one_option.survey_id)
+
+    no_criteria = survey_service.create_survey(provider, "No criteria", "Description")
+    add_question(no_criteria)
+    with pytest.raises(TargetingCriteriaNotFound):
+        survey_service.get_publish_preview(provider, no_criteria.survey_id)
+
+
+@pytest.mark.django_db
+def test_publish_preview_needs_an_owned_draft(survey_service):
+    provider = create_user("provider-preview-owner@example.com", UserType.SERVICE_PROVIDER)
+    other = create_user("provider-preview-other@example.com", UserType.SERVICE_PROVIDER)
+    survey = published_survey_with_targeting(survey_service, provider)
+
+    with pytest.raises(NotEditable):
+        survey_service.get_publish_preview(provider, survey.survey_id)
+    with pytest.raises(UnauthorizedAction):
+        survey_service.get_publish_preview(other, survey.survey_id)

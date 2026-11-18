@@ -25,6 +25,9 @@ class Survey(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     published_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
+    # FR-03 (P-19): respondents matching the criteria when the survey was published,
+    # unbanded. Every display of it goes through services.disclosure.band.
+    reach_at_publish = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "surveys"

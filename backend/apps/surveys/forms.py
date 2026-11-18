@@ -1,6 +1,15 @@
 from django import forms
 
-from core.enums import QUESTION_TYPE_LABELS, Gender, Governorate, QuestionType
+from core.enums import (
+    QUESTION_TYPE_LABELS,
+    Education,
+    Gender,
+    Governorate,
+    Interest,
+    MaritalStatus,
+    Occupation,
+    QuestionType,
+)
 
 
 class BootstrapFormMixin:
@@ -53,4 +62,40 @@ class TargetingCriteriaForm(BootstrapFormMixin, forms.Form):
     region = forms.ChoiceField(
         required=False,
         choices=[("", "Any governorate"), *Governorate.choices],
+    )
+
+
+def _targeting_choices(enum):
+    """Return enum choices a provider may target; PREFER_NOT_TO_SAY is a profile answer only."""
+    return [(value, label) for value, label in enum.choices if value != "PREFER_NOT_TO_SAY"]
+
+
+class TargetingListsForm(BootstrapFormMixin, forms.Form):
+    """Parses the W-03 criteria: gender, two age bounds and five lists as repeated keys."""
+
+    gender = forms.ChoiceField(
+        required=False,
+        choices=[
+            ("", "No gender restriction"),
+            (Gender.ANY, "Any gender"),
+            (Gender.MALE, Gender.MALE.label),
+            (Gender.FEMALE, Gender.FEMALE.label),
+        ],
+    )
+    age_min = forms.IntegerField(required=False)
+    age_max = forms.IntegerField(required=False)
+    regions = forms.MultipleChoiceField(
+        required=False, choices=_targeting_choices(Governorate)
+    )
+    education_levels = forms.MultipleChoiceField(
+        required=False, choices=_targeting_choices(Education)
+    )
+    occupations = forms.MultipleChoiceField(
+        required=False, choices=_targeting_choices(Occupation)
+    )
+    marital_statuses = forms.MultipleChoiceField(
+        required=False, choices=_targeting_choices(MaritalStatus)
+    )
+    interests = forms.MultipleChoiceField(
+        required=False, choices=_targeting_choices(Interest)
     )

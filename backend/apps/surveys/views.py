@@ -1,14 +1,16 @@
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.api.exceptions import CORE_ERRORS
 from core.enums import SurveyStatus
 from core.exceptions import SmartSurveyException
 from services.question_service import QuestionService
 from services.survey_service import SurveyService
 from services.targeting_service import TargetingService
 
-from .forms import QuestionForm, SurveyForm, TargetingCriteriaForm
+from .forms import QuestionForm, SurveyForm, TargetingCriteriaForm, TargetingListsForm
 
 
 def provider_dashboard(request):
@@ -203,6 +205,44 @@ def targeting_criteria(request, survey_id):
     return render(request, "surveys/targeting_criteria.html", context)
 
 
+@require_POST
+def targeting_reach(request, survey_id):
+    """Return the banded reach of the posted, unsaved criteria as JSON (W-03).
+
+    Called by the targeting page while the provider edits; it never redirects, so every
+    error is JSON {"error": code, "message"?}.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "not_authenticated"}, status=401)
+
+    form = TargetingListsForm(request.POST)
+    if not form.is_valid():
+        field, errors = next(iter(form.errors.items()))
+        return JsonResponse(
+            {"error": "validation_error", "message": f"{field}: {errors[0]}"},
+            status=400,
+        )
+
+    data = form.cleaned_data
+    try:
+        reach = TargetingService().reach(
+            request.user,
+            survey_id,
+            gender=_blank_to_none(data["gender"]),
+            age_min=data["age_min"],
+            age_max=data["age_max"],
+            regions=data["regions"],
+            education_levels=data["education_levels"],
+            occupations=data["occupations"],
+            marital_statuses=data["marital_statuses"],
+            interests=data["interests"],
+        )
+    except SmartSurveyException as error:
+        status, code = _json_error(error)
+        return JsonResponse({"error": code, "message": str(error)}, status=status)
+    return JsonResponse(reach)
+
+
 def delete_survey(request, survey_id):
     """Render survey deletion confirmation and delegate deletion to SurveyService."""
     surveys, response = _load_provider_surveys_or_redirect(request)
@@ -372,6 +412,14 @@ def _blank_to_none(value):
     if value in {"", None}:
         return None
     return value
+
+
+def _json_error(error):
+    """Return (status, code) for a service error, from the API's shared mapping."""
+    for exception_class, status_and_code in CORE_ERRORS.items():
+        if isinstance(error, exception_class):
+            return status_and_code
+    return 500, "internal_error"
 
 
 def _show_service_error(request, error):

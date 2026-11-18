@@ -17,6 +17,7 @@ from core.exceptions import (
 from repositories.profile_repository import ProfileRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
+from services import disclosure
 
 
 class TargetingService:
@@ -60,6 +61,40 @@ class TargetingService:
     ):
         """Create or update targeting criteria for an owned draft survey."""
         survey = self._get_owned_draft_survey(provider_user, survey_id)
+        criteria = self.build_criteria(
+            gender=gender,
+            age_min=age_min,
+            age_max=age_max,
+            regions=regions,
+            education_levels=education_levels,
+            occupations=occupations,
+            marital_statuses=marital_statuses,
+            interests=interests,
+        )
+        return self.targeting_repository.create_or_update(
+            survey=survey,
+            gender=criteria.gender,
+            age_min=criteria.age_min,
+            age_max=criteria.age_max,
+            **{name: getattr(criteria, name) for name, _, _ in self.LIST_CHOICES},
+        )
+
+    def build_criteria(
+        self,
+        gender=None,
+        age_min=None,
+        age_max=None,
+        regions=(),
+        education_levels=(),
+        occupations=(),
+        marital_statuses=(),
+        interests=(),
+    ):
+        """Validate criteria values and return them as an unsaved TargetingCriteria.
+
+        save_criteria stores what this returns, so saved and previewed criteria are
+        validated by the same code.
+        """
         self._validate_criteria(gender, age_min, age_max)
         lists = self._clean_lists(
             {
@@ -70,13 +105,30 @@ class TargetingService:
                 "interests": interests,
             }
         )
-        return self.targeting_repository.create_or_update(
-            survey=survey,
-            gender=gender,
-            age_min=age_min,
-            age_max=age_max,
-            **lists,
-        )
+        return TargetingCriteria(gender=gender, age_min=age_min, age_max=age_max, **lists)
+
+    def reach(self, provider_user, survey_id, **criteria_values):
+        """Return the banded reach of possibly unsaved criteria for an owned draft survey."""
+        self._get_owned_draft_survey(provider_user, survey_id)
+        return self.describe_reach(self.build_criteria(**criteria_values))
+
+    def describe_reach(self, criteria):
+        """Return {"state", "count", "total", "percent"} for criteria (P-19).
+
+        state is "everyone" for open criteria, else the disclosure band's state with
+        "exact" renamed "narrowed"; a count of 1 to 4 is never returned as a number.
+        """
+        total = self.profile_repository.count_pool()
+        if criteria.is_open_to_all():
+            state, count = "everyone", total
+        else:
+            banded = disclosure.band(self.profile_repository.count_matching(criteria))
+            state = "narrowed" if banded["state"] == "exact" else banded["state"]
+            count = banded["count"]
+        percent = None
+        if state in {"everyone", "narrowed"} and total > 0:
+            percent = round(100 * count / total)
+        return {"state": state, "count": count, "total": total, "percent": percent}
 
     def match_respondent_to_survey(self, respondent_user, survey_id):
         """Return whether a respondent profile matches survey targeting criteria."""
@@ -101,6 +153,10 @@ class TargetingService:
         if criteria is None:
             return {}
 
+        return self.criteria_values(criteria)
+
+    def criteria_values(self, criteria):
+        """Return criteria as plain values for forms and display."""
         return {
             "gender": criteria.gender or "",
             "age_min": criteria.age_min,
