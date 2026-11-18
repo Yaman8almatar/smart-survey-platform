@@ -102,6 +102,18 @@ def test_invalid_criteria_give_400(client, owner, survey, data, message):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("field", ["age_min", "age_max"])
+def test_an_age_above_the_limit_is_a_field_error(client, owner, survey, field):
+    client.force_login(owner)
+
+    response = client.post(reach_url(survey.survey_id), {field: "121"})
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "validation_error"
+    assert response.json()["message"].startswith(f"{field}: ")
+
+
+@pytest.mark.django_db
 def test_without_a_session_gives_401_json(client, survey):
     response = client.post(reach_url(survey.survey_id), {})
 

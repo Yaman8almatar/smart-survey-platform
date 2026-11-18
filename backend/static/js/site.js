@@ -8,6 +8,7 @@
     runWhenReady(function () {
         initOptionBuilders();
         initSystemReportChart();
+        initReachCard();
     });
 
     function runWhenReady(callback) {
@@ -109,6 +110,252 @@
         list.appendChild(row);
 
         return input;
+    }
+
+    /*
+     * W-03 reach card. The server renders every state's copy; this script only sets
+     * data-state, the numbers and the ring, and never writes copy.
+     */
+    function initReachCard() {
+        var card = document.querySelector("[data-reach-card]");
+        var form = document.querySelector("[data-targeting-form]");
+        if (!card || !form) {
+            return;
+        }
+
+        var DELAY_MS = 400;
+        var COUNTED_STATES = ["everyone", "narrowed"];
+        var timer = null;
+        var controller = null;
+        var latest = 0;
+
+        form.addEventListener("input", onChange);
+        form.addEventListener("change", onChange);
+
+        form.querySelectorAll("[data-chip-clear]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                var scope = button.closest("[data-chip-scope]");
+                scope.querySelectorAll("input[type='checkbox']").forEach(function (input) {
+                    input.checked = false;
+                });
+                updateSummaries();
+                schedule();
+            });
+        });
+
+        var retry = card.querySelector("[data-reach-retry]");
+        if (retry) {
+            retry.addEventListener("click", send);
+        }
+
+        updateSummaries();
+
+        function onChange() {
+            updateSummaries();
+            schedule();
+        }
+
+        function schedule() {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(send, DELAY_MS);
+        }
+
+        function send() {
+            window.clearTimeout(timer);
+            if (controller) {
+                controller.abort();
+            }
+            controller = new AbortController();
+            var request = ++latest;
+
+            card.classList.add("is-updating");
+            card.setAttribute("aria-busy", "true");
+
+            fetch(card.getAttribute("data-reach-url"), {
+                method: "POST",
+                body: new FormData(form),
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+                signal: controller.signal,
+            })
+                .then(function (response) {
+                    return response
+                        .json()
+                        .catch(function () {
+                            return {};
+                        })
+                        .then(function (body) {
+                            return { status: response.status, body: body };
+                        });
+                })
+                .then(function (result) {
+                    if (request !== latest) {
+                        return;
+                    }
+                    if (result.status === 200) {
+                        clearFieldErrors();
+                        showReach(result.body);
+                    } else if (
+                        result.status === 400 &&
+                        result.body.error === "validation_error"
+                    ) {
+                        markFieldError(result.body.message || "");
+                        showState("invalid");
+                    } else {
+                        showState("error");
+                    }
+                    done();
+                })
+                .catch(function (error) {
+                    if (error.name === "AbortError" || request !== latest) {
+                        return;
+                    }
+                    showState("error");
+                    done();
+                });
+        }
+
+        function done() {
+            card.classList.remove("is-updating");
+            card.removeAttribute("aria-busy");
+        }
+
+        function showReach(reach) {
+            var counted = COUNTED_STATES.indexOf(reach.state) !== -1;
+            var percent = counted && typeof reach.percent === "number" ? reach.percent : 0;
+            card.querySelectorAll("[data-reach-count]").forEach(function (node) {
+                node.textContent = counted ? String(reach.count) : "";
+            });
+            card.querySelectorAll("[data-reach-total]").forEach(function (node) {
+                node.textContent = counted ? String(reach.total) : "";
+            });
+            showState(reach.state, percent);
+        }
+
+        function showState(state, percent) {
+            if (COUNTED_STATES.indexOf(state) === -1) {
+                card.querySelectorAll("[data-reach-count], [data-reach-total]").forEach(
+                    function (node) {
+                        node.textContent = "";
+                    }
+                );
+            }
+            card.setAttribute("data-state", state);
+
+            var value = percent || 0;
+            var block = card.querySelector("[data-reach-for='" + state + "'][data-ring-text]");
+            var arc = card.querySelector(".signal-ring__arc");
+            var centre = card.querySelector(".signal-ring__value");
+            if (arc) {
+                arc.setAttribute("stroke-dasharray", value + " 100");
+                arc.classList.toggle("signal-ring__arc--empty", block !== null || value <= 0);
+            }
+            if (centre) {
+                centre.textContent = block ? block.getAttribute("data-ring-text") : value + "%";
+            }
+        }
+
+        function clearFieldErrors() {
+            form.querySelectorAll("[data-age-field]").forEach(function (wrapper) {
+                wrapper.classList.remove("is-invalid");
+                var input = wrapper.querySelector("input");
+                if (input) {
+                    input.removeAttribute("aria-invalid");
+                }
+                var error = wrapper.querySelector("[data-field-error]");
+                if (error) {
+                    error.hidden = true;
+                    error.querySelector("[data-field-error-text]").textContent = "";
+                }
+            });
+        }
+
+        /* "<field>: <text>" marks that field; any other message (min above max) marks age_min. */
+        function markFieldError(message) {
+            clearFieldErrors();
+            var match = /^(\w+): (.*)$/.exec(message);
+            var field = "age_min";
+            var text = message;
+            if (match && form.querySelector("[data-age-field='" + match[1] + "']")) {
+                field = match[1];
+                text = match[2];
+            }
+            var wrapper = form.querySelector("[data-age-field='" + field + "']");
+            if (!wrapper) {
+                return;
+            }
+            wrapper.classList.add("is-invalid");
+            var input = wrapper.querySelector("input");
+            if (input) {
+                input.setAttribute("aria-invalid", "true");
+            }
+            var error = wrapper.querySelector("[data-field-error]");
+            if (error) {
+                error.querySelector("[data-field-error-text]").textContent = text;
+                error.hidden = false;
+            }
+        }
+
+        function updateSummaries() {
+            form.querySelectorAll("[data-chip-scope]").forEach(function (scope) {
+                var chosen = scope.querySelectorAll("input[type='checkbox']:checked").length;
+                var none = scope.querySelector("[data-chosen-none]");
+                var some = scope.querySelector("[data-chosen-some]");
+                var count = scope.querySelector("[data-chosen-count]");
+                var clear = scope.querySelector("[data-chip-clear]");
+                if (none) {
+                    none.hidden = chosen > 0;
+                }
+                if (some) {
+                    some.hidden = chosen === 0;
+                }
+                if (count) {
+                    count.textContent = String(chosen);
+                }
+                if (clear) {
+                    clear.hidden = chosen === 0;
+                }
+            });
+            updateWhoSummary();
+        }
+
+        /* The phrases come from the page (the view's AGE_PHRASES), not from this script. */
+        function updateWhoSummary() {
+            var summary = form.querySelector("[data-who-summary]");
+            if (!summary) {
+                return;
+            }
+            var parts = [];
+            var gender = form.querySelector("input[name='gender']:checked");
+            if (gender && gender.value !== "ANY") {
+                var label = gender.closest("label").querySelector("[data-choice-label]");
+                parts.push(label.textContent.trim());
+            }
+            var ageMin = fieldValue("age_min");
+            var ageMax = fieldValue("age_max");
+            var key = null;
+            if (ageMin && ageMax) {
+                key = "data-age-both";
+            } else if (ageMin) {
+                key = "data-age-min";
+            } else if (ageMax) {
+                key = "data-age-max";
+            }
+            if (key) {
+                parts.push(
+                    summary
+                        .getAttribute(key)
+                        .replace("{min}", ageMin)
+                        .replace("{max}", ageMax)
+                );
+            }
+            summary.textContent = parts.length ? parts.join(", ") : summary.getAttribute("data-any");
+        }
+
+        function fieldValue(name) {
+            var input = form.querySelector("input[name='" + name + "']");
+            return input ? input.value.trim() : "";
+        }
     }
 
     function initSystemReportChart() {

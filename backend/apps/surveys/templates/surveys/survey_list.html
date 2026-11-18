@@ -92,19 +92,13 @@
                                                     </a>
                                                 {% endif %}
                                                 {% if survey.can_publish %}
-                                                    <form
-                                                        method="post"
-                                                        action="{{ publish_url }}"
+                                                    <a
+                                                        class="btn btn-sm btn-primary"
+                                                        href="{{ publish_url }}"
                                                     >
-                                                        {% csrf_token %}
-                                                        <button
-                                                            class="btn btn-sm btn-primary"
-                                                            type="submit"
-                                                        >
-                                                            <i class="bi bi-send-check me-1"></i>
-                                                            Publish
-                                                        </button>
-                                                    </form>
+                                                        <i class="bi bi-send-check me-1"></i>
+                                                        Publish
+                                                    </a>
                                                 {% endif %}
                                                 {% if survey.can_close %}
                                                     <form

@@ -1,0 +1,4 @@
+{% comment %}
+"Any" or "N chosen" for the chips of the enclosing [data-chip-scope]; site.js keeps it current.
+Usage: {% include "surveys/_chip_summary.html" with chosen=form.regions.value|length any_label=any_label clear=True %}
+{% endcomment %}<span data-chosen-none{% if chosen %} hidden{% endif %}>{{ any_label }}</span><span data-chosen-some{% if not chosen %} hidden{% endif %}><span data-chosen-count>{{ chosen }}</span> chosen</span>{% if clear %}<button class="btn btn-link targeting-clear" type="button" data-chip-clear{% if not chosen %} hidden{% endif %}>Clear</button>{% endif %}

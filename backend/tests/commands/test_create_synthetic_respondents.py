@@ -65,3 +65,20 @@ def test_delete_removes_only_the_synthetic_domain():
     assert "Deleted 5 synthetic respondents" in output
     assert set(User.objects.all()) == set(kept)
     assert not RespondentProfile.objects.exists()
+
+
+@pytest.mark.django_db
+def test_delete_runs_without_debug_and_creating_still_refuses():
+    with override_settings(DEBUG=True):
+        run("--count", "4")
+    kept = User.objects.create_user(
+        email="real@example.com", password="strong-password", name="Kept", user_type=UserType.RESPONDENT
+    )
+
+    with override_settings(DEBUG=False):
+        output = run("--delete")
+        with pytest.raises(CommandError, match="DEBUG"):
+            run("--count", "2")
+
+    assert "Deleted 4 synthetic respondents" in output
+    assert list(User.objects.all()) == [kept]

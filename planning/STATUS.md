@@ -1,12 +1,12 @@
 # STATUS — 2026-11-18
-Branch: feat/fr03-reach
-Task: TASK-34 — FR-03 Part 2: the reach count, its privacy band and synthetic respondents (backend)
-Done: disclosure.band (P-19); ProfileRepository.count_pool/count_matching (third form, parity-tested); TargetingService.build_criteria/reach;
-  POST /surveys/<id>/targeting/reach/ (JSON, TargetingListsForm); Survey.reach_at_publish set at publish; SurveyService.get_publish_preview;
-  create_synthetic_respondents command (DEBUG only); migration 0011 applied locally, 500 synthetic respondents created.
-Changes: 10 modified, 6 new, 0 deleted — services/disclosure.py, repositories/profile_repository.py, services/targeting_service.py, apps/surveys/views.py, apps/core/management/commands/create_synthetic_respondents.py
-Tests: 6 files (test_disclosure, test_targeting_service, test_survey_service, test_targeting_reach_view, test_targeting_criteria_view, test_create_synthetic_respondents): 163 passed in 352.29s; full suites run in CI
+Branch: feat/fr03-targeting-web
+Task: TASK-35 — FR-03 Part 3: the W-03 targeting page and the publish confirmation (web)
+Done: Targeting page with gender segments, age fields, chips for five lists and a live reach card (seven states, copy only in the template);
+  saving writes all five lists (closes D-163 (2)); Publish now opens a GET confirmation page and then POSTs; signal_ring gains text/decorative/empty arc;
+  create_synthetic_respondents --delete runs without DEBUG (D-166 (5)); TargetingCriteriaForm removed.
+Changes: 13 modified, 7 new, 0 deleted — apps/surveys/views.py, forms.py, templates/surveys/targeting_criteria.html, publish_confirm.html, static/js/site.js
+Tests: 6 files (test_design_shell, test_targeting_criteria_view, test_targeting_reach_view, test_publish_confirm_view, test_create_synthetic_respondents, test_question_form): 50 passed; node --check site.js OK; full suites run in CI
 Check: OK (System check identified no issues; makemigrations --check: No changes detected)
-Committed: yes (see PR)
-Open questions: "everyone" returns the unbanded pool total, as specified, so a pool of 1-4 shows its size; complementary criteria can still be differenced (band limit)
-Next: advisor reads the diff after CI is green; Hasan or Yousef approves; then TASK-35 builds the W-03 page on this endpoint
+Committed: yes (work commit on feat/fr03-targeting-web, see PR)
+Open questions: none; the live reach and layout are not checked in a browser (no server started, D-103), covered by the reviewer's manual check
+Next: advisor reads the diff after Django CI is green; Yaman or Yousef approves; Yaman squash-merges
