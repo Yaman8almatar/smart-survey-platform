@@ -1090,6 +1090,82 @@ textarea.form-control {
     min-height: 20rem;
 }
 
+/* W-05a sentiment panel: the analysed total sits in the doughnut's hole. */
+.sentiment-count-line {
+    margin-bottom: 0.75rem;
+    color: var(--ss-ink);
+}
+
+.sentiment-reasons {
+    margin: 0.35rem 0;
+    padding-left: 1.1rem;
+}
+
+.sentiment-chart {
+    height: 20rem;
+}
+
+.sentiment-chart-centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.sentiment-chart-centre strong {
+    font-family: var(--ss-font-display);
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--ss-ink);
+}
+
+.sentiment-chart-centre span,
+.sentiment-legend span:last-child,
+.sentiment-caption {
+    color: var(--ss-ink-muted);
+}
+
+.sentiment-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sentiment-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.sentiment-swatch {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+}
+
+.sentiment-swatch-positive {
+    background: var(--ss-sentiment-positive);
+}
+
+.sentiment-swatch-neutral {
+    background: var(--ss-sentiment-neutral);
+}
+
+.sentiment-swatch-negative {
+    background: var(--ss-sentiment-negative);
+}
+
+.sentiment-caption {
+    margin: 0.75rem 0 0;
+    font-size: 0.9rem;
+}
+
 .answer-summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));

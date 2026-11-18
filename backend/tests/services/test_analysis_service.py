@@ -301,6 +301,8 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
         "failed_count": 0,
         "waiting_count": 0,
         "skipped_count": 0,
+        "failed_reasons": [],
+        "analysis_overdue": False,
         "positive_rate": 0,
         "neutral_rate": 0,
         "negative_rate": 0,

@@ -1,10 +1,9 @@
 from django.db import transaction
-from django.db.models import Count, Min, Q
+from django.db.models import Min, Q
+from django.db.models.functions import Coalesce
 
 from apps.core.models import SentimentAnalysisResult
 from core.enums import AnalysisStatus
-
-WAITING_STATUSES = (AnalysisStatus.PENDING, AnalysisStatus.RUNNING)
 
 
 class AnalysisRepository:
@@ -87,31 +86,38 @@ class AnalysisRepository:
 
         return claimed, expired
 
-    def count_by_status(self, survey_id):
-        """Return {status: count} for the sentiment results of a survey."""
-        rows = (
-            SentimentAnalysisResult.objects.filter(answer__response__survey_id=survey_id)
-            .values("status")
-            .annotate(total=Count("result_id"))
-        )
-        return {row["status"]: row["total"] for row in rows}
+    def oldest_due_at(self, survey_id):
+        """Return the earliest due time of the survey's PENDING results, or None.
 
-    def oldest_waiting_submitted_at(self, survey_id):
-        """Return the submit time of the oldest waiting result of a survey, or None."""
+        A row is due at its next_attempt_at when one is set (a retry or a provider
+        reset), otherwise at the submit time of its response.
+        """
+        return (
+            SentimentAnalysisResult.objects.filter(
+                answer__response__survey_id=survey_id,
+                status=AnalysisStatus.PENDING,
+            )
+            .annotate(due_at=Coalesce("next_attempt_at", "answer__response__submitted_at"))
+            .aggregate(oldest=Min("due_at"))["oldest"]
+        )
+
+    def has_stale_running(self, survey_id, stale_before):
+        """Return whether a RUNNING result of the survey is locked since before stale_before."""
         return SentimentAnalysisResult.objects.filter(
             answer__response__survey_id=survey_id,
-            status__in=WAITING_STATUSES,
-        ).aggregate(oldest=Min("answer__response__submitted_at"))["oldest"]
+            status=AnalysisStatus.RUNNING,
+            locked_at__lt=stale_before,
+        ).exists()
 
-    def reset_failed(self, survey_id):
-        """Return the FAILED results of a survey to the queue; return how many."""
+    def reset_failed(self, survey_id, now):
+        """Return the FAILED results of a survey to the queue, due at now; return how many."""
         return SentimentAnalysisResult.objects.filter(
             answer__response__survey_id=survey_id,
             status=AnalysisStatus.FAILED,
         ).update(
             status=AnalysisStatus.PENDING,
             attempts=0,
-            next_attempt_at=None,
+            next_attempt_at=now,
             locked_at=None,
             error_code="",
             analyzed_at=None,

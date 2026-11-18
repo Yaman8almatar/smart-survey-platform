@@ -1,4 +1,4 @@
-"""Analytics dashboard: visible sentiment failure notice (TASK-24, audit A-209)."""
+"""Analytics dashboard: visible sentiment failure notice (TASK-24, audit A-209; W-05a copy)."""
 
 import pytest
 from django.urls import reverse
@@ -29,10 +29,7 @@ def results_open_for_counting_tests(monkeypatch):
     monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 0)
 
 
-NOTICE_BODY = (
-    "The answers are saved and counted in the results. "
-    "The analysis service could not process them."
-)
+NOTICE_BODY = "The answers are saved and counted in the results."
 
 
 def create_user(email, user_type):
@@ -93,20 +90,20 @@ def test_dashboard_shows_singular_failure_notice(client):
 
     content = get_dashboard(client, provider, survey)
 
-    assert "Sentiment analysis failed for 1 open-text answer." in content
+    assert "1 answer could not be analysed." in content
     assert NOTICE_BODY in content
     assert "bi-exclamation-triangle" in content
     assert 'id="sentimentDistributionChart"' in content
 
 
 @pytest.mark.django_db
-def test_dashboard_shows_plural_failure_notice_without_empty_message(client):
+def test_dashboard_shows_plural_failure_notice_without_chart(client):
     provider, survey = create_survey_with_results(failed=3, completed=0)
 
     content = get_dashboard(client, provider, survey)
 
-    assert "Sentiment analysis failed for 3 open-text answers." in content
-    assert "Sentiment analysis results are not yet available." not in content
+    assert "3 answers could not be analysed." in content
+    assert "The chart appears when the first answer is analysed." in content
     assert 'id="sentimentDistributionChart"' not in content
 
 
@@ -116,8 +113,9 @@ def test_dashboard_shows_no_failure_notice_when_nothing_failed(client):
 
     content = get_dashboard(client, provider, survey)
 
-    assert "Sentiment analysis failed" not in content
+    assert "could not be analysed" not in content
     assert NOTICE_BODY not in content
+    assert "Retry failed answers" not in content
 
 
 @pytest.mark.django_db

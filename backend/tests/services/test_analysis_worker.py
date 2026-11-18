@@ -343,53 +343,163 @@ def test_worker_constants():
     assert AnalysisService.MAX_ATTEMPTS == 3
 
 
-# sentiment_status_counts and retry_failed
+# Due time, overdue hint (W-05a, D-151 (3)) and retry_failed
 
 
-def create_result(survey, status, text="Text"):
+def create_result(survey, status, text="Text", submitted_ago=None, **fields):
+    """Create one result; submitted_ago moves its response's submit time into the past."""
     answer = create_answer(survey, text)
-    return AnalysisRepository().save(SentimentAnalysisResult(answer=answer, status=status))
+    if submitted_ago is not None:
+        Response.objects.filter(pk=answer.response_id).update(
+            submitted_at=timezone.now() - submitted_ago
+        )
+    return AnalysisRepository().save(
+        SentimentAnalysisResult(answer=answer, status=status, **fields)
+    )
 
 
 @pytest.mark.django_db
-def test_status_counts_and_oldest_waiting_age():
-    survey = create_survey("counts")
-    for status in [
-        AnalysisStatus.COMPLETED,
-        AnalysisStatus.PENDING,
+def test_oldest_due_at_takes_next_attempt_over_submit_time():
+    survey = create_survey("due")
+    now = timezone.now()
+    retry_at = now + timedelta(minutes=1)
+    # Submitted an hour ago, but its retry is due in a minute.
+    create_result(
+        survey, AnalysisStatus.PENDING, submitted_ago=timedelta(hours=1), next_attempt_at=retry_at
+    )
+    # Submitted ten minutes ago with no retry time: due at its submit time.
+    plain = create_result(survey, AnalysisStatus.PENDING, submitted_ago=timedelta(minutes=10))
+
+    due = AnalysisRepository().oldest_due_at(survey.survey_id)
+
+    assert due == Response.objects.get(pk=plain.answer.response_id).submitted_at
+
+
+@pytest.mark.django_db
+def test_oldest_due_at_ignores_other_surveys_and_non_pending_rows():
+    survey = create_survey("due-own")
+    retry_at = timezone.now() + timedelta(minutes=3)
+    create_result(survey, AnalysisStatus.PENDING, next_attempt_at=retry_at)
+    for status in (
         AnalysisStatus.RUNNING,
         AnalysisStatus.FAILED,
-        AnalysisStatus.FAILED,
+        AnalysisStatus.COMPLETED,
         AnalysisStatus.SKIPPED,
-    ]:
-        create_result(survey, status)
-    Response.objects.filter(survey=survey).update(
-        submitted_at=timezone.now() - timedelta(seconds=90)
+    ):
+        create_result(survey, status, submitted_ago=timedelta(hours=2))
+    create_result(
+        create_survey("due-other"), AnalysisStatus.PENDING, submitted_ago=timedelta(hours=2)
     )
-    service = AnalysisService(huggingface_client=FakeClient())
 
-    counts = service.sentiment_status_counts(survey.survey_id)
-
-    assert {key: counts[key] for key in ("analysed", "waiting", "failed", "skipped")} == {
-        "analysed": 1,
-        "waiting": 2,
-        "failed": 2,
-        "skipped": 1,
-    }
-    assert 90 <= counts["oldest_waiting_seconds"] < 100
+    assert AnalysisRepository().oldest_due_at(survey.survey_id) == retry_at
 
 
 @pytest.mark.django_db
-def test_status_counts_without_waiting_rows_has_no_age():
-    survey = create_survey("counts-empty")
+def test_oldest_due_at_is_none_without_pending_rows():
+    survey = create_survey("due-none")
     create_result(survey, AnalysisStatus.COMPLETED)
 
-    counts = AnalysisService(huggingface_client=FakeClient()).sentiment_status_counts(
-        survey.survey_id
+    assert AnalysisRepository().oldest_due_at(survey.survey_id) is None
+
+
+@pytest.mark.django_db
+def test_has_stale_running_only_for_a_running_row_locked_before_the_cut_off():
+    survey = create_survey("stale")
+    now = timezone.now()
+    cut_off = now - timedelta(minutes=5)
+    create_result(survey, AnalysisStatus.RUNNING, locked_at=now - timedelta(minutes=1))
+    create_result(survey, AnalysisStatus.PENDING, locked_at=now - timedelta(minutes=9))
+    create_result(
+        create_survey("stale-other"), AnalysisStatus.RUNNING, locked_at=now - timedelta(minutes=9)
+    )
+    repository = AnalysisRepository()
+
+    assert repository.has_stale_running(survey.survey_id, cut_off) is False
+
+    create_result(survey, AnalysisStatus.RUNNING, locked_at=now - timedelta(minutes=6))
+
+    assert repository.has_stale_running(survey.survey_id, cut_off) is True
+
+
+@pytest.mark.django_db
+def test_reset_failed_sets_next_attempt_to_the_given_now():
+    survey = create_survey("reset-now")
+    failed = create_result(survey, AnalysisStatus.FAILED, attempts=3, error_code="unavailable")
+    now = timezone.now()
+
+    assert AnalysisRepository().reset_failed(survey.survey_id, now) == 1
+
+    assert reload(failed).next_attempt_at == now
+
+
+def test_overdue_constant():
+    assert AnalysisService.OVERDUE_AFTER == timedelta(minutes=2)
+
+
+def overdue(survey):
+    return AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+        survey.provider, survey.survey_id
+    )["analysis_overdue"]
+
+
+@pytest.mark.django_db
+def test_row_due_30_seconds_ago_is_not_overdue():
+    survey = create_survey("overdue-30s")
+    create_result(survey, AnalysisStatus.PENDING, submitted_ago=timedelta(seconds=30))
+
+    assert overdue(survey) is False
+
+
+@pytest.mark.django_db
+def test_row_due_3_minutes_ago_is_overdue():
+    survey = create_survey("overdue-3m")
+    create_result(survey, AnalysisStatus.PENDING, submitted_ago=timedelta(minutes=3))
+
+    assert overdue(survey) is True
+
+
+@pytest.mark.django_db
+def test_running_row_locked_6_minutes_ago_is_overdue():
+    survey = create_survey("overdue-lock")
+    create_result(
+        survey, AnalysisStatus.RUNNING, locked_at=timezone.now() - timedelta(minutes=6)
     )
 
-    assert counts["waiting"] == 0
-    assert counts["oldest_waiting_seconds"] is None
+    assert overdue(survey) is True
+
+
+@pytest.mark.django_db
+def test_old_answer_with_a_retry_in_the_future_is_not_overdue():
+    survey = create_survey("overdue-retry")
+    create_result(
+        survey,
+        AnalysisStatus.PENDING,
+        submitted_ago=timedelta(hours=1),
+        attempts=1,
+        next_attempt_at=timezone.now() + timedelta(seconds=30),
+    )
+
+    assert overdue(survey) is False
+
+
+@pytest.mark.django_db
+def test_failed_reasons_group_codes_map_none_to_empty_and_order_by_count():
+    survey = create_survey("reasons")
+    for code in ["unavailable", "payment_required", "payment_required", "", "config", "config"]:
+        create_result(survey, AnalysisStatus.FAILED, error_code=code)
+    create_result(survey, AnalysisStatus.SKIPPED, error_code="no_text")
+
+    results = AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+        survey.provider, survey.survey_id
+    )
+
+    assert results["failed_reasons"] == [
+        {"code": "config", "count": 2},
+        {"code": "payment_required", "count": 2},
+        {"code": "", "count": 1},
+        {"code": "unavailable", "count": 1},
+    ]
+    assert results["failed_count"] == 6
 
 
 @pytest.mark.django_db
@@ -412,7 +522,7 @@ def test_survey_results_report_waiting_and_skipped_counts():
 @pytest.mark.django_db
 def test_retry_failed_resets_only_failed_rows_of_the_survey():
     survey = create_survey("retry-failed")
-    failed = create_result(survey, AnalysisStatus.FAILED)
+    failed = create_result(survey, AnalysisStatus.FAILED, submitted_ago=timedelta(hours=1))
     SentimentAnalysisResult.objects.filter(pk=failed.pk).update(
         attempts=3, error_code="unavailable", next_attempt_at=timezone.now()
     )
@@ -420,6 +530,7 @@ def test_retry_failed_resets_only_failed_rows_of_the_survey():
     skipped = create_result(survey, AnalysisStatus.SKIPPED)
     other_failed = create_result(create_survey("retry-other"), AnalysisStatus.FAILED)
     service = AnalysisService(huggingface_client=FakeClient())
+    before = timezone.now()
 
     reset = service.retry_failed(survey.provider, survey.survey_id)
 
@@ -427,8 +538,10 @@ def test_retry_failed_resets_only_failed_rows_of_the_survey():
     stored = reload(failed)
     assert stored.status == AnalysisStatus.PENDING
     assert stored.attempts == 0
-    assert stored.next_attempt_at is None
+    # D-158 (2e): due now, so an old answer is not overdue the moment it is retried.
+    assert before <= stored.next_attempt_at <= timezone.now()
     assert stored.error_code == ""
+    assert overdue(survey) is False
     assert reload(completed).status == AnalysisStatus.COMPLETED
     assert reload(skipped).status == AnalysisStatus.SKIPPED
     assert reload(other_failed).status == AnalysisStatus.FAILED
