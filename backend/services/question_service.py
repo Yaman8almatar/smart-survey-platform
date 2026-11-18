@@ -11,7 +11,7 @@ from core.exceptions import (
 )
 from repositories.question_repository import QuestionRepository
 from repositories.survey_repository import SurveyRepository
-from services.targeting_service import TargetingService
+from services.response_service import ResponseService
 
 
 class QuestionService:
@@ -23,12 +23,13 @@ class QuestionService:
         self,
         survey_repository=None,
         question_repository=None,
-        targeting_service=None,
+        response_service=None,
     ):
         """Wire repositories and services used by question workflows."""
         self.survey_repository = survey_repository or SurveyRepository()
         self.question_repository = question_repository or QuestionRepository()
-        self.targeting_service = targeting_service or TargetingService()
+        # One eligibility verdict (A-50): the form opens only when a submit would be accepted.
+        self.response_service = response_service or ResponseService()
 
     def add_question(
         self,
@@ -131,7 +132,7 @@ class QuestionService:
 
     def get_response_form(self, respondent_user, survey_id):
         """Return the survey and its ordered questions for an eligible respondent."""
-        survey = self._ensure_respondent_can_answer(respondent_user, survey_id)
+        survey = self.response_service.ensure_can_answer(respondent_user, survey_id)
 
         questions = sorted(
             self.question_repository.find_by_survey_id_with_options(survey_id),
@@ -178,23 +179,6 @@ class QuestionService:
             raise SurveyNotFound("Survey not found.")
 
         self._ensure_owner(provider_user, survey)
-        return survey
-
-    def _ensure_respondent_can_answer(self, respondent_user, survey_id):
-        """Return the survey after checking the respondent may open its response form."""
-        if respondent_user.user_type != UserType.RESPONDENT:
-            raise UnauthorizedAction("Only respondents can open survey response forms.")
-
-        survey = self.survey_repository.find_by_id(survey_id)
-        if survey is None:
-            raise SurveyNotFound("Survey not found.")
-
-        if not survey.can_accept_responses():
-            raise NotEditable("Responses are allowed only for published surveys.")
-
-        if not self.targeting_service.match_respondent_to_survey(respondent_user, survey_id):
-            raise UnauthorizedAction("Respondent is not eligible for this survey.")
-
         return survey
 
     def _ensure_service_provider(self, user):

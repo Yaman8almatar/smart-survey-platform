@@ -152,7 +152,7 @@ class Command(BaseCommand):
                 "gender": Gender.ANY,
                 "age_min": 18,
                 "age_max": 35,
-                "region": Governorate.DAMASCUS,
+                "regions": [Governorate.DAMASCUS],
             },
         )[0]
 
