@@ -1,16 +1,24 @@
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.api.exceptions import CORE_ERRORS
-from core.enums import SurveyStatus
-from core.exceptions import SmartSurveyException
+from core.enums import (
+    Education,
+    Gender,
+    Governorate,
+    Interest,
+    MaritalStatus,
+    Occupation,
+    SurveyStatus,
+)
+from core.exceptions import SmartSurveyException, ValidationError
 from services.question_service import QuestionService
 from services.survey_service import SurveyService
 from services.targeting_service import TargetingService
 
-from .forms import QuestionForm, SurveyForm, TargetingCriteriaForm, TargetingListsForm
+from .forms import QuestionForm, SurveyForm, TargetingListsForm
 
 
 def provider_dashboard(request):
@@ -158,9 +166,10 @@ def delete_question(request, survey_id, question_id):
 
 
 def targeting_criteria(request, survey_id):
-    """Render Targeting criteria and delegate changes to TargetingService.
+    """Render the W-03 targeting page and delegate saving and the first reach to TargetingService.
 
-    The page still offers one governorate; the W-03 web task replaces it with list choices.
+    The first reach is rendered in the page (D-118); site.js then asks targeting_reach 400 ms
+    after each change.
     """
     surveys, response = _load_provider_surveys_or_redirect(request)
     if response:
@@ -171,37 +180,44 @@ def targeting_criteria(request, survey_id):
         messages.error(request, "Survey not found.", extra_tags="danger")
         return redirect("surveys:survey_list")
 
+    service = TargetingService()
     if request.method == "POST":
-        form = TargetingCriteriaForm(request.POST)
+        form = TargetingListsForm(request.POST)
         if form.is_valid():
-            region = form.cleaned_data["region"]
             try:
-                TargetingService().save_criteria(
-                    request.user,
-                    survey_id,
-                    _blank_to_none(form.cleaned_data["gender"]),
-                    form.cleaned_data["age_min"],
-                    form.cleaned_data["age_max"],
-                    regions=[region] if region else [],
+                service.save_criteria(
+                    request.user, survey_id, **_criteria_kwargs(form.cleaned_data)
                 )
+            except ValidationError as error:
+                # The form checks each field; only the min-above-max rule reaches here.
+                form.add_error("age_min", str(error))
             except SmartSurveyException as error:
                 _show_service_error(request, error)
+                return redirect("surveys:survey_list")
             else:
                 messages.success(request, "Targeting criteria saved successfully.")
                 return redirect("surveys:survey_list")
+        reach = {"state": "invalid", "count": None, "total": None, "percent": None}
     else:
-        initial = TargetingService().get_criteria_initial(request.user, survey_id)
-        regions = initial.get("regions") or [""]
-        form = TargetingCriteriaForm(
-            initial={
-                "gender": initial.get("gender", ""),
-                "age_min": initial.get("age_min"),
-                "age_max": initial.get("age_max"),
-                "region": regions[0],
-            }
+        try:
+            initial = service.get_criteria_initial(request.user, survey_id)
+            reach = service.reach(request.user, survey_id, **_criteria_kwargs(initial))
+        except SmartSurveyException as error:
+            _show_service_error(request, error)
+            return redirect("surveys:survey_list")
+        form = TargetingListsForm(
+            initial={**initial, "gender": initial.get("gender") or Gender.ANY}
         )
 
-    context = {"survey": _survey_row(survey), "form": form}
+    context = {
+        "survey": _survey_row(survey),
+        "form": form,
+        "reach": _reach_card(reach),
+        "who_summary": _who_summary(
+            form["gender"].value(), form["age_min"].value(), form["age_max"].value()
+        ),
+        "age_phrases": AGE_PHRASES,
+    }
     return render(request, "surveys/targeting_criteria.html", context)
 
 
@@ -223,19 +239,9 @@ def targeting_reach(request, survey_id):
             status=400,
         )
 
-    data = form.cleaned_data
     try:
         reach = TargetingService().reach(
-            request.user,
-            survey_id,
-            gender=_blank_to_none(data["gender"]),
-            age_min=data["age_min"],
-            age_max=data["age_max"],
-            regions=data["regions"],
-            education_levels=data["education_levels"],
-            occupations=data["occupations"],
-            marital_statuses=data["marital_statuses"],
-            interests=data["interests"],
+            request.user, survey_id, **_criteria_kwargs(form.cleaned_data)
         )
     except SmartSurveyException as error:
         status, code = _json_error(error)
@@ -270,20 +276,52 @@ def delete_survey(request, survey_id):
     )
 
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 def publish_survey(request, survey_id):
-    """Handle publish Survey status action through SurveyService."""
+    """GET shows the publish confirmation (W-03, P-19); POST publishes through SurveyService.
+
+    The service stores reach_at_publish at the POST, which may differ from the number shown
+    if profiles changed in between.
+    """
     response = _redirect_if_unauthenticated(request)
     if response:
         return response
 
+    service = SurveyService()
+    if request.method == "POST":
+        try:
+            service.publish_survey(request.user, survey_id)
+        except SmartSurveyException as error:
+            _show_service_error(request, error)
+        else:
+            messages.success(request, "Survey published successfully.")
+        return redirect("surveys:survey_list")
+
     try:
-        SurveyService().publish_survey(request.user, survey_id)
+        # Raises what publishing would raise, so a survey that cannot be published never
+        # reaches the page.
+        preview = service.get_publish_preview(request.user, survey_id)
+        survey = service.get_provider_survey(request.user, survey_id)
     except SmartSurveyException as error:
         _show_service_error(request, error)
-    else:
-        messages.success(request, "Survey published successfully.")
-    return redirect("surveys:survey_list")
+        return redirect("surveys:survey_list")
+
+    criteria = preview["criteria"]
+    context = {
+        "survey": _survey_row(survey),
+        "reach": _reach_card(preview["reach"]),
+        "question_count": preview["question_count"],
+        "who": {
+            "gender": Gender(criteria["gender"]).label if criteria["gender"] else "",
+            "age": _age_phrase(criteria["age_min"], criteria["age_max"]),
+            "regions": _labels(Governorate, criteria["regions"]),
+            "education_levels": _labels(Education, criteria["education_levels"]),
+            "occupations": _labels(Occupation, criteria["occupations"]),
+            "marital_statuses": _labels(MaritalStatus, criteria["marital_statuses"]),
+            "interests": _labels(Interest, criteria["interests"]),
+        },
+    }
+    return render(request, "surveys/publish_confirm.html", context)
 
 
 @require_POST
@@ -412,6 +450,69 @@ def _blank_to_none(value):
     if value in {"", None}:
         return None
     return value
+
+
+def _criteria_kwargs(values):
+    """Return TargetingService criteria keyword arguments from form data or saved values."""
+    return {
+        "gender": _blank_to_none(values.get("gender")),
+        "age_min": values.get("age_min"),
+        "age_max": values.get("age_max"),
+        **{name: values.get(name) or [] for name, _, _ in TargetingService.LIST_CHOICES},
+    }
+
+
+# The age phrases of summaries; the targeting page hands the same formats to site.js.
+AGE_PHRASES = {
+    "both": "{min} to {max}",
+    "min": "{min} or older",
+    "max": "{max} or younger",
+}
+
+
+def _age_phrase(age_min, age_max):
+    """Return "18 to 34", "18 or older", "34 or younger", or "" when both ages are empty."""
+    has_min = age_min not in {None, ""}
+    has_max = age_max not in {None, ""}
+    if has_min and has_max:
+        key = "both"
+    elif has_min:
+        key = "min"
+    elif has_max:
+        key = "max"
+    else:
+        return ""
+    return AGE_PHRASES[key].format(min=age_min, max=age_max)
+
+
+def _who_summary(gender, age_min, age_max):
+    """Return the Who summary ("Female, 18 to 34"); "" means no restriction (shown as Any)."""
+    parts = []
+    if gender in {Gender.MALE, Gender.FEMALE}:
+        parts.append(Gender(gender).label)
+    phrase = _age_phrase(age_min, age_max)
+    if phrase:
+        parts.append(phrase)
+    return ", ".join(parts)
+
+
+def _labels(enum, values):
+    """Return the enum labels of stored codes, in their stored order."""
+    return [enum(value).label for value in values]
+
+
+def _reach_card(reach):
+    """Return reach values for the templates: count, total and percent only where shown.
+
+    A hidden block never prints a number the visible state does not show (P-19).
+    """
+    shows_count = reach["state"] in {"everyone", "narrowed"}
+    return {
+        "state": reach["state"],
+        "count": reach["count"] if shows_count else "",
+        "total": reach["total"] if shows_count else "",
+        "percent": (reach["percent"] or 0) if shows_count else 0,
+    }
 
 
 def _json_error(error):

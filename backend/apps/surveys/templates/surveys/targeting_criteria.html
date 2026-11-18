@@ -1,100 +1,191 @@
 {% extends "base.html" %}
 
 {% block content %}
+{# Template string literals are not escaped, so "<5" is written as an entity. #}
+{% with any_label="Any" ring_few="&lt;5" ring_none="0" ring_dash="–" %}
 <section class="page-shell">
     <div class="container">
-        <div class="page-header page-header-narrow">
+        <div class="page-header">
             <div>
                 <div class="page-kicker">Audience targeting</div>
                 <h1>{{ survey.title }}</h1>
                 <p class="section-subtitle mb-0">
-                    Empty fields mean no restriction for that criterion.
+                    Choose who can answer. The reach shows how many respondents match before you publish.
                 </p>
             </div>
         </div>
 
-        <div class="row justify-content-center">
-            <div class="col-lg-7">
-                <!-- Targeting criteria form -->
-                <div class="card auth-card">
-                    <div class="card-body p-4 p-md-5">
-                        <div class="alert alert-info">
-                            Leave any field blank when the survey should be open
-                            across that criterion.
+        <div class="row g-4 align-items-start">
+            <!-- Reach card (W-03): first in the DOM so it sits above the form below 992 px -->
+            <div class="col-lg-4 order-lg-2 reach-column">
+                <aside
+                    class="card reach-card"
+                    aria-labelledby="reach-title"
+                    data-reach-card
+                    data-reach-url="{% url 'surveys:targeting_reach' survey.id %}"
+                    data-state="{{ reach.state }}"
+                >
+                    <div class="card-body">
+                        <div class="reach-card__head">
+                            <h2 id="reach-title">Reach</h2>
+                            <span class="reach-card__caption">Updates as you edit</span>
                         </div>
-                        <form method="post" novalidate>
-                            {% csrf_token %}
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label
-                                        class="form-label"
-                                        for="{{ form.gender.id_for_label }}"
-                                    >
-                                        Gender
-                                    </label>
-                                    {{ form.gender }}
-                                    {% for error in form.gender.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ error }}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                                <div class="col-md-6">
-                                    <label
-                                        class="form-label"
-                                        for="{{ form.region.id_for_label }}"
-                                    >
-                                        Governorate
-                                    </label>
-                                    {{ form.region }}
-                                    {% for error in form.region.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ error }}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                                <div class="col-md-6">
-                                    <label
-                                        class="form-label"
-                                        for="{{ form.age_min.id_for_label }}"
-                                    >
-                                        Minimum age
-                                    </label>
-                                    {{ form.age_min }}
-                                    {% for error in form.age_min.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ error }}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                                <div class="col-md-6">
-                                    <label
-                                        class="form-label"
-                                        for="{{ form.age_max.id_for_label }}"
-                                    >
-                                        Maximum age
-                                    </label>
-                                    {{ form.age_max }}
-                                    {% for error in form.age_max.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ error }}
-                                        </div>
-                                    {% endfor %}
-                                </div>
+                        <div class="reach-card__main">
+                            <div class="reach-card__ring">
+                                {% if reach.state == "few" %}
+                                    {% include "partials/signal_ring.html" with value=0 size=96 text=ring_few decorative=True %}
+                                {% elif reach.state == "none" %}
+                                    {% include "partials/signal_ring.html" with value=0 size=96 text=ring_none decorative=True %}
+                                {% elif reach.state == "error" or reach.state == "invalid" %}
+                                    {% include "partials/signal_ring.html" with value=0 size=96 text=ring_dash decorative=True %}
+                                {% else %}
+                                    {% include "partials/signal_ring.html" with value=reach.percent size=96 decorative=True %}
+                                {% endif %}
                             </div>
+                            <div class="reach-card__text" aria-live="polite">
+                                <div data-reach-for="everyone">
+                                    <p class="reach-card__big"><span data-reach-count>{{ reach.count }}</span> of <span data-reach-total>{{ reach.total }}</span></p>
+                                    <p class="reach-card__line">respondents. No restriction yet: everyone with a complete profile matches.</p>
+                                </div>
+                                <div data-reach-for="narrowed">
+                                    <p class="reach-card__big"><span data-reach-count>{{ reach.count }}</span> of <span data-reach-total>{{ reach.total }}</span></p>
+                                    <p class="reach-card__line">respondents match these criteria now.</p>
+                                </div>
+                                <div data-reach-for="few" data-ring-text="{{ ring_few }}">
+                                    <p class="reach-card__big">Fewer than 5</p>
+                                    <p class="reach-card__line">respondents match these criteria now. The exact number is hidden to protect privacy.</p>
+                                </div>
+                                <div data-reach-for="none" data-ring-text="{{ ring_none }}">
+                                    <p class="reach-card__big">No respondent</p>
+                                    <p class="reach-card__line">matches these criteria yet.</p>
+                                </div>
+                                <div data-reach-for="error" data-ring-text="{{ ring_dash }}">
+                                    <p class="reach-card__big">Could not count</p>
+                                    <p class="reach-card__line">respondents. Your criteria are not affected.</p>
+                                </div>
+                                <div data-reach-for="invalid" data-ring-text="{{ ring_dash }}">
+                                    <p class="reach-card__big">No count yet</p>
+                                    <p class="reach-card__line">Fix the highlighted field to see the reach.</p>
+                                </div>
+                                <p class="reach-card__line reach-card__updating">Updating the count…</p>
+                            </div>
+                        </div>
+                        <p class="reach-card__note" data-reach-for="few none">
+                            You can still publish. People who match later will see the survey.
+                        </p>
+                        <div data-reach-for="error">
+                            <button class="btn btn-outline-primary" type="button" data-reach-retry>
+                                <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
+                                Try again
+                            </button>
+                        </div>
+                        <p class="reach-card__foot">
+                            Counted among active respondents with a complete profile. The number changes as people join or update their profile.
+                        </p>
+                    </div>
+                </aside>
+            </div>
 
-                            <div class="form-actions mt-4">
-                                <a
-                                    class="btn btn-outline-secondary"
-                                    href="{% url 'surveys:survey_list' %}"
-                                >
-                                    <i class="bi bi-arrow-left me-1"></i>
-                                    Back
-                                </a>
-                                <button class="btn btn-primary" type="submit">
-                                    <i class="bi bi-check2-circle me-1"></i>
-                                    Save targeting
-                                </button>
+            <!-- Targeting criteria form -->
+            <div class="col-lg-8 order-lg-1">
+                <div class="card targeting-card">
+                    <div class="card-body">
+                        <form method="post" novalidate data-targeting-form>
+                            {% csrf_token %}
+                            {% for error in form.non_field_errors %}
+                                <div class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
+                            {% endfor %}
+
+                            <section class="targeting-section" aria-labelledby="who-title">
+                                <div class="targeting-section__head">
+                                    <h2 id="who-title">Who</h2>
+                                    <span
+                                        class="targeting-section__summary"
+                                        data-who-summary
+                                        data-any="{{ any_label }}"
+                                        data-age-both="{{ age_phrases.both }}"
+                                        data-age-min="{{ age_phrases.min }}"
+                                        data-age-max="{{ age_phrases.max }}"
+                                    >{{ who_summary|default:any_label }}</span>
+                                </div>
+                                <p class="targeting-section__helper">Empty fields mean no restriction.</p>
+
+                                <fieldset class="mb-3">
+                                    <legend class="form-label">Gender</legend>
+                                    <div class="ss-segmented">
+                                        {% for choice in form.gender %}
+                                            <label class="ss-segment" for="{{ choice.id_for_label }}">{{ choice.tag }}<i class="bi bi-check2 ss-chip__check" aria-hidden="true"></i><span data-choice-label>{{ choice.choice_label }}</span></label>
+                                        {% endfor %}
+                                    </div>
+                                    {% for error in form.gender.errors %}
+                                        <div class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
+                                    {% endfor %}
+                                </fieldset>
+
+                                <div class="row g-3">
+                                    {% for field in form %}
+                                        {% if field.name == "age_min" or field.name == "age_max" %}
+                                            <div class="col-sm-6 age-field{% if field.errors %} is-invalid{% endif %}" data-age-field="{{ field.name }}">
+                                                <label class="form-label" for="{{ field.id_for_label }}">{% if field.name == "age_min" %}Minimum age{% else %}Maximum age{% endif %}</label>
+                                                {{ field }}
+                                                <div class="field-error" data-field-error{% if not field.errors %} hidden{% endif %}><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span data-field-error-text>{{ field.errors.0 }}</span></div>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <p class="targeting-section__helper mt-2 mb-0">Leave an age empty for no limit.</p>
+                            </section>
+
+                            <section class="targeting-section" aria-labelledby="regions-title" data-chip-scope>
+                                <div class="targeting-section__head">
+                                    <h2 id="regions-title">Governorates</h2>
+                                    <span class="targeting-section__summary">{% include "surveys/_chip_summary.html" with chosen=form.regions.value|length clear=True %}</span>
+                                </div>
+                                <p class="targeting-section__helper">None chosen means every governorate.</p>
+                                {% include "surveys/_chips.html" with field=form.regions labelledby="regions-title" %}
+                            </section>
+
+                            <section class="targeting-section" aria-labelledby="background-title">
+                                <div class="targeting-section__head">
+                                    <h2 id="background-title">Background</h2>
+                                    <span class="targeting-section__summary">Optional details</span>
+                                </div>
+                                <p class="targeting-section__helper">A respondent who left a detail empty or chose “Prefer not to say” does not match a restriction on that detail.</p>
+                                <div class="chip-group" data-chip-scope>
+                                    <p class="chip-group__label" id="education-title">Education level <span class="chip-group__summary">· {% include "surveys/_chip_summary.html" with chosen=form.education_levels.value|length %}</span></p>
+                                    {% include "surveys/_chips.html" with field=form.education_levels labelledby="education-title" %}
+                                </div>
+                                <div class="chip-group" data-chip-scope>
+                                    <p class="chip-group__label" id="occupation-title">Occupation <span class="chip-group__summary">· {% include "surveys/_chip_summary.html" with chosen=form.occupations.value|length %}</span></p>
+                                    {% include "surveys/_chips.html" with field=form.occupations labelledby="occupation-title" %}
+                                </div>
+                                <div class="chip-group" data-chip-scope>
+                                    <p class="chip-group__label" id="marital-title">Marital status <span class="chip-group__summary">· {% include "surveys/_chip_summary.html" with chosen=form.marital_statuses.value|length %}</span></p>
+                                    {% include "surveys/_chips.html" with field=form.marital_statuses labelledby="marital-title" %}
+                                </div>
+                            </section>
+
+                            <section class="targeting-section" aria-labelledby="interests-title" data-chip-scope>
+                                <div class="targeting-section__head">
+                                    <h2 id="interests-title">Interests</h2>
+                                    <span class="targeting-section__summary">{% include "surveys/_chip_summary.html" with chosen=form.interests.value|length clear=True %}</span>
+                                </div>
+                                <p class="targeting-section__helper">A respondent matches when they share at least one chosen topic.</p>
+                                {% include "surveys/_chips.html" with field=form.interests labelledby="interests-title" %}
+                            </section>
+
+                            <div class="targeting-footer">
+                                <p class="targeting-footer__note">You can change the targeting until the survey is published.</p>
+                                <div class="form-actions">
+                                    <a class="btn btn-outline-secondary" href="{% url 'surveys:survey_list' %}">
+                                        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
+                                        Back
+                                    </a>
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="bi bi-check2 me-1" aria-hidden="true"></i>
+                                        Save targeting
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -103,4 +194,5 @@
         </div>
     </div>
 </section>
+{% endwith %}
 {% endblock %}

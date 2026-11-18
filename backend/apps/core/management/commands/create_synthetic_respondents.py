@@ -26,7 +26,8 @@ class Command(BaseCommand):
     help = (
         "Create SYNTHETIC respondent accounts (synthetic-NNNN@" + DOMAIN + ") for the "
         "FR-03 reach demonstration only. They are not real people. Delete them with "
-        "--delete before any measurement with real respondents (P-10). Runs only with DEBUG on."
+        "--delete before any measurement with real respondents (P-10). Creating runs only "
+        "with DEBUG on; --delete runs on any database, so the cleanup always works."
     )
 
     def add_arguments(self, parser):
@@ -45,15 +46,16 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Create the synthetic respondents, or delete them with --delete."""
-        if not settings.DEBUG:
-            raise CommandError("create_synthetic_respondents runs only with DEBUG on.")
-
+        # The cleanup P-10 requires must work on any database, so --delete skips the DEBUG check.
         if options["delete"]:
             synthetic = User.objects.filter(email__iendswith=f"@{DOMAIN}")
             deleted = synthetic.count()
             synthetic.delete()
             self.stdout.write(f"Deleted {deleted} synthetic respondents.")
             return
+
+        if not settings.DEBUG:
+            raise CommandError("create_synthetic_respondents creates accounts only with DEBUG on.")
 
         count = options["count"]
         if count < 0:

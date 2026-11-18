@@ -1395,6 +1395,358 @@ textarea.form-control {
     fill: var(--ss-on-brand);
 }
 
+/* A script switches the arc on and off; 0, few, none, error and invalid show no arc. */
+.signal-ring__arc--empty {
+    display: none;
+}
+
+/* W-03 targeting page (surveys/targeting_criteria.html). */
+.targeting-card,
+.reach-card {
+    background-color: var(--ss-surface-raised);
+    border: 1px solid var(--ss-line);
+    border-radius: var(--ss-radius-md);
+}
+
+.targeting-card .card-body {
+    padding: var(--ss-space-32);
+}
+
+.targeting-section {
+    padding-bottom: var(--ss-space-24);
+    margin-bottom: var(--ss-space-24);
+    border-bottom: 1px solid var(--ss-line);
+}
+
+.targeting-section__head,
+.reach-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--ss-space-8);
+}
+
+.targeting-section h2,
+.reach-card h2 {
+    margin: 0;
+    color: var(--ss-ink);
+    font-size: var(--ss-heading-size);
+    font-weight: 600;
+}
+
+.targeting-section__summary,
+.reach-card__caption {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--ss-space-8);
+    color: var(--ss-ink-muted);
+    font-size: var(--ss-label-size);
+}
+
+.targeting-section__helper {
+    margin: var(--ss-space-4) 0 var(--ss-space-16);
+    color: var(--ss-ink-muted);
+    font-size: var(--ss-label-size);
+}
+
+.targeting-section fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.targeting-clear {
+    padding: 0;
+    color: var(--ss-brand);
+    font-size: var(--ss-label-size);
+}
+
+.chip-group + .chip-group {
+    margin-top: var(--ss-space-16);
+}
+
+.chip-group__label {
+    margin-bottom: var(--ss-space-8);
+    color: var(--ss-ink);
+    font-size: var(--ss-label-size);
+    font-weight: 600;
+}
+
+.chip-group__summary {
+    color: var(--ss-ink-muted);
+    font-weight: 400;
+}
+
+.ss-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ss-space-8);
+}
+
+/* Chip and segment: a label holding the real input; :has() shows the state without JS. */
+.ss-chip,
+.ss-segment {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ss-space-8);
+    min-height: 36px;
+    padding: 0 var(--ss-space-12);
+    color: var(--ss-ink);
+    background-color: var(--ss-surface-raised);
+    border: 1px solid var(--ss-line-strong);
+    border-radius: var(--ss-radius-sm);
+    font-size: var(--ss-label-size);
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+}
+
+.ss-chip__check {
+    display: none;
+}
+
+.ss-chip:has(input:checked),
+.ss-segment:has(input:checked) {
+    color: var(--ss-brand-deep);
+    background-color: var(--ss-brand-tint);
+    border-color: var(--ss-brand);
+}
+
+.ss-chip:has(input:checked) .ss-chip__check,
+.ss-segment:has(input:checked) .ss-chip__check {
+    display: inline;
+}
+
+.ss-chip:has(input:focus-visible),
+.ss-segment:has(input:focus-visible) {
+    outline: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ss-brand) 35%, transparent);
+}
+
+.ss-segmented {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 360px;
+    border: 1px solid var(--ss-line-strong);
+    border-radius: var(--ss-radius-pill);
+    overflow: hidden;
+}
+
+.ss-segment {
+    min-height: 40px;
+    border: 0;
+    border-radius: 0;
+}
+
+.ss-segment + .ss-segment {
+    border-left: 1px solid var(--ss-line-strong);
+}
+
+.ss-segment:has(input:checked) {
+    border-color: var(--ss-line-strong);
+}
+
+/* Age error (board w03-states card 8). */
+.age-field.is-invalid .form-control {
+    border: 2px solid var(--ss-danger);
+}
+
+.field-error {
+    display: flex;
+    gap: var(--ss-space-4);
+    margin-top: var(--ss-space-4);
+    color: var(--ss-danger);
+    font-size: var(--ss-caption-size);
+    line-height: var(--ss-caption-line);
+}
+
+.field-error[hidden] {
+    display: none;
+}
+
+.targeting-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--ss-space-16);
+}
+
+.targeting-footer__note {
+    margin: 0;
+    color: var(--ss-ink-muted);
+    font-size: var(--ss-caption-size);
+}
+
+/* Reach card: one block per state, chosen by data-state; the copy lives in the template. */
+@media (min-width: 992px) {
+    .reach-column {
+        position: sticky;
+        top: 24px;
+    }
+}
+
+.reach-card .card-body {
+    padding: var(--ss-space-24);
+}
+
+.reach-card__main {
+    display: flex;
+    align-items: center;
+    gap: var(--ss-space-16);
+    margin: var(--ss-space-16) 0;
+}
+
+.reach-card__big {
+    margin: 0;
+    color: var(--ss-ink);
+    font-family: var(--ss-font-display);
+    font-size: var(--ss-title-size);
+    font-weight: 600;
+    line-height: var(--ss-title-line);
+    font-variant-numeric: tabular-nums;
+}
+
+.reach-card__line,
+.reach-card__note {
+    margin: var(--ss-space-4) 0 0;
+    color: var(--ss-ink-muted);
+    font-size: var(--ss-label-size);
+}
+
+.reach-card__note {
+    margin-bottom: var(--ss-space-16);
+}
+
+.reach-card__foot {
+    margin: var(--ss-space-16) 0 0;
+    padding-top: var(--ss-space-16);
+    border-top: 1px solid var(--ss-line);
+    color: var(--ss-ink-muted);
+    font-size: var(--ss-caption-size);
+    line-height: var(--ss-caption-line);
+}
+
+.reach-card [data-reach-for],
+.reach-card__updating {
+    display: none;
+}
+
+.reach-card[data-state="everyone"] [data-reach-for~="everyone"],
+.reach-card[data-state="narrowed"] [data-reach-for~="narrowed"],
+.reach-card[data-state="few"] [data-reach-for~="few"],
+.reach-card[data-state="none"] [data-reach-for~="none"],
+.reach-card[data-state="error"] [data-reach-for~="error"],
+.reach-card[data-state="invalid"] [data-reach-for~="invalid"] {
+    display: block;
+}
+
+/* Updating (W-03 state 5): the last result dims and the text line becomes "Updating". */
+.reach-card.is-updating .reach-card__ring,
+.reach-card.is-updating .reach-card__big {
+    opacity: 0.45;
+}
+
+.reach-card.is-updating [data-reach-for] .reach-card__line {
+    display: none;
+}
+
+.reach-card.is-updating .reach-card__updating {
+    display: block;
+}
+
+/* Publish confirmation (surveys/publish_confirm.html). */
+.publish-shell {
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+.publish-reach {
+    display: flex;
+    align-items: center;
+    gap: var(--ss-space-16);
+    padding-bottom: var(--ss-space-24);
+    border-bottom: 1px solid var(--ss-line);
+}
+
+.publish-section {
+    padding: var(--ss-space-24) 0;
+    border-bottom: 1px solid var(--ss-line);
+}
+
+.publish-section--row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--ss-space-16);
+}
+
+.publish-title {
+    margin: 0;
+    color: var(--ss-ink);
+    font-size: var(--ss-heading-size);
+    font-weight: 600;
+}
+
+.publish-link {
+    color: var(--ss-brand);
+    font-size: var(--ss-label-size);
+    font-weight: 600;
+}
+
+.publish-rows {
+    margin: var(--ss-space-12) 0 0;
+}
+
+.publish-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 1fr) 2.5fr;
+    gap: var(--ss-space-16);
+    padding: var(--ss-space-12) 0;
+    border-bottom: 1px solid var(--ss-line);
+}
+
+.publish-row dt {
+    color: var(--ss-ink-muted);
+    font-size: var(--ss-label-size);
+    font-weight: 500;
+}
+
+.publish-row dd {
+    margin: 0;
+    color: var(--ss-ink);
+}
+
+.publish-note,
+.publish-warning {
+    display: flex;
+    gap: var(--ss-space-12);
+    margin: var(--ss-space-24) 0 0;
+    padding: var(--ss-space-12) var(--ss-space-16);
+    border-radius: var(--ss-radius-sm);
+    font-size: var(--ss-label-size);
+}
+
+.publish-note {
+    color: var(--ss-ink);
+    background-color: var(--ss-brand-50);
+}
+
+.publish-warning {
+    color: var(--ss-ink);
+    background-color: var(--ss-accent-tint);
+}
+
+.publish-warning .bi {
+    color: var(--ss-warning-text);
+}
+
+.publish-warning p {
+    margin: 0;
+}
+
 @media (max-width: 991.98px) {
     .app-navbar .navbar-nav {
         padding: 0.75rem 0 0.25rem;

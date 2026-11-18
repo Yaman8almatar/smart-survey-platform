@@ -1,0 +1,12 @@
+{% comment %}
+Chips for one list field of TargetingListsForm (W-03). Each chip is a label holding the real,
+visually hidden checkbox, so it works by keyboard and shows its state without JavaScript.
+Usage: {% include "surveys/_chips.html" with field=form.regions labelledby="regions-title" %}
+{% endcomment %}<div class="ss-chips" role="group" aria-labelledby="{{ labelledby }}">
+    {% for choice in field %}
+        <label class="ss-chip" for="{{ choice.id_for_label }}">{{ choice.tag }}<i class="bi bi-check2 ss-chip__check" aria-hidden="true"></i><span>{{ choice.choice_label }}</span></label>
+    {% endfor %}
+</div>
+{% for error in field.errors %}
+    <div class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
+{% endfor %}
