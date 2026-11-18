@@ -17,3 +17,15 @@ def band(count):
     if count < MIN_GROUP_SIZE:
         return {"state": "few", "count": None}
     return {"state": "exact", "count": count}
+
+
+def results_open(response_count):
+    """Return whether a survey's results may be shown to its provider (P-20, D-168).
+
+    The rule covers the whole survey, not only filtered views: with FR-03 a provider can
+    target a combination that he knows holds one person, so the survey itself can be a
+    group of one, and a band on its counts cannot stop that because counts can be
+    subtracted. Below MIN_GROUP_SIZE responses no count, chart, rate or answer leaves the
+    services; every provider-facing view of answers goes through this function.
+    """
+    return response_count >= MIN_GROUP_SIZE

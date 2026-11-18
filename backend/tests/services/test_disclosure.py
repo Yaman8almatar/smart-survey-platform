@@ -2,7 +2,7 @@
 
 import pytest
 
-from services.disclosure import MIN_GROUP_SIZE, band
+from services.disclosure import MIN_GROUP_SIZE, band, results_open
 
 
 @pytest.mark.parametrize(
@@ -21,3 +21,12 @@ def test_band_hides_counts_from_one_to_four(count, expected):
 
 def test_min_group_size_is_five():
     assert MIN_GROUP_SIZE == 5
+
+
+@pytest.mark.parametrize(
+    ("response_count", "expected"),
+    [(0, False), (4, False), (5, True), (6, True)],
+)
+def test_results_open_from_five_responses(response_count, expected):
+    """P-20: a survey's results stay closed until it has MIN_GROUP_SIZE responses."""
+    assert results_open(response_count) is expected

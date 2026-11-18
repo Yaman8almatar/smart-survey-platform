@@ -18,6 +18,23 @@
             </a>
         </div>
 
+        {% if locked %}
+        <!-- P-20: results stay closed below min_responses -->
+        <div class="card table-card">
+            <div class="card-body">
+                <h2 class="section-title">Results open at {{ min_responses }} responses</h2>
+                {% if response_count == 0 %}
+                    <div class="empty-state">
+                        No responses have been submitted for this survey yet.
+                    </div>
+                {% elif survey.is_closed %}
+                    <p class="mb-0">This survey closed with {{ response_count }} response{{ response_count|pluralize }}. Its results stay hidden because fewer than {{ min_responses }} people answered.</p>
+                {% else %}
+                    <p class="mb-0">This survey has {{ response_count }} response{{ response_count|pluralize }}. Results stay hidden until at least {{ min_responses }} people have answered, so no answer can be traced back to one person.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
         <!-- Analytics summary cards -->
         <div class="row g-3 mb-4">
             <div class="col-sm-6 col-lg-3">
@@ -217,16 +234,17 @@
                 {% endif %}
             </div>
         {% endif %}
+        {% endif %}
     </div>
 </section>
 
-{% if has_responses %}
+{% if has_responses and not locked %}
     {{ question_chart_data|json_script:"question-chart-data" }}
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
-{% if has_responses %}
+{% if has_responses and not locked %}
     <script>
         if (typeof Chart === "undefined") {
             console.warn("Analytics dashboard: Chart.js is not available.");

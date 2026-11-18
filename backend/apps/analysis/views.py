@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
-from core.enums import QUESTION_TYPE_LABELS
+from core.enums import QUESTION_TYPE_LABELS, SurveyStatus
 from core.exceptions import SmartSurveyException
 from services.analysis_service import AnalysisService
 from services.survey_service import SurveyService
@@ -20,16 +20,28 @@ def analytics_dashboard(request, survey_id):
         messages.error(request, str(error), extra_tags="danger")
         return redirect("surveys:provider_dashboard")
 
-    results_view = _results_view(results)
     context = {
         "survey": _survey_row(survey),
-        "results": results_view,
-        "has_responses": results_view.get("response_count", 0) > 0,
-        "sentiment_chart_data": _sentiment_chart_data(results_view),
-        "question_chart_data": _question_chart_data(
-            results_view["question_summaries"],
-        ),
+        "locked": results["locked"],
+        "response_count": results["response_count"],
+        "min_responses": results["min_responses"],
     }
+    if results["locked"]:
+        # P-20: the service returned no results, so no chart data is built.
+        context["results"] = {"survey_id": results["survey_id"]}
+        return render(request, "analysis/analytics_dashboard.html", context)
+
+    results_view = _results_view(results)
+    context.update(
+        {
+            "results": results_view,
+            "has_responses": results_view.get("response_count", 0) > 0,
+            "sentiment_chart_data": _sentiment_chart_data(results_view),
+            "question_chart_data": _question_chart_data(
+                results_view["question_summaries"],
+            ),
+        }
+    )
     return render(request, "analysis/analytics_dashboard.html", context)
 
 
@@ -48,6 +60,7 @@ def _survey_row(survey):
         "id": survey.survey_id,
         "title": survey.title,
         "description": survey.description,
+        "is_closed": survey.status == SurveyStatus.CLOSED,
     }
 
 
