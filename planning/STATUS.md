@@ -1,13 +1,13 @@
-# STATUS — 2026-11-16
-Branch: feat/t9-remove-celery
-Task: TASK-30 — T-9 Part 2: remove the dormant Celery path (P-23), issue #72
-Done: Celery task, app, settings, pins and env lines removed; Redis kept for the throttle cache;
-  prod stack worker runs run_analysis_worker after a healthy web; README says how to run the worker;
-  malformed HF model URL raises AnalysisConfigError ("config") instead of being retried (D-151 (3)).
-Changes: 10 modified, 0 new, 2 deleted — docker-compose.prod.yml, config/settings.py, requirements.txt,
-  infrastructure/huggingface_client.py, apps/core/tasks.py + config/celery.py (deleted)
-Tests: 30 passed in 11.36s (test_health_and_infrastructure, test_huggingface_client, test_run_analysis_worker); full suites run in CI
+# STATUS — 2026-11-18
+Branch: fix/t9-app-submit-timeout
+Task: TASK-31 — T-9 app part: the submit uses the client's default timeout (15 s), issue #72
+Done: submitTimeout (60 s, K-02) removed; AnswerRepository.submit passes no timeout; screen comment
+  reworded without K-02 (logic unchanged); repository test now "submit uses the client's default timeout"
+  (expects null); existing test "a network failure then 409 on Try again counts as sent" covers the lost reply.
+Changes: 4 modified, 0 new, 0 deleted — features/answer/answer_repository.dart, features/answer/survey_answer_screen.dart,
+  test/features/answer/answer_repository_test.dart, planning/STATUS.md
+Tests: flutter test test/features/answer/: 86 passed (All tests passed!); flutter analyze: No issues found; full suites run in CI
 Check: OK (System check identified no issues (0 silenced))
-Committed: yes, in the TASK-30 work commit on feat/t9-remove-celery
-Open questions: diagrams/sequence-uc04-answer.md still describes USE_CELERY (diagrams/ out of scope)
-Next: "Prod stack smoke" green; advisor reads the diff; Hasan or Yousef approves; Yaman squash-merges.
+Committed: yes, in the TASK-31 work commit on fix/t9-app-submit-timeout
+Open questions: none
+Next: Flutter CI green; advisor reads the diff; Hasan or Yaman approves; Yaman squash-merges.

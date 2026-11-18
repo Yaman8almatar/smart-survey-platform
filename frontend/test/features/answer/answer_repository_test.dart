@@ -163,12 +163,12 @@ void main() {
       expect(result.submittedAt, DateTime.utc(2026, 11, 8, 14, 42));
     });
 
-    test('submit passes the 60 s timeout', () async {
+    test("submit uses the client's default timeout", () async {
       final api = _RecordingApi();
 
       await AnswerRepository(api: api).submit(1, const {});
 
-      expect(api.timeout, const Duration(seconds: 60));
+      expect(api.timeout, isNull);
     });
 
     test('trims text and leaves out a blank one', () async {
