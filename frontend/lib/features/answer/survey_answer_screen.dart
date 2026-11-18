@@ -207,7 +207,7 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   }
 
   void _sendFailed(ApiException error, List<int> sentIds) {
-    // A send that timed out may still have been saved (K-02).
+    // A send whose reply was lost may still have been saved.
     if (error.code == 'duplicate_response' && _networkFailed) {
       _showSent(sentIds.length, DateTime.now());
       return;

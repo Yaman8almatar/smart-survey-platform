@@ -6,9 +6,6 @@ import 'answer_models.dart';
 class AnswerRepository {
   AnswerRepository({required ApiClient api}) : _api = api;
 
-  /// The server may analyse open text inside the submit request (K-02).
-  static const Duration submitTimeout = Duration(seconds: 60);
-
   final ApiClient _api;
 
   Future<SurveyDetail> survey(int id) async {
@@ -21,7 +18,6 @@ class AnswerRepository {
     final json = await _api.post(
       'surveys/$id/responses/',
       body: _answersBody(answers),
-      timeout: submitTimeout,
     );
     return _parse(201, json, SubmitResult.fromJson);
   }
