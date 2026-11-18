@@ -57,6 +57,16 @@ class FakeHuggingFaceResponse:
         return None
 
 
+@pytest.fixture(autouse=True)
+def results_open_for_counting_tests(monkeypatch):
+    """These tests predate P-20 and read results of surveys with 1 to 4 responses.
+
+    They test counting, so the lock is opened here; it is tested at the real value
+    in test_results_lock.py.
+    """
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 0)
+
+
 @pytest.fixture
 def analysis_repository():
     return AnalysisRepository()
@@ -283,6 +293,8 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
     assert summary == {
         "survey_id": survey.survey_id,
         "response_count": 0,
+        "locked": False,
+        "min_responses": 0,
         "positive_count": 0,
         "neutral_count": 0,
         "negative_count": 0,

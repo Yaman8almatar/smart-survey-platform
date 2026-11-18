@@ -19,6 +19,16 @@ from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 
+@pytest.fixture(autouse=True)
+def results_open_for_counting_tests(monkeypatch):
+    """These tests predate P-20 and read results of surveys with 1 to 4 responses.
+
+    They test counting and charts, so the lock is opened here; it is tested at the
+    real value in test_results_lock.py.
+    """
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 0)
+
+
 NOTICE_BODY = (
     "The answers are saved and counted in the results. "
     "The analysis service could not process them."

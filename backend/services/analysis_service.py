@@ -16,6 +16,7 @@ from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
+from services import disclosure
 from services.text_language import detect_language
 
 
@@ -138,15 +139,24 @@ class AnalysisService:
         )
 
     def get_survey_results(self, provider_user, survey_id):
-        """Build survey analytics including sentiment counts and question-level summaries."""
+        """Build survey analytics; below the P-20 threshold return only the locked state."""
         self._ensure_survey_owner(provider_user, survey_id)
 
-        responses = self.response_repository.find_by_survey_id(survey_id)
+        response_count = self.response_repository.find_by_survey_id(survey_id).count()
+        min_responses = disclosure.MIN_GROUP_SIZE
+        if not disclosure.results_open(response_count):
+            # P-20: no answer, result or question is read for a locked survey.
+            return {
+                "survey_id": survey_id,
+                "response_count": response_count,
+                "locked": True,
+                "min_responses": min_responses,
+            }
+
         sentiment_results = self.analysis_repository.find_by_survey_id(survey_id)
         questions = self.question_repository.find_by_survey_id(survey_id)
         answers = self.response_repository.find_answers_by_survey_id(survey_id)
 
-        response_count = responses.count()
         positive_count = 0
         neutral_count = 0
         negative_count = 0
@@ -182,6 +192,8 @@ class AnalysisService:
         return {
             "survey_id": survey_id,
             "response_count": response_count,
+            "locked": False,
+            "min_responses": min_responses,
             "positive_count": positive_count,
             "neutral_count": neutral_count,
             "negative_count": negative_count,
