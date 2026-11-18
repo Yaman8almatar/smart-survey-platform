@@ -75,6 +75,14 @@ class HuggingFaceClient:
             raise error_class(
                 f"Hugging Face request failed with HTTP {status_code}."
             ) from exc
+        except (
+            requests.exceptions.InvalidURL,
+            requests.exceptions.MissingSchema,
+            requests.exceptions.InvalidSchema,
+            requests.exceptions.URLRequired,
+        ) as exc:
+            # A malformed model URL never passes later, so it is not retried.
+            raise AnalysisConfigError("HF_SENTIMENT_MODEL_URL is not a valid URL.") from exc
         except requests.RequestException as exc:
             # Timeouts, connection errors and other transport failures may pass later.
             raise AnalysisUnavailable("Hugging Face request failed.") from exc

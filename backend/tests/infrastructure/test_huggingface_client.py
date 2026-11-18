@@ -99,6 +99,31 @@ def test_missing_configuration_is_a_config_error(monkeypatch, api_token, model_u
     assert error.value.error_code == "config"
 
 
+@pytest.mark.parametrize(
+    "model_url",
+    ["not-a-url", "http://", "ftp://example.com/models/org/sentiment-model"],
+    ids=["missing-schema", "invalid-url", "invalid-schema"],
+)
+def test_malformed_model_url_is_a_config_error(model_url):
+    # The real requests.post rejects these URLs before it opens any connection.
+    client = HuggingFaceClient(api_token="test-token", model_url=model_url)
+
+    with pytest.raises(AnalysisConfigError) as error:
+        client.analyze_sentiment("Great service")
+
+    assert error.value.error_code == "config"
+
+
+def test_url_required_is_a_config_error(monkeypatch):
+    # requests does not raise URLRequired for a real URL, so the fake post raises it.
+    client = client_with(monkeypatch, requests.exceptions.URLRequired("no url"))
+
+    with pytest.raises(AnalysisConfigError) as error:
+        client.analyze_sentiment("Great service")
+
+    assert error.value.error_code == "config"
+
+
 def test_model_id_is_the_url_part_after_models():
     client = HuggingFaceClient(api_token="t", model_url=MODEL_URL)
 

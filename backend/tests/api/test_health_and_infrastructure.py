@@ -9,7 +9,6 @@ from core.enums import AccountStatus, Gender, UserType
 from repositories.health_repository import HealthRepository
 from repositories.response_repository import ResponseRepository
 from repositories.user_repository import UserRepository
-from apps.core.tasks import analyze_open_text_answers_task
 
 User = get_user_model()
 

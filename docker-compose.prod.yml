@@ -44,7 +44,14 @@ services:
     environment:
       RUN_MIGRATIONS: "false"
       COLLECT_STATIC: "false"
-    command: ["celery", "-A", "config", "worker", "-l", "info", "-c", "2"]
+    command: ["python", "manage.py", "run_analysis_worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
     healthcheck:
       disable: true
 

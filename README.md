@@ -313,10 +313,13 @@ Open:
 http://127.0.0.1:8000/
 ```
 
+Sentiment results stay waiting until the analysis worker runs. Start it in a third window from `backend\` with
+`..\.venv\Scripts\python.exe manage.py run_analysis_worker` (Ctrl+C stops it).
+
 ### Optional: production-style stack
 
 `docker-compose.prod.yml` is optional. Daily work and the demo use `docker-compose.yml` only.
-It runs PostgreSQL, Redis, the Gunicorn web server and one Celery worker under the project name
+It runs PostgreSQL, Redis, the Gunicorn web server and one analysis worker (`python manage.py run_analysis_worker`) under the project name
 `smart-survey-prod`, with its own database volume, so it never touches the demo database.
 
 ```powershell
