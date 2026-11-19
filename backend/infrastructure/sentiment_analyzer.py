@@ -6,7 +6,7 @@ from django.conf import settings
 
 from core.exceptions import AnalysisConfigError
 from infrastructure.huggingface_analyzer import HuggingFaceClient
-from infrastructure.local_analyzer import LocalTransformersAnalyzer
+from infrastructure.local_analyzer import LocalTransformersAnalyzer, read_manifest
 
 ADAPTERS = ("local", "huggingface")
 
@@ -40,13 +40,17 @@ class UnknownAnalyzer:
 
 
 def build_analyzer():
-    """Return the adapter named by settings.SENTIMENT_ANALYZER; never loads a model."""
+    """Return the adapter named by settings.SENTIMENT_ANALYZER; never loads a model.
+
+    The local adapter gets the committed manifest of the configured model id; a missing or
+    malformed manifest is empty and fails with config on first use, not here.
+    """
     name = settings.SENTIMENT_ANALYZER
     if name == "local":
         return LocalTransformersAnalyzer(
             model_path=settings.SENTIMENT_MODEL_PATH,
             model_id=settings.SENTIMENT_MODEL_ID,
-            weights_sha256=settings.SENTIMENT_MODEL_SHA256,
+            manifest=read_manifest(settings.SENTIMENT_MODEL_ID),
         )
     if name == "huggingface":
         return HuggingFaceClient()

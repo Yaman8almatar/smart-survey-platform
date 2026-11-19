@@ -8,6 +8,7 @@ CI and the Docker image never need them.
 import contextlib
 import hashlib
 import math
+import re
 from pathlib import Path
 
 from core.exceptions import (
@@ -20,6 +21,39 @@ EXPECTED_LABELS = {"negative", "neutral", "positive"}
 MAX_TOKENS = 512  # as T-2 (evaluation/run_models.py)
 HASH_CHUNK_BYTES = 1024 * 1024
 RUNTIME_HINT = "Install the model runtime: .venv\\Scripts\\python.exe -m pip install -r backend\\requirements-ml.txt"
+WEIGHTS_FILE = "model.safetensors"
+MANIFEST_DIR = Path(__file__).resolve().parent / "model_manifests"
+_MODEL_ID = re.compile(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)?")
+_MANIFEST_LINE = re.compile(r"([0-9a-f]{64})  ([A-Za-z0-9._-]+)")
+
+
+def manifest_path(model_id):
+    """Return the committed manifest file for a model id ("org/name" -> org__name.sha256)."""
+    return MANIFEST_DIR / f"{model_id.replace('/', '__')}.sha256"
+
+
+def read_manifest(model_id):
+    """Return {file name: SHA-256} from the model's committed manifest (sha256sum format).
+
+    Blank lines and lines starting with "#" are ignored. An unknown model id, a missing file or
+    any malformed line gives {}, which the analyzer refuses on first use.
+    """
+    if not isinstance(model_id, str) or not _MODEL_ID.fullmatch(model_id):
+        return {}
+    try:
+        text = manifest_path(model_id).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {}
+    manifest = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = _MANIFEST_LINE.fullmatch(line)
+        if not match or match.group(2) in manifest or match.group(2).startswith("."):
+            return {}
+        manifest[match.group(2)] = match.group(1)
+    return manifest
 
 
 def file_sha256(path):
@@ -34,17 +68,17 @@ def file_sha256(path):
 class LocalTransformersAnalyzer:
     """Labels text with a local sequence-classification model, loaded once per process.
 
-    The weights file must match the SHA-256 that T-2 evaluated; any other weights are refused.
+    Every file in `manifest` ({file name: SHA-256}, from read_manifest) must exist in the model
+    folder and match its value, so only the files T-2 evaluated are loaded.
     `loader` is a test seam: a callable returning (tokenizer, model, id2label) that replaces
     importing the runtime and loading from disk.
     """
 
-    def __init__(self, model_path, model_id, weights_sha256, weights_file="model.safetensors", loader=None):
+    def __init__(self, model_path, model_id, manifest, loader=None):
         """Store the configuration; nothing is read or loaded here."""
         self.model_path = (model_path or "").strip() if isinstance(model_path, str) else model_path
         self._model_id = model_id
-        self.weights_sha256 = (weights_sha256 or "").strip().lower()
-        self.weights_file = weights_file
+        self.manifest = dict(manifest or {})
         self._loader = loader
         self._tokenizer = None
         self._model = None
@@ -90,21 +124,27 @@ class LocalTransformersAnalyzer:
             raise
 
     def _load(self):
-        """Check the folder and the weights' SHA-256, then load the tokenizer and the model."""
+        """Check every manifest file's SHA-256, then load the tokenizer and the model."""
+        if not self.manifest:
+            raise AnalysisConfigError(
+                f"No valid manifest {manifest_path(self._model_id or '').name} in "
+                "backend/infrastructure/model_manifests/; unchecked model files are refused."
+            )
+        if WEIGHTS_FILE not in self.manifest:
+            raise AnalysisConfigError(f"The manifest does not list {WEIGHTS_FILE}; unchecked weights are refused.")
         if not self.model_path:
             raise AnalysisConfigError("SENTIMENT_MODEL_PATH is not configured.")
         folder = Path(self.model_path)
         if not folder.is_dir():
             raise AnalysisConfigError(f"Model folder not found: {folder}")
-        weights = folder / self.weights_file
-        if not weights.is_file():
-            raise AnalysisConfigError(f"Weights file not found: {weights}")
-        if not self.weights_sha256:
-            raise AnalysisConfigError("SENTIMENT_MODEL_SHA256 is not configured; unchecked weights are refused.")
-        if file_sha256(weights) != self.weights_sha256:
-            raise AnalysisConfigError(
-                f"{weights.name} does not match SENTIMENT_MODEL_SHA256; these are not the evaluated weights."
-            )
+        for name in self.manifest:
+            if not (folder / name).is_file():
+                raise AnalysisConfigError(f"Model file not found: {folder / name}")
+        for name, expected in self.manifest.items():
+            if file_sha256(folder / name) != expected:
+                raise AnalysisConfigError(
+                    f"{name} does not match the manifest; these are not the evaluated model files."
+                )
 
         if self._loader is not None:
             tokenizer, model, id2label = self._loader()

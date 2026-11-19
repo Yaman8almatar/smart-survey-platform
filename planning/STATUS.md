@@ -1,11 +1,12 @@
 # STATUS — 2026-11-19
-Branch: feat/fr05-local-model
-Task: TASK-39 FR-05 (#19): the worker analyses with M4 locally on the CPU, weights checked
-Done: SentimentAnalyzer gateway (local default, huggingface fallback); LocalTransformersAnalyzer loads M4 float32 once in the worker, refuses other SHA-256s; run_analysis_worker --check.
-Done: deployed check: 0/300 labels differ from T-2; macro-F1 ar 0.703, en 0.764, headline 0.733; p50 52 ms, p95 89 ms (T-2 263, 611).
-Changes: 12 modified, 2 renamed, 8 new, 0 deleted — backend/infrastructure/local_analyzer.py, sentiment_analyzer.py, services/analysis_service.py, evaluation/check_deployed.py, evaluation/results/deployed_check.md
-Tests: task files 190 passed in 10.94s; whole suite 826 passed in 40.38s; full suites run in CI
+Branch: chore/t9-smoke-model-manifest
+Task: TASK-40 (#72, #19): smoke runs `run_analysis_worker --once`; every model file checked against a committed manifest
+Done: prod smoke step "Worker command runs one batch" requires "No pending sentiment results."; M4 manifest (5 files, each verified against its Hub etag) replaces SENTIMENT_MODEL_SHA256.
+Done: LocalTransformersAnalyzer(model_path, model_id, manifest) refuses any missing or changed file; build_analyzer and check_deployed.py read it with read_manifest.
+Done: --check three labels; deployed check 0/300 differing, 5 of 5 files verified, load 7.76 s, p95 89 ms.
+Changes: 12 modified, 1 new, 0 deleted — backend/infrastructure/local_analyzer.py, model_manifests/clapAI__roberta-base-multilingual-sentiment.sha256, .github/workflows/prod-stack-smoke.yml, evaluation/check_deployed.py, backend/tests/infrastructure/test_local_analyzer.py
+Tests: task files 51 passed in 4.67s; whole suite 849 passed in 42.87s; full suites run in CI
 Check: OK (System check identified no issues)
-Committed: yes (feature commit on feat/fr05-local-model; start commit 10abdc2)
+Committed: yes (change commit on chore/t9-smoke-model-manifest; start commit aa0a79a)
 Open questions: none
-Next: review (advisor reads diff and deployed check; Yaman or Yousef approves; Yaman squash-merges)
+Next: review (advisor reads the diff; Hasan or Yousef approves; Yaman squash-merges)

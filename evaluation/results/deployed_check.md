@@ -11,10 +11,10 @@ A deployment check (D-178 (3)), not a new evaluation: the T-2 result in `results
 | transformers | 5.23.0 |
 | dtype | float32 (T-2 ran the stored float16) |
 | torch threads | 10 |
-| Load s (SHA-256 check and load) | 7.78 |
-| Weights | weights SHA-256 verified (`model.safetensors` `01234f0e63a987c7bd768b5eb4a047343844de0414b14fa4f6625f88698c7771`) |
+| Load s (manifest check and load) | 7.76 |
+| Files verified against the manifest | 5 of 5 (`backend/infrastructure/model_manifests/clapAI__roberta-base-multilingual-sentiment.sha256`) |
 | Item text SHA-256 = gold_v1_ids.csv | 300 of 300 |
-| Peak memory MB | 1783 |
+| Peak memory MB | 1779 |
 
 ## Labels against predictions_M4.csv
 

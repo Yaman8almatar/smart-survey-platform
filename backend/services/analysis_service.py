@@ -29,8 +29,9 @@ class AnalysisService:
 
     # Worker rules (T-9). A full batch ends well before LOCK_TIMEOUT, so a row that is
     # still being analysed is never reclaimed. Worst case per adapter: huggingface 8 calls
-    # x 15 s client timeout = 2 min; local the one-off model load (about 6 s in T-2) plus
-    # 8 CPU calls (p95 0.6 s in T-2, a few seconds for a 512-token text), under a minute.
+    # x 15 s client timeout = 2 min; local (float32) the manifest hashing and model load, about
+    # 8 to 18 s once per process, plus 8 CPU calls at p95 89 ms per item
+    # (evaluation/results/deployed_check.md), well under a minute.
     BATCH_SIZE = 8
     LOCK_TIMEOUT = timedelta(minutes=5)
     RETRY_DELAYS_SECONDS = (30, 120)  # after attempt 1 and attempt 2

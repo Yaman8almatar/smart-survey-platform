@@ -316,9 +316,10 @@ http://127.0.0.1:8000/
 Sentiment results stay waiting until the analysis worker runs. The worker labels open-text answers with M4
 (clapAI/roberta-base-multilingual-sentiment) on this laptop's CPU, with no network and no paid service; the web
 process never loads the model. Once, install the model runtime from the repository root with
-`.venv\Scripts\python.exe -m pip install -r backend\requirements-ml.txt`, and check that the four `SENTIMENT_` values
-from `backend\.env.example` are in `backend\.env` (the SHA-256 must be the evaluated weights' value, or the worker
-refuses to analyse). Then, from `backend\`, run `..\.venv\Scripts\python.exe manage.py run_analysis_worker --check`
+`.venv\Scripts\python.exe -m pip install -r backend\requirements-ml.txt`, and check that the three `SENTIMENT_` values
+from `backend\.env.example` are in `backend\.env`. Every model file is checked against the committed manifest in
+`backend\infrastructure\model_manifests\` (the files T-2 evaluated); any other file makes the worker refuse to
+analyse. Then, from `backend\`, run `..\.venv\Scripts\python.exe manage.py run_analysis_worker --check`
 (it labels three fixed sentences and exits) and start the worker in a third window with
 `..\.venv\Scripts\python.exe manage.py run_analysis_worker` (Ctrl+C stops it).
 
