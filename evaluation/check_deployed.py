@@ -3,8 +3,9 @@
 Runs the 300 gold_v1 test items one at a time through backend/infrastructure/local_analyzer.py
 (M4 in float32) and compares the labels with T-2's evaluation/results/predictions_M4.csv.
 Writes evaluation/results/deployed_check.md with no dataset text. The T-2 result is not changed.
+The model files are checked against the committed manifest in backend/infrastructure/model_manifests/.
 Standard library plus the model runtime. From the repository root:
-    .venv\\Scripts\\python.exe evaluation\\check_deployed.py [--model-path PATH] [--sha256 HEX]
+    .venv\\Scripts\\python.exe evaluation\\check_deployed.py [--model-path PATH]
 Exit code 2 when more than MAX_DIFFERENT labels differ (the stop rule).
 """
 
@@ -19,11 +20,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
-from infrastructure.local_analyzer import LocalTransformersAnalyzer  # noqa: E402
+from infrastructure.local_analyzer import (  # noqa: E402
+    LocalTransformersAnalyzer,
+    manifest_path,
+    read_manifest,
+)
 
 # The same values as backend/.env.example.
 DEFAULT_MODEL_PATH = r"C:\t2\models\m4"
-DEFAULT_SHA256 = "01234f0e63a987c7bd768b5eb4a047343844de0414b14fa4f6625f88698c7771"
 MODEL_ID = "clapAI/roberta-base-multilingual-sentiment"
 GOLD_TEXT = Path(r"C:\t2\data\gold_v1.csv")
 GOLD_IDS = ROOT / "evaluation" / "gold_v1_ids.csv"
@@ -86,7 +90,6 @@ def peak_memory_mb():
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH)
-    parser.add_argument("--sha256", default=DEFAULT_SHA256)
     args = parser.parse_args()
 
     texts = {row["id"]: row["text"] for row in read_csv(GOLD_TEXT)}
@@ -103,10 +106,13 @@ def main():
     import torch
     import transformers
 
-    analyzer = LocalTransformersAnalyzer(args.model_path, MODEL_ID, args.sha256)
+    analyzer = LocalTransformersAnalyzer(args.model_path, MODEL_ID, read_manifest(MODEL_ID))
     start = time.perf_counter()
-    analyzer._ensure_loaded()  # the adapter's own first-use step: SHA-256 check, then load
+    analyzer._ensure_loaded()  # the adapter's own first-use step: manifest check, then load
     load_s = time.perf_counter() - start
+    # The load raised unless every manifest file matched; the total counts every file in the folder.
+    verified = len(analyzer.manifest)
+    folder_files = sum(1 for path in Path(args.model_path).iterdir() if path.is_file())
     dtype = str(next(analyzer._model.parameters()).dtype).replace("torch.", "")
 
     analyzer.analyze_sentiment(texts[ids[0]])  # warm-up, not counted
@@ -143,9 +149,9 @@ def main():
         f"| transformers | {transformers.__version__} |",
         f"| dtype | {dtype} (T-2 ran the stored float16) |",
         f"| torch threads | {torch.get_num_threads()} |",
-        f"| Load s (SHA-256 check and load) | {load_s:.2f} |",
-        "| Weights | weights SHA-256 verified (`model.safetensors` "
-        f"`{analyzer.weights_sha256}`) |",
+        f"| Load s (manifest check and load) | {load_s:.2f} |",
+        f"| Files verified against the manifest | {verified} of {folder_files} "
+        f"(`backend/infrastructure/model_manifests/{manifest_path(MODEL_ID).name}`) |",
         f"| Item text SHA-256 = gold_v1_ids.csv | {text_hash_matches} of {len(ids)} |",
         f"| Peak memory MB | {f'{peak:.0f}' if peak is not None else 'not measured'} |",
         "",
@@ -178,6 +184,7 @@ def main():
     print(f"macro-F1 ar {f1['ar']:.3f} en {f1['en']:.3f} headline {f1['headline']:.3f}")
     print(f"p50 {p50:.0f} ms p95 {p95:.0f} ms load {load_s:.2f} s peak {peak if peak is None else round(peak)} MB "
           f"dtype {dtype} threads {torch.get_num_threads()}")
+    print(f"files verified against the manifest: {verified} of {folder_files}")
     print(f"wrote {OUTPUT.relative_to(ROOT)}")
     if len(different) > MAX_DIFFERENT:
         print(f"STOP: more than {MAX_DIFFERENT} labels differ.")

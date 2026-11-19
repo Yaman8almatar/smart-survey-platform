@@ -32,6 +32,14 @@ jobs:
       - name: Readiness answers 200
         run: test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/healthz/ready/)" = "200"
 
+      - name: Worker command runs one batch
+        run: |
+          status=0
+          output="$(docker compose -f docker-compose.prod.yml exec -T worker python manage.py run_analysis_worker --once 2>&1)" || status=$?
+          printf '%s\n' "$output"
+          test "$status" -eq 0
+          grep -qx "No pending sentiment results." <<< "$output"
+
       - name: Worker is running
         run: docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx worker
 

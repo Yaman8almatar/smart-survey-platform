@@ -1,0 +1,8 @@
+# M4 as evaluated in T-2 (PR #81): Hub repository clapAI/roberta-base-multilingual-sentiment,
+# commit 5986405bd6f2fbaf98b2a5568fdbc02d74546694, verified against the Hub etags on 2026-11-19 (TASK-40).
+# sha256sum format; the local analyzer refuses to load unless every file below matches.
+d46970508c8ee7a75451d9d669a2178e1f0af13fcf7fb540b32b4d7a77ba7c77  config.json
+01234f0e63a987c7bd768b5eb4a047343844de0414b14fa4f6625f88698c7771  model.safetensors
+06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f  special_tokens_map.json
+3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20  tokenizer.json
+6fad4d6385e29b05abc467af4707771008621f3671ae590e8549df22aeacb962  tokenizer_config.json
