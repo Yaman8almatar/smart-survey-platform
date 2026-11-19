@@ -1,27 +1,46 @@
 import hashlib
 import hmac
 import re
+from collections import defaultdict
 from datetime import timedelta
 
 from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
 
 from apps.core.models import ResponseQuality
-from core.enums import QuestionType
-from core.exceptions import QuestionNotFound, ValidationError
+from core.enums import QuestionType, UserType
+from core.exceptions import (
+    QuestionNotFound,
+    ResponseNotFound,
+    SurveyNotFound,
+    UnauthorizedAction,
+    ValidationError,
+)
 from repositories.quality_repository import QualityRepository
+from repositories.response_repository import ResponseRepository
+from repositories.survey_repository import SurveyRepository
+from services import disclosure, quality_rules
 
 
 class QualityService:
-    """FR-04 Part 1: validates and stores the evidence of a response; no flag, no score (P-01)."""
+    """FR-04: stores the evidence of a response at submit (Part 1); turns it into flags and a
+    score on read and stores the provider's include or exclude decision (Part 2).
+
+    Flags and scores are never stored (P-01) and never reach a respondent; nothing is
+    excluded automatically (P-08).
+    """
 
     MAX_ACTIVE_MS = 3_600_000
     # Slack between the app's active time and the server's wall time (DESIGN-INC2 2.4).
     WALL_TIME_SLACK = timedelta(seconds=10)
     DEVICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
 
-    def __init__(self, quality_repository=None):
-        """Wire the repository that writes the evidence row."""
+    def __init__(self, quality_repository=None, response_repository=None, survey_repository=None):
+        """Wire the repositories of the evidence, the responses and the survey owner check."""
         self.quality_repository = quality_repository or QualityRepository()
+        self.response_repository = response_repository or ResponseRepository()
+        self.survey_repository = survey_repository or SurveyRepository()
 
     def clean_timings(self, timings, question_ids):
         """Return the timings as plain entries; reject malformed, repeated or foreign ones."""
@@ -130,3 +149,178 @@ class QualityService:
         if question.question_type == QuestionType.MULTIPLE_CHOICE:
             return answer.selected_option_id
         return answer.rating_value
+
+    def evaluate_survey(self, provider_user, survey_id):
+        """Return the quality verdict of every submitted response of a survey; owner only.
+
+        Below disclosure.MIN_GROUP_SIZE responses only the locked state is returned and no
+        evidence is read (P-20). Otherwise four queries run, whatever the number of
+        responses: the survey, the response count, the responses with their evidence, and
+        the answered question types. No entry holds a device hash, a timing, the RSI, a
+        respondent id or a profile field (DESIGN-INC2 2.4, privacy limit 3).
+        """
+        self._ensure_survey_owner(provider_user, survey_id)
+        response_count = self.response_repository.find_by_survey_id(survey_id).count()
+        if not disclosure.results_open(response_count):
+            return {
+                "survey_id": survey_id,
+                "locked": True,
+                "response_count": response_count,
+                "min_responses": disclosure.MIN_GROUP_SIZE,
+            }
+
+        rows = self.quality_repository.find_evidence_by_survey_id(survey_id)
+        answered = defaultdict(dict)
+        for response_id, question_id, question_type in (
+            self.quality_repository.find_answered_questions_by_survey_id(survey_id)
+        ):
+            answered[response_id][question_id] = question_type
+
+        verdicts = quality_rules.evaluate(
+            self._rules_input(row, answered[row["response_id"]]) for row in rows
+        )
+        responses = [
+            {
+                "response_id": row["response_id"],
+                "submitted_at": row["submitted_at"],
+                "is_excluded": row["is_excluded"],
+                "status": verdict["status"],
+                "flags": verdict["flags"],
+                "not_checked": verdict["not_checked"],
+                "score": verdict["score"],
+                "band": verdict["band"],
+                "active_ms": row["quality__active_ms"],
+            }
+            for row, verdict in zip(rows, verdicts)
+        ]
+        responses.sort(
+            key=lambda entry: (
+                entry["status"] == quality_rules.BEFORE_CHECKS,
+                entry["score"] or 0,
+                entry["response_id"],
+            )
+        )
+
+        flag_counts = dict.fromkeys(quality_rules.FLAG_CODES, 0)
+        not_checked_counts = dict.fromkeys(quality_rules.FLAG_CODES, 0)
+        band_counts = dict.fromkeys(quality_rules.BANDS, 0)
+        for entry in responses:
+            for code in entry["flags"]:
+                flag_counts[code] += 1
+            for code in entry["not_checked"]:
+                not_checked_counts[code] += 1
+            if entry["band"] is not None:
+                band_counts[entry["band"]] += 1
+
+        return {
+            "survey_id": survey_id,
+            "locked": False,
+            "rules_version": quality_rules.RULES_VERSION,
+            "response_count": len(responses),
+            "included_count": sum(1 for entry in responses if not entry["is_excluded"]),
+            "before_checks_count": sum(
+                1 for entry in responses if entry["status"] == quality_rules.BEFORE_CHECKS
+            ),
+            "flag_counts": flag_counts,
+            "not_checked_counts": not_checked_counts,
+            "band_counts": band_counts,
+            "flagged_included_count": sum(
+                1 for entry in responses if entry["flags"] and not entry["is_excluded"]
+            ),
+            "responses": responses,
+        }
+
+    def set_inclusion(self, provider_user, survey_id, response_ids, excluded):
+        """Include or exclude responses of a survey; owner only, results open.
+
+        Every id must belong to the survey, otherwise nothing changes. Returns the number
+        of responses whose state changed.
+        """
+        self._ensure_survey_owner(provider_user, survey_id)
+        self._ensure_results_open(survey_id)
+        if not isinstance(excluded, bool):
+            raise ValidationError("Excluded must be true or false.")
+        if not isinstance(response_ids, (list, tuple, set)) or any(
+            type(response_id) is not int for response_id in response_ids
+        ):
+            raise ValidationError("Response ids must be a list of integers.")
+        return self._apply_inclusion(survey_id, set(response_ids), excluded)
+
+    def exclude_flagged(self, provider_user, survey_id):
+        """Exclude the responses that are flagged and included now (board W-04); return the count."""
+        evaluation = self.evaluate_survey(provider_user, survey_id)
+        if evaluation["locked"]:
+            raise ValidationError(self._locked_message())
+        flagged = {
+            entry["response_id"]
+            for entry in evaluation["responses"]
+            if entry["flags"] and not entry["is_excluded"]
+        }
+        return self._apply_inclusion(survey_id, flagged, True)
+
+    def include_all(self, provider_user, survey_id):
+        """Include every excluded response of a survey; return the count."""
+        self._ensure_survey_owner(provider_user, survey_id)
+        self._ensure_results_open(survey_id)
+        excluded = set(self.response_repository.find_excluded_ids_by_survey_id(survey_id))
+        return self._apply_inclusion(survey_id, excluded, False)
+
+    def _apply_inclusion(self, survey_id, response_ids, excluded):
+        """Set the inclusion of the given responses in one bulk update; return how many changed."""
+        if not response_ids:
+            return 0
+        with transaction.atomic():
+            states = self.response_repository.lock_exclusion_states(survey_id, response_ids)
+            if len(states) != len(response_ids):
+                raise ResponseNotFound("Response does not belong to this survey.")
+            changed = [
+                response_id for response_id, is_excluded in states.items() if is_excluded != excluded
+            ]
+            if changed:
+                self.response_repository.set_excluded(
+                    changed, excluded, timezone.now() if excluded else None
+                )
+        return len(changed)
+
+    def _rules_input(self, row, answered):
+        """Return the plain rules input of one evidence row."""
+        evidence = None
+        if row["quality__quality_id"] is not None:
+            evidence = {
+                "timings": row["quality__timings"],
+                "attention_total": row["quality__attention_total"],
+                "attention_failed": row["quality__attention_failed"],
+                "rating_count": row["quality__rating_count"],
+                "rating_all_same": row["quality__rating_all_same"],
+                "device_hash": row["quality__device_hash"],
+                "signals_ok": row["quality__signals_ok"],
+            }
+        return {
+            "response_id": row["response_id"],
+            "respondent_id": row["respondent_id"],
+            "answered": answered,
+            "evidence": evidence,
+        }
+
+    def _ensure_results_open(self, survey_id):
+        """Refuse a change while the survey's results are locked (P-20)."""
+        response_count = self.response_repository.find_by_survey_id(survey_id).count()
+        if not disclosure.results_open(response_count):
+            raise ValidationError(self._locked_message())
+
+    def _locked_message(self):
+        """Return the message of a refused change while results are locked."""
+        return f"Results open at {disclosure.MIN_GROUP_SIZE} responses."
+
+    def _ensure_survey_owner(self, provider_user, survey_id):
+        """Ensure only the provider who owns the survey can read or change its quality;
+        the same errors as AnalysisService._ensure_survey_owner."""
+        if provider_user.user_type != UserType.SERVICE_PROVIDER:
+            raise UnauthorizedAction("Only service providers can view survey analytics.")
+
+        survey = self.survey_repository.find_by_id(survey_id)
+        if survey is None:
+            raise SurveyNotFound("Survey not found.")
+
+        if survey.provider_id != provider_user.user_id:
+            raise UnauthorizedAction("Only the survey owner can view survey analytics.")

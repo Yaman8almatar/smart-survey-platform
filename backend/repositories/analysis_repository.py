@@ -33,6 +33,10 @@ class AnalysisRepository:
             answer__response__survey_id=survey_id
         ).select_related("answer", "answer__response", "answer__response__survey")
 
+    def find_included_by_survey_id(self, survey_id):
+        """Return the sentiment results of a survey's responses that are not excluded."""
+        return self.find_by_survey_id(survey_id).filter(answer__response__is_excluded=False)
+
     def claim_batch(self, limit, now, stale_before, max_attempts, expired_error_code):
         """Lock up to limit due rows and mark them RUNNING; return (claimed, expired).
 

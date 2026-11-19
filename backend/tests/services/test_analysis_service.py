@@ -293,6 +293,7 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
     assert summary == {
         "survey_id": survey.survey_id,
         "response_count": 0,
+        "included_count": 0,
         "locked": False,
         "min_responses": 0,
         "positive_count": 0,

@@ -148,7 +148,12 @@ class AnalysisService:
         )
 
     def get_survey_results(self, provider_user, survey_id):
-        """Build survey analytics; below the P-20 threshold return only the locked state."""
+        """Build survey analytics; below the P-20 threshold return only the locked state.
+
+        The lock and response_count count every submitted response, so an exclusion never
+        locks the results again (P-08). The charts and sentiment counts use the responses
+        the provider has not excluded, and leave attention questions out.
+        """
         self._ensure_survey_owner(provider_user, survey_id)
 
         response_count = self.response_repository.find_by_survey_id(survey_id).count()
@@ -162,9 +167,13 @@ class AnalysisService:
                 "min_responses": min_responses,
             }
 
-        sentiment_results = self.analysis_repository.find_by_survey_id(survey_id)
-        questions = self.question_repository.find_by_survey_id(survey_id)
-        answers = self.response_repository.find_answers_by_survey_id(survey_id)
+        sentiment_results = self.analysis_repository.find_included_by_survey_id(survey_id)
+        questions = [
+            question
+            for question in self.question_repository.find_by_survey_id(survey_id)
+            if not question.is_attention_check
+        ]
+        answers = self.response_repository.find_included_answers_by_survey_id(survey_id)
 
         positive_count = 0
         neutral_count = 0
@@ -203,6 +212,7 @@ class AnalysisService:
         return {
             "survey_id": survey_id,
             "response_count": response_count,
+            "included_count": self.response_repository.count_included_by_survey_id(survey_id),
             "locked": False,
             "min_responses": min_responses,
             "positive_count": positive_count,
