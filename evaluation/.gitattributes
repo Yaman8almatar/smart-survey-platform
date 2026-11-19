@@ -1,0 +1,2 @@
+# Keep the id and result files byte-identical on every checkout, so their SHA-256 stays checkable.
+*.csv -text

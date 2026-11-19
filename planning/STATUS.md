@@ -1,11 +1,11 @@
-# STATUS — 2026-11-18
-Branch: feat/w05a-sentiment-panel
-Task: TASK-36 — W-05a: the sentiment panel of the analytics page (T-9, #72)
-Done: "Sentiment of open answers" panel in six states (count line, worker hint, failed reasons + Retry, doughnut with centre total, captions);
-  overdue rule by due time (oldest_due_at, has_stale_running, OVERDUE_AFTER); reset_failed sets next_attempt_at=now; retry refused while locked.
-Changes: 10 modified, 2 new, 0 deleted — services/analysis_service.py, repositories/analysis_repository.py, apps/analysis/views.py, analytics_dashboard.html, tests/views/test_analytics_sentiment_panel_view.py
-Tests: 6 files (test_analysis_worker, test_analysis_service, test_results_lock, test_analytics_dashboard_view, test_analytics_results_lock_view, test_analytics_sentiment_panel_view): 103 passed; whole suite once (D-169): 794 passed in 41.29s
-Check: OK (System check identified no issues; makemigrations --check: No changes detected; node --check site.js OK)
-Committed: yes (work commit on feat/w05a-sentiment-panel, see PR)
-Open questions: none; the panel is not checked in a browser (no server started, D-103), covered by the view tests
-Next: advisor reads the diff after Django CI is green; Yaman or Yousef approves; Yaman squash-merges
+# STATUS — 2026-11-19
+Branch: feat/t2-model-evaluation
+Task: TASK-37 — T-2: choose the sentiment model by the NFR-07 protocol (evaluation only, #36)
+Done: protocol v1 then v1.1 frozen before any run; gold_v1 (150 ar + 150 en, every cell full) after the overlap filter (1,845 dropped);
+  M0-M5 and R1 (M5 ar + M4 en) run on CPU; winner M4 (clapAI/roberta-base-multilingual-sentiment), tied with R1, decided by rule 4b (neutral recall).
+Changes: 1 modified (planning/STATUS.md), 28 new, 0 deleted — evaluation/PROTOCOL.md, LEAKAGE.md, *.py, gold_v1_ids.csv, results/results.md
+Tests: skipped (no backend, tools or frontend code changes); audit_agreement.py reports blank audit files and exits 0; full suites run in CI
+Check: OK (System check identified no issues (0 silenced).)
+Committed: yes (start 6e23c40, protocol da60431, gold set 14a5709, protocol v1.1 6eb82a1, results: see PR)
+Open questions: M4 p95 latency 611 ms on CPU (worker load in FR-05); members still to fill C:\t2\audit\ (about 20 min each)
+Next: advisor reads results and diff (D-129); Yaman approves and squash-merges; FR-05 wires M4 into the worker
