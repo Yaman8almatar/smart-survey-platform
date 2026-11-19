@@ -1,12 +1,12 @@
 # STATUS — 2026-11-19
-Branch: chore/t9-smoke-model-manifest
-Task: TASK-40 (#72, #19): smoke runs `run_analysis_worker --once`; every model file checked against a committed manifest
-Done: prod smoke step "Worker command runs one batch" requires "No pending sentiment results."; M4 manifest (5 files, each verified against its Hub etag) replaces SENTIMENT_MODEL_SHA256.
-Done: LocalTransformersAnalyzer(model_path, model_id, manifest) refuses any missing or changed file; build_analyzer and check_deployed.py read it with read_manifest.
-Done: --check three labels; deployed check 0/300 differing, 5 of 5 files verified, load 7.76 s, p95 89 ms.
-Changes: 12 modified, 1 new, 0 deleted — backend/infrastructure/local_analyzer.py, model_manifests/clapAI__roberta-base-multilingual-sentiment.sha256, .github/workflows/prod-stack-smoke.yml, evaluation/check_deployed.py, backend/tests/infrastructure/test_local_analyzer.py
-Tests: task files 51 passed in 4.67s; whole suite 849 passed in 42.87s; full suites run in CI
-Check: OK (System check identified no issues)
-Committed: yes (change commit on chore/t9-smoke-model-manifest; start commit aa0a79a)
+Branch: feat/fr04-evidence
+Task: TASK-41 — FR-04 Part 1: evidence at submit, attention questions, response snapshot; respondent web pages retired
+Done: ResponseQuality (timings, active_ms, attention, rating facts, keyed device hash, signals_ok) and the profile snapshot are written in the submit transaction; drafts keep cumulative timings.
+  Attention checks (max 2, MC/rating, forced required, expected answer) in QuestionService and the publish check; delete_survey refuses a survey with responses.
+  Six respondent web pages removed; /respondent/ sends respondents to the app. Migrations 0012 (schema) and 0013 (snapshot fill).
+Changes: 26 modified, 12 new, 7 deleted — backend/services/quality_service.py, backend/services/response_service.py, backend/apps/core/migrations/0012-0013, backend/apps/responses/, planning/API.md
+Tests: task files 158 passed in 16.66s; whole suite 942 passed in 47.15s (once, before commit); full suites run in CI
+Check: OK
+Committed: yes (start commit d030c3e; change commit holds this file)
 Open questions: none
-Next: review (advisor reads the diff; Hasan or Yousef approves; Yaman squash-merges)
+Next: TASK-42 — flags, score and include/exclude from the stored evidence

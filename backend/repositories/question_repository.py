@@ -25,6 +25,10 @@ class QuestionRepository:
             Prefetch("options", queryset=QuestionOption.objects.order_by("order_index", "option_id"))
         )
 
+    def count_attention_checks(self, survey_id):
+        """Return how many attention-check questions a survey holds."""
+        return Question.objects.filter(survey_id=survey_id, is_attention_check=True).count()
+
     def update(self, question):
         """Persist changes to a question."""
         question.save()

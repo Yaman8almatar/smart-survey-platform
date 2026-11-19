@@ -45,7 +45,7 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | GET | `/surveys/eligible/` | respondent | 200 `[{id,title,description,question_count}]` | 401, 403 |
 | GET | `/surveys/{id}/` | respondent | 200 `{id,title,description,questions[]}` | 401, 403, 404, 409 |
 | POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409 |
-| GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,started_at,updated_at}` | 401, 403, 404, 409 |
+| GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,timings,started_at,updated_at}` | 401, 403, 404, 409 |
 | PUT | `/surveys/{id}/draft/` | respondent | 200 draft | 400, 401, 403, 404, 409 |
 | DELETE | `/surveys/{id}/draft/` | respondent | 204 | 401, 403, 404, 409 |
 | GET | `/me/responses/` | respondent | 200 `[{survey_id,title,description,submitted_at}]` | 401, 403 |
@@ -92,6 +92,7 @@ Submit body:
 Use `selected_option_id` for multiple choice, `rating_value` (1 to 5) for rating, `answer_value` for open text. Optional questions may be left out.
 
 A successful submit deletes the draft; the response keeps the draft's started_at (not exposed in the API yet; for FR-18).
+Submit and draft save also take optional quality evidence; see Quality signals.
 
 ## Drafts (FR-06)
 A respondent's unsent answers are kept per survey until the respondent submits them. Each respondent has at most one draft per survey.
@@ -119,6 +120,7 @@ A respondent's unsent answers are kept per survey until the respondent submits t
    {"question_id": 1, "selected_option_id": 2},
    {"question_id": 3, "answer_value": "Clear so far."}
  ],
+ "timings": [],
  "started_at": "2026-11-08T09:30:00Z",
  "updated_at": "2026-11-08T09:34:00Z"}
 ```
@@ -136,6 +138,34 @@ Errors. The first five rows apply to all three calls and are checked in this ord
 | 400 | `validation_error` | `PUT` only: the body is malformed, a `question_id` is repeated, an `answer_value` is over 2000 characters, a rating is outside 1 to 5, an option belongs to another question, or a field does not fit the question type. |
 | 404 | `question_not_found` | `PUT` only: a `question_id` does not belong to the survey. |
 | 401 | `not_authenticated` | No token was sent (all three calls). |
+
+## Quality signals (FR-04)
+The app may send evidence of how a survey was answered. Both fields are optional and additive: a client that sends
+neither works as before, and the 201 body of a submit is unchanged.
+
+| Field | Where | Shape |
+|---|---|---|
+| `timings` | `PUT /surveys/{id}/draft/`, `POST /surveys/{id}/responses/` | `[{"question_id": 3, "active_ms": 15800}]`: cumulative active time per question, `active_ms` an integer from 0 to 3,600,000, one entry per question at most |
+| `device_id` | `POST /surveys/{id}/responses/` | the app's install id, 16 to 64 characters from `A-Z a-z 0-9 _ -` |
+
+```json
+{"answers": [{"question_id": 1, "selected_option_id": 2}],
+ "timings": [{"question_id": 1, "active_ms": 4200}],
+ "device_id": "3f9c2a7e-51b4-4d0e-9a3c-7b1d2e8f6a40"}
+```
+- Draft save: sent `timings` replace the stored ones (the app sends cumulative values); a save without the key keeps
+  them. The draft 200 body returns `timings` (`[]` until one is sent).
+- Submit: its own `timings` are used when sent, else the draft's.
+- Errors: a malformed entry, a repeated `question_id`, an `active_ms` outside the range or a `device_id` that does not
+  match the format give 400 `validation_error`; a `question_id` outside the survey gives 404 `question_not_found`
+  (the same as for answers).
+- **Evidence never rejects a response.** Missing or inconsistent evidence (no timings, no device id, no draft, or a
+  total active time above the server's wall time plus 10 s) still gives 201; the server only records that the
+  evidence is incomplete.
+- The device id is stored only as a keyed hash (HMAC-SHA256 with `DEVICE_HASH_KEY`, separate from `SECRET_KEY`);
+  the raw id is stored and logged nowhere.
+- Providers may mark up to two questions as attention checks. No attention field (`is_attention_check`, the expected
+  answer) is ever returned: questions keep exactly the seven fields listed above.
 
 ## Error shape
 Every error, including 401 and 403, has one shape. `fields` appears only for input validation errors.

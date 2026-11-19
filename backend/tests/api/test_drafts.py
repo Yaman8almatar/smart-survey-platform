@@ -43,7 +43,7 @@ def test_put_returns_the_stored_shape(client, authenticate, respondent, survey):
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"survey_id", "answers", "started_at", "updated_at"}
+    assert set(body) == {"survey_id", "answers", "timings", "started_at", "updated_at"}
     assert body["survey_id"] == survey.survey_id
     assert body["answers"] == answers
 

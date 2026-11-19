@@ -32,6 +32,25 @@ def test_missing_secret_key_is_allowed_when_debug_is_true():
 
 
 def test_configured_secret_key_starts_when_debug_is_false():
-    result = import_settings(SECRET_KEY="configured-secret-key", DEBUG="False")
+    result = import_settings(
+        SECRET_KEY="configured-secret-key",
+        DEVICE_HASH_KEY="configured-device-hash-key",
+        DEBUG="False",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_missing_device_hash_key_fails_startup_when_debug_is_false():
+    result = import_settings(
+        SECRET_KEY="configured-secret-key", DEVICE_HASH_KEY="", DEBUG="False"
+    )
+
+    assert result.returncode != 0
+    assert "DEVICE_HASH_KEY must be set" in result.stderr
+
+
+def test_missing_device_hash_key_is_allowed_when_debug_is_true():
+    result = import_settings(DEVICE_HASH_KEY="", DEBUG="True")
 
     assert result.returncode == 0, result.stderr

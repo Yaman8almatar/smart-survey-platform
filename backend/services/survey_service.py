@@ -73,6 +73,10 @@ class SurveyService:
         if not survey.can_delete():
             raise NotEditable("Only draft or closed surveys can be deleted.")
 
+        # P-06: responses are evidence; a survey that has them is kept (A-219).
+        if self.response_repository.survey_has_responses(survey.survey_id):
+            raise NotEditable("A survey that has responses cannot be deleted.")
+
         return self.survey_repository.delete(survey.survey_id)
 
     def publish_survey(self, provider_user, survey_id):
@@ -118,6 +122,11 @@ class SurveyService:
                 raise ValidationError(
                     "Multiple-choice questions need at least two options before publishing."
                 )
+            # The expected option may have been deleted since (SET_NULL).
+            if question.is_attention_check and (
+                question.expected_option_id is None and question.expected_rating is None
+            ):
+                raise ValidationError("An attention check needs its expected answer.")
 
         criteria = self.targeting_repository.find_by_survey_id(survey.survey_id)
         if criteria is None:
@@ -155,21 +164,6 @@ class SurveyService:
             }
             for survey in self.survey_repository.find_by_provider_id(provider_user.user_id)
         ]
-
-    def get_eligible_surveys(self, respondent_user):
-        """Return published unanswered surveys matching a respondent profile."""
-        self._ensure_respondent(respondent_user)
-
-        profile = self.profile_repository.find_by_user_id(respondent_user.user_id)
-        if profile is None or not profile.is_complete():
-            return []
-
-        return list(
-            self.survey_repository.find_eligible_for_respondent(
-                profile=profile,
-                respondent_user_id=respondent_user.user_id,
-            )
-        )
 
     def get_eligible_survey_items(self, respondent_user):
         """Return eligible surveys with their question counts."""
