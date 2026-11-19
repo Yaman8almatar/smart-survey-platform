@@ -8,7 +8,7 @@ from core.exceptions import (
     AnalysisUnavailable,
     ExternalAnalysisServiceError,
 )
-from infrastructure.huggingface_client import HuggingFaceClient
+from infrastructure.huggingface_analyzer import HuggingFaceClient
 
 MODEL_URL = "https://router.huggingface.co/hf-inference/models/org/sentiment-model"
 
@@ -37,7 +37,7 @@ def client_with(monkeypatch, outcome):
             raise outcome
         return outcome
 
-    monkeypatch.setattr("infrastructure.huggingface_client.requests.post", fake_post)
+    monkeypatch.setattr("infrastructure.huggingface_analyzer.requests.post", fake_post)
     return HuggingFaceClient(api_token="test-token", model_url=MODEL_URL)
 
 
@@ -90,7 +90,7 @@ def test_missing_configuration_is_a_config_error(monkeypatch, api_token, model_u
     def fail_post(*args, **kwargs):
         raise AssertionError("The gateway must not be called without configuration.")
 
-    monkeypatch.setattr("infrastructure.huggingface_client.requests.post", fail_post)
+    monkeypatch.setattr("infrastructure.huggingface_analyzer.requests.post", fail_post)
     client = HuggingFaceClient(api_token=api_token, model_url=model_url)
 
     with pytest.raises(AnalysisConfigError) as error:

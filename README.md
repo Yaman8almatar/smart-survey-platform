@@ -289,7 +289,7 @@ pip install -r backend\requirements.txt
 copy backend\.env.example backend\.env
 ```
 
-Edit `backend\.env` and set `SECRET_KEY` and `HF_API_TOKEN`. The database values already match
+Edit `backend\.env` and set `SECRET_KEY`. The database values already match
 `docker-compose.yml` (`DB_HOST=127.0.0.1`, `DB_PORT=5432`). Never commit `backend\.env`.
 
 ### 4. Start PostgreSQL (repository root)
@@ -313,7 +313,13 @@ Open:
 http://127.0.0.1:8000/
 ```
 
-Sentiment results stay waiting until the analysis worker runs. Start it in a third window from `backend\` with
+Sentiment results stay waiting until the analysis worker runs. The worker labels open-text answers with M4
+(clapAI/roberta-base-multilingual-sentiment) on this laptop's CPU, with no network and no paid service; the web
+process never loads the model. Once, install the model runtime from the repository root with
+`.venv\Scripts\python.exe -m pip install -r backend\requirements-ml.txt`, and check that the four `SENTIMENT_` values
+from `backend\.env.example` are in `backend\.env` (the SHA-256 must be the evaluated weights' value, or the worker
+refuses to analyse). Then, from `backend\`, run `..\.venv\Scripts\python.exe manage.py run_analysis_worker --check`
+(it labels three fixed sentences and exits) and start the worker in a third window with
 `..\.venv\Scripts\python.exe manage.py run_analysis_worker` (Ctrl+C stops it).
 
 ### Optional: production-style stack

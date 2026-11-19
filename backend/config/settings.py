@@ -137,6 +137,16 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.api.exceptions.api_exception_handler",
 }
 
+# Sentiment analyzer (FR-05). "local" runs M4 in the worker process only; "huggingface" is the
+# remote fallback and reads HF_API_TOKEN and HF_SENTIMENT_MODEL_URL itself. A blank SHA-256
+# refuses to analyse rather than run unchecked weights.
+SENTIMENT_ANALYZER = os.getenv("SENTIMENT_ANALYZER", "local").strip()
+SENTIMENT_MODEL_PATH = os.getenv("SENTIMENT_MODEL_PATH", "").strip()
+SENTIMENT_MODEL_ID = os.getenv(
+    "SENTIMENT_MODEL_ID", "clapAI/roberta-base-multilingual-sentiment"
+).strip()
+SENTIMENT_MODEL_SHA256 = os.getenv("SENTIMENT_MODEL_SHA256", "").strip()
+
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 if REDIS_URL:
     CACHES = {
