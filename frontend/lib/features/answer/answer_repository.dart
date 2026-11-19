@@ -1,12 +1,16 @@
 import '../../core/api/api_client.dart';
 import '../../core/api/api_exception.dart';
+import '../../core/device_id_store.dart';
 import 'answer_models.dart';
 
 /// The only class that calls the survey detail and response endpoints.
 class AnswerRepository {
-  AnswerRepository({required ApiClient api}) : _api = api;
+  AnswerRepository({required ApiClient api, required DeviceIdStore deviceIds})
+    : _api = api,
+      _deviceIds = deviceIds;
 
   final ApiClient _api;
+  final DeviceIdStore _deviceIds;
 
   Future<SurveyDetail> survey(int id) async {
     final json = await _api.get('surveys/$id/');
@@ -14,12 +18,31 @@ class AnswerRepository {
   }
 
   /// Sends [answers], keyed by question id. A blank text counts as no answer.
-  Future<SubmitResult> submit(int id, Map<int, Answer> answers) async {
+  ///
+  /// FR-04: adds [timings] (active ms by question id) when given, and the
+  /// install ID when the store gives one; evidence never stops the send.
+  Future<SubmitResult> submit(
+    int id,
+    Map<int, Answer> answers, {
+    Map<int, int>? timings,
+  }) async {
     final json = await _api.post(
       'surveys/$id/responses/',
-      body: _answersBody(answers),
+      body: {
+        ..._answersBody(answers),
+        'timings': ?_timingsBody(timings),
+        'device_id': ?await _deviceId(),
+      },
     );
     return _parse(201, json, SubmitResult.fromJson);
+  }
+
+  Future<String?> _deviceId() async {
+    try {
+      return await _deviceIds.readOrCreate();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// The saved draft of survey [id], or null when the respondent has none.
@@ -35,8 +58,17 @@ class AnswerRepository {
   }
 
   /// Replaces the saved draft with [answers]. A blank text counts as no answer.
-  Future<void> saveDraft(int id, Map<int, Answer> answers) async {
-    await _api.put('surveys/$id/draft/', body: _answersBody(answers));
+  ///
+  /// Sent [timings] replace the stored ones; without them the server keeps them.
+  Future<void> saveDraft(
+    int id,
+    Map<int, Answer> answers, {
+    Map<int, int>? timings,
+  }) async {
+    await _api.put(
+      'surveys/$id/draft/',
+      body: {..._answersBody(answers), 'timings': ?_timingsBody(timings)},
+    );
   }
 
   Future<void> deleteDraft(int id) async {
@@ -48,6 +80,14 @@ class AnswerRepository {
       for (final entry in answers.entries) ?_answerBody(entry.key, entry.value),
     ],
   };
+
+  static List<Map<String, int>>? _timingsBody(Map<int, int>? timings) =>
+      timings == null
+      ? null
+      : [
+          for (final entry in timings.entries)
+            {'question_id': entry.key, 'active_ms': entry.value},
+        ];
 
   static Map<String, Object>? _answerBody(int questionId, Answer answer) {
     final text = answer.text?.trim();

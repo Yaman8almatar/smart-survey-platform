@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:smart_survey_app/core/api/api_client.dart';
 import 'package:smart_survey_app/core/api/token_store.dart';
+import 'package:smart_survey_app/core/device_id_store.dart';
 import 'package:smart_survey_app/features/answer/answer_repository.dart';
 import 'package:smart_survey_app/features/auth/auth_repository.dart';
 import 'package:smart_survey_app/features/profile/profile_repository.dart';
@@ -33,12 +34,17 @@ const Map<String, Object> respondentJson = {
   'role': 'RESPONDENT',
 };
 
+/// The install ID [TestApi] sends by default.
+const String testDeviceId = '0123456789abcdef0123456789abcdef';
+
 /// Real client and repositories over a fake HTTP handler; no network.
 class TestApi {
   TestApi(
     Future<http.Response> Function(http.Request request) handler, {
     MemoryTokenStore? tokens,
-  }) : tokens = tokens ?? MemoryTokenStore() {
+    DeviceIdStore? deviceIds,
+  }) : tokens = tokens ?? MemoryTokenStore(),
+       deviceIds = deviceIds ?? MemoryDeviceIdStore(id: testDeviceId) {
     api = ApiClient(
       httpClient: MockClient(handler),
       tokenStore: this.tokens,
@@ -47,10 +53,11 @@ class TestApi {
     auth = AuthRepository(api: api, tokens: this.tokens);
     surveys = SurveysRepository(api: api);
     profile = ProfileRepository(api: api);
-    answers = AnswerRepository(api: api);
+    answers = AnswerRepository(api: api, deviceIds: this.deviceIds);
   }
 
   final MemoryTokenStore tokens;
+  final DeviceIdStore deviceIds;
   late final ApiClient api;
   late final AuthRepository auth;
   late final SurveysRepository surveys;

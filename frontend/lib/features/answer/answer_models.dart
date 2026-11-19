@@ -112,6 +112,7 @@ class SurveyDraft {
     required this.answers,
     required this.startedAt,
     required this.updatedAt,
+    this.timings = const {},
   });
 
   factory SurveyDraft.fromJson(Map<String, dynamic> json) {
@@ -121,6 +122,10 @@ class SurveyDraft {
           item['question_id'] as int: ?_answerFrom(
             item as Map<String, dynamic>,
           ),
+      },
+      timings: {
+        for (final item in (json['timings'] as List?) ?? const [])
+          item['question_id'] as int: item['active_ms'] as int,
       },
       startedAt: DateTime.parse(json['started_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -138,6 +143,9 @@ class SurveyDraft {
 
   /// Keyed by question id.
   final Map<int, Answer> answers;
+
+  /// FR-04: saved active milliseconds, keyed by question id.
+  final Map<int, int> timings;
   final DateTime startedAt;
   final DateTime updatedAt;
 
@@ -156,6 +164,7 @@ class SurveyDraft {
     if (kept.isEmpty) return null;
     return SurveyDraft(
       answers: kept,
+      timings: timings,
       startedAt: startedAt,
       updatedAt: updatedAt,
     );

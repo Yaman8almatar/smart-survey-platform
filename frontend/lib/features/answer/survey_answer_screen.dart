@@ -10,6 +10,7 @@ import '../../widgets/open_text_field.dart';
 import '../../widgets/rating_scale.dart';
 import '../../widgets/signal_ring.dart';
 import '../profile/profile_hero.dart';
+import 'active_time.dart';
 import 'answer_models.dart';
 import 'answer_repository.dart';
 import 'survey_parts.dart';
@@ -32,6 +33,9 @@ class SurveyAnswerScreen extends StatefulWidget {
     required this.onSessionExpired,
     this.initialAnswers = const {},
     this.initialIndex = 0,
+    this.draftExists = false,
+    this.initialTimings = const {},
+    this.clock,
   });
 
   final AnswerRepository answerRepository;
@@ -44,21 +48,46 @@ class SurveyAnswerScreen extends StatefulWidget {
   /// The first question shown; `survey.questions.length` means the review.
   final int initialIndex;
 
+  /// The server holds a draft; when false, opening saves the start mark.
+  final bool draftExists;
+
+  /// FR-04: active ms restored from the draft, keyed by question id.
+  final Map<int, int> initialTimings;
+
+  /// Monotonic milliseconds for active time; null means a running stopwatch.
+  final ElapsedClock? clock;
+
   @override
   State<SurveyAnswerScreen> createState() => _SurveyAnswerScreenState();
 }
 
 enum _SaveResult { saved, failed, stopped }
 
+typedef _SavePoint = ({Map<int, Answer> answers, Map<int, int> timings});
+
 class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   /// Holds real answers only: a blank text removes its entry.
   late final Map<int, Answer> _answers = Map.of(widget.initialAnswers);
 
-  /// What the server holds as the draft.
-  late Map<int, Answer> _saved = widget.initialAnswers;
+  /// Restored timings of questions this survey still has.
+  late final Map<int, int> _restoredTimings = {
+    for (final question in widget.survey.questions)
+      question.id: ?widget.initialTimings[question.id],
+  };
 
-  /// The answers of the latest save point, until a save takes them.
-  Map<int, Answer>? _queued;
+  late final ActiveTimeTracker _time = ActiveTimeTracker(
+    clock: widget.clock,
+    initial: _restoredTimings,
+  );
+  late final AppLifecycleListener _lifecycle;
+
+  /// What the server holds as the draft.
+  late bool _draftExists = widget.draftExists;
+  late Map<int, Answer> _saved = widget.initialAnswers;
+  late Map<int, int> _savedTimings = _restoredTimings;
+
+  /// The latest save point, until a save takes it.
+  _SavePoint? _queued;
   Future<_SaveResult>? _saveRun;
   bool _leaving = false;
 
@@ -79,6 +108,46 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   List<SurveyQuestion> get _questions => widget.survey.questions;
   bool get _onReview => _index == _questions.length;
 
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(
+      onStateChange: _onLifecycleChange,
+      onHide: _onHide,
+    );
+    // The start mark: the first save makes the server set started_at.
+    if (!_draftExists) _save();
+    _timeCurrentPage();
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// Time counts only for the question on screen, never for the review.
+  void _timeCurrentPage() {
+    if (_onReview) {
+      _time.hide();
+    } else {
+      _time.show(_questions[_index].id);
+    }
+  }
+
+  void _onLifecycleChange(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _time.resume();
+    } else {
+      _time.pause();
+    }
+  }
+
+  /// Best effort: the system may end a hidden app.
+  void _onHide() {
+    if (_block == null) _save();
+  }
+
   void _goTo(int index) {
     if (_sending || _leaving) return;
     FocusScope.of(context).unfocus();
@@ -87,28 +156,42 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
       _index = index;
       _showRequired = false;
     });
+    _timeCurrentPage();
     _save();
   }
 
   /// A save point: at most one request runs, and the newest answers follow it.
   Future<_SaveResult> _save() {
-    _queued = Map.of(_answers);
-    return _saveRun ??= _runSaves().whenComplete(() => _saveRun = null);
+    _queued = (answers: Map.of(_answers), timings: _time.snapshot());
+    return _saveRun ??= _runSaves().whenComplete(() {
+      _saveRun = null;
+      // The pop rule reads _saveRun and _saved.
+      if (mounted) setState(() {});
+    });
   }
 
   Future<_SaveResult> _runSaves() async {
     var result = _SaveResult.saved;
     while (mounted && !_sending) {
-      final answers = _queued;
-      if (answers == null) break;
+      final point = _queued;
+      if (point == null) break;
       _queued = null;
-      if (mapEquals(answers, _saved)) {
+      final (:answers, :timings) = point;
+      if (_draftExists &&
+          mapEquals(answers, _saved) &&
+          mapEquals(timings, _savedTimings)) {
         result = _SaveResult.saved;
         continue;
       }
       try {
-        await widget.answerRepository.saveDraft(widget.survey.id, answers);
+        await widget.answerRepository.saveDraft(
+          widget.survey.id,
+          answers,
+          timings: timings,
+        );
+        _draftExists = true;
         _saved = answers;
+        _savedTimings = timings;
         result = _SaveResult.saved;
       } on SessionExpiredException {
         if (mounted && !_sending) widget.onSessionExpired();
@@ -121,7 +204,10 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
           setState(() => _block = block);
           return _SaveResult.stopped;
         }
-        result = _SaveResult.failed;
+        // Only timings lost: they go again at the next save point.
+        result = mapEquals(answers, _saved)
+            ? _SaveResult.saved
+            : _SaveResult.failed;
       }
     }
     return result;
@@ -172,6 +258,7 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   Future<void> _send() async {
     if (_sending || _leaving) return;
     _hideSnackBar();
+    _time.hide();
     final sent = {
       for (final question in _questions) question.id: ?_answers[question.id],
     };
@@ -184,6 +271,7 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
       final result = await widget.answerRepository.submit(
         widget.survey.id,
         sent,
+        timings: _time.snapshot(),
       );
       if (mounted) _showSent(sent.length, result.submittedAt);
     } on SessionExpiredException {
@@ -250,17 +338,21 @@ class _SurveyAnswerScreenState extends State<SurveyAnswerScreen> {
   Future<void> _leave() async {
     if (_leaving) return;
     setState(() => _leaving = true);
+    _time.hide();
     final result = await _save();
     if (!mounted) return;
     setState(() => _leaving = false);
     switch (result) {
       case _SaveResult.saved:
         _close();
+        return;
       case _SaveResult.failed:
         await _confirmLeaveUnsaved();
       case _SaveResult.stopped:
         break;
     }
+    // Still here: the question on screen counts again.
+    if (mounted && _block == null) _timeCurrentPage();
   }
 
   void _close() {
