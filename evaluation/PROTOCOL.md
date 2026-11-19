@@ -1,5 +1,6 @@
 # T-2 — Sentiment model evaluation protocol (NFR-07)
 
+Version 1.1, amended 2026-11-18 before any model run (D-174).
 Version 1, frozen 2026-11-18 (TASK-37, D-161, D-162, D-172) **before any model sees a test item**.
 This file is committed before the test set is built and before any model runs; the commit order on the branch is
 the evidence (protocol → gold set → results). Any later change is a new protocol version with its own commit.
@@ -157,6 +158,10 @@ Latency: p50 and p95 of the per-item milliseconds over the model's test items.
    A step that every remaining candidate passes or fails equally does not remove anyone.
 5. `results.md` names the winner and the rule step that decided it (2 if nobody is tied, otherwise the tie-break
    step that left one candidate).
+6. Deployment (FR-05). The model shipped in FR-05 must declare a licence on its card with no non-commercial
+   clause. If the winner of steps 1-5 does not, results.md also names the eligible candidate with the highest
+   headline that does, and FR-05 ships that one unless the winner's authors grant permission. This step does not
+   change the winner of the evaluation.
 
 ## 9. Steps, in order
 
@@ -181,4 +186,5 @@ Latency: p50 and p95 of the per-item milliseconds over the model's test items.
 - The overlap clause covers documented fine-tuning data only; pretraining corpora (for example the ~124M and ~198M
   tweets of M0 and M1) are outside the clause and are not checked.
 - The overlap filter catches exact and near-exact copies (after normalisation), not paraphrases.
+- R1's arm choice rests on 30 development items per language, so it is noisy.
 - The source labels are taken as gold; the three-member audit (section 5) measures how far they can be trusted.
