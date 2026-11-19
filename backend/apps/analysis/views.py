@@ -1,15 +1,33 @@
 from django.contrib import messages
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from core.enums import QUESTION_TYPE_LABELS, SurveyStatus
 from core.exceptions import SmartSurveyException
+from services import quality_rules
 from services.analysis_service import AnalysisService
+from services.quality_service import QualityService
 from services.survey_service import SurveyService
+
+# The flag order of board W-04, which is not the order of quality_rules.FLAG_CODES.
+QUALITY_FLAG_ORDER = (
+    quality_rules.ATTENTION_FAILED,
+    quality_rules.SPEEDING,
+    quality_rules.DUPLICATE_DEVICE,
+    quality_rules.STRAIGHT_LINING,
+    quality_rules.SIGNALS_MISSING,
+)
+# The flags whose "Not checked" reason the panel can state; an empty device hash implies
+# missing signals, and SIGNALS_MISSING is always checked.
+QUALITY_NOT_CHECKED_CODES = (
+    quality_rules.ATTENTION_FAILED,
+    quality_rules.SPEEDING,
+    quality_rules.STRAIGHT_LINING,
+)
 
 
 def analytics_dashboard(request, survey_id):
-    """Render provider survey analytics using SurveyService and AnalysisService."""
+    """Render provider survey analytics using SurveyService, AnalysisService and QualityService."""
     response = _redirect_if_unauthenticated(request)
     if response:
         return response
@@ -17,6 +35,12 @@ def analytics_dashboard(request, survey_id):
     try:
         survey = SurveyService().get_provider_survey(request.user, survey_id)
         results = AnalysisService().get_survey_results(request.user, survey_id)
+        # P-20: the quality evaluation is read only once the results are open.
+        evaluation = (
+            None
+            if results["locked"]
+            else QualityService().evaluate_survey(request.user, survey_id)
+        )
     except SmartSurveyException as error:
         messages.error(request, str(error), extra_tags="danger")
         return redirect("surveys:provider_dashboard")
@@ -42,6 +66,7 @@ def analytics_dashboard(request, survey_id):
                 for summary in results_view["question_summaries"]
             ),
             "sentiment": _sentiment_panel(results),
+            "quality": None if evaluation["locked"] else _quality_panel(evaluation),
             "sentiment_chart_data": _sentiment_chart_data(results_view),
             "question_chart_data": _question_chart_data(
                 results_view["question_summaries"],
@@ -68,6 +93,130 @@ def retry_failed(request, survey_id):
         else:
             messages.success(request, f"{count} answers are queued for analysis again.")
     return redirect("analysis:analytics_dashboard", survey_id)
+
+
+@require_http_methods(["GET", "POST"])
+def exclude_flagged(request, survey_id):
+    """GET confirms (board W-04); POST excludes the responses flagged and included now.
+
+    The POST takes the flagged responses at that moment, so the count may differ from
+    the page if responses arrived in between.
+    """
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return response
+
+    service = QualityService()
+    if request.method == "POST":
+        try:
+            count = service.exclude_flagged(request.user, survey_id)
+        except SmartSurveyException as error:
+            messages.error(request, str(error), extra_tags="danger")
+        else:
+            if count == 1:
+                messages.success(
+                    request,
+                    "1 flagged response is excluded. You can include it again at any time.",
+                )
+            elif count > 1:
+                messages.success(
+                    request,
+                    f"{count} flagged responses are excluded. "
+                    "You can include them again at any time.",
+                )
+        return redirect("analysis:analytics_dashboard", survey_id)
+
+    evaluation, response = _evaluation_or_redirect(request, service, survey_id)
+    if response:
+        return response
+    count = evaluation["flagged_included_count"]
+    if count == 0:
+        return redirect("analysis:analytics_dashboard", survey_id)
+    return render(
+        request,
+        "analysis/quality_confirm.html",
+        {"action": "exclude", "survey_id": survey_id, "count": count},
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def include_all(request, survey_id):
+    """GET confirms (board W-04); POST includes every excluded response of the survey."""
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return response
+
+    service = QualityService()
+    if request.method == "POST":
+        try:
+            service.include_all(request.user, survey_id)
+            total = service.evaluate_survey(request.user, survey_id)["response_count"]
+        except SmartSurveyException as error:
+            messages.error(request, str(error), extra_tags="danger")
+        else:
+            messages.success(request, f"All {total} responses are included.")
+        return redirect("analysis:analytics_dashboard", survey_id)
+
+    evaluation, response = _evaluation_or_redirect(request, service, survey_id)
+    if response:
+        return response
+    total = evaluation["response_count"]
+    excluded = total - evaluation["included_count"]
+    if excluded == 0:
+        return redirect("analysis:analytics_dashboard", survey_id)
+    return render(
+        request,
+        "analysis/quality_confirm.html",
+        {"action": "include", "survey_id": survey_id, "total": total, "excluded": excluded},
+    )
+
+
+def _evaluation_or_redirect(request, service, survey_id):
+    """Return (open evaluation, None), or (None, redirect) on an error or a locked result."""
+    try:
+        evaluation = service.evaluate_survey(request.user, survey_id)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+        return None, redirect("surveys:provider_dashboard")
+    if evaluation["locked"]:
+        return None, redirect("analysis:analytics_dashboard", survey_id)
+    return evaluation, None
+
+
+def _quality_panel(evaluation):
+    """Build the W-04 panel values from an open QualityService evaluation; the template writes the copy."""
+    total = evaluation["response_count"]
+    included = evaluation["included_count"]
+    flag_counts = evaluation["flag_counts"]
+    not_checked_counts = evaluation["not_checked_counts"]
+    evaluated = total - evaluation["before_checks_count"]
+
+    def not_checked_shown(code):
+        if code not in QUALITY_NOT_CHECKED_CODES:
+            return False
+        if code == quality_rules.SPEEDING and (
+            flag_counts[quality_rules.SIGNALS_MISSING] >= evaluated
+        ):
+            # Every evaluated response lacks its timings: the SIGNALS_MISSING row says why.
+            return False
+        return evaluated > 0 and flag_counts[code] == 0 and not_checked_counts[code] == evaluated
+
+    flag_rows = [
+        {"code": code, "count": flag_counts[code]}
+        for code in QUALITY_FLAG_ORDER
+        if flag_counts[code] > 0
+    ]
+    return {
+        "rules_version": evaluation["rules_version"],
+        "total": total,
+        "included": included,
+        "excluded": total - included,
+        "before_checks": evaluation["before_checks_count"],
+        "bands": evaluation["band_counts"],
+        "flag_rows": flag_rows,
+        "not_checked_rows": [code for code in QUALITY_FLAG_ORDER if not_checked_shown(code)],
+        "flagged_included": evaluation["flagged_included_count"],
+    }
 
 
 def _sentiment_panel(results):
@@ -113,6 +262,7 @@ def _results_view(results):
     results_view = {
         "survey_id": results.get("survey_id"),
         "response_count": results.get("response_count", 0),
+        "included_count": results.get("included_count", 0),
         "positive_count": results.get("positive_count", 0),
         "neutral_count": results.get("neutral_count", 0),
         "negative_count": results.get("negative_count", 0),

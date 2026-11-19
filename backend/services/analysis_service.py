@@ -3,13 +3,11 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from core.enums import AnalysisStatus, QuestionType, SentimentLabel, UserType
+from core.enums import AnalysisStatus, QuestionType, SentimentLabel
 from core.exceptions import (
     AnalysisBadOutput,
     AnalysisUnavailable,
     ExternalAnalysisServiceError,
-    SurveyNotFound,
-    UnauthorizedAction,
     ValidationError,
 )
 from infrastructure.sentiment_analyzer import build_analyzer
@@ -18,6 +16,7 @@ from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from services import disclosure
+from services.survey_access import ensure_survey_owner
 from services.text_language import detect_language
 
 
@@ -93,7 +92,7 @@ class AnalysisService:
         a 402 once the account has credit again). While the results are locked (P-20) the
         provider sees no failure, so the page offers nothing to retry.
         """
-        self._ensure_survey_owner(provider_user, survey_id)
+        ensure_survey_owner(self.survey_repository, provider_user, survey_id)
         response_count = self.response_repository.find_by_survey_id(survey_id).count()
         if not disclosure.results_open(response_count):
             raise ValidationError(f"Results open at {disclosure.MIN_GROUP_SIZE} responses.")
@@ -154,7 +153,7 @@ class AnalysisService:
         locks the results again (P-08). The charts and sentiment counts use the responses
         the provider has not excluded, and leave attention questions out.
         """
-        self._ensure_survey_owner(provider_user, survey_id)
+        ensure_survey_owner(self.survey_repository, provider_user, survey_id)
 
         response_count = self.response_repository.find_by_survey_id(survey_id).count()
         min_responses = disclosure.MIN_GROUP_SIZE
@@ -231,18 +230,6 @@ class AnalysisService:
             "negative_rate": self._rate(negative_count, completed_count),
             "question_summaries": self._build_question_summaries(questions, answers),
         }
-
-    def _ensure_survey_owner(self, provider_user, survey_id):
-        """Ensure only the provider who owns the survey can read its analytics."""
-        if provider_user.user_type != UserType.SERVICE_PROVIDER:
-            raise UnauthorizedAction("Only service providers can view survey analytics.")
-
-        survey = self.survey_repository.find_by_id(survey_id)
-        if survey is None:
-            raise SurveyNotFound("Survey not found.")
-
-        if survey.provider_id != provider_user.user_id:
-            raise UnauthorizedAction("Only the survey owner can view survey analytics.")
 
     def _map_external_label(self, label):
         """Map an external sentiment label to an internal enum value."""

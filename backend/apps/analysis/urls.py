@@ -15,4 +15,14 @@ urlpatterns = [
         views.retry_failed,
         name="retry_failed",
     ),
+    path(
+        "<int:survey_id>/exclude-flagged/",
+        views.exclude_flagged,
+        name="exclude_flagged",
+    ),
+    path(
+        "<int:survey_id>/include-all/",
+        views.include_all,
+        name="include_all",
+    ),
 ]

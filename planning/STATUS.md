@@ -1,12 +1,12 @@
-# STATUS — 2026-11-19
-Branch: feat/fr04-rules
-Task: TASK-42 — FR-04 Part 2: the quality rules, the score, and include or exclude
-Done: services/quality_rules.py (pure Python, RULES_VERSION 1, five flags, score, bands) evaluates every response of a survey on read.
-  QualityService.evaluate_survey (owner only, P-20 lock, 4 queries), set_inclusion, exclude_flagged, include_all (one bulk update, atomic).
-  Analytics charts and sentiment counts use included responses only and leave attention questions out; lock and response_count stay on submitted; included_count added.
-Changes: 6 modified, 6 new, 0 deleted — backend/services/quality_rules.py, backend/services/quality_service.py, backend/services/analysis_service.py, backend/repositories/, backend/tests/
-Tests: rule tests 40 passed in 0.16s; task files 176 passed in 16.71s; whole suite 1013 passed in 74.70s (once, before commit); full suites run in CI
+# STATUS — 2026-11-20
+Branch: feat/fr04-web
+Task: TASK-43B — FR-04 Part 3 review fixes on PR #86: approved copy, attention section under the options, ready-text replacer
+Done: Flags table "What it means" and the attention helper and limit captions now carry the approved copy (D-188).
+  The attention divider and section sit under the option builder, before "Add question"; the required caption stays under "Required question".
+  site.js fills the ready text with a replacer function, so "$&", "$'" and "$`" in an option stay literal.
+Changes: 5 modified, 0 new, 0 deleted — analytics_dashboard.html, manage_questions.html, static/js/site.js, tests/views/ (2 files)
+Tests: changed files 31 passed in 7.01s; whole suite 1081 passed in 51.56s (once, before commit); full suites run in CI
 Check: OK
-Committed: yes (start commit cd58459; change commit holds this file)
-Open questions: none
-Next: board W-04 — quality panel, confirmation pages and the web question form
+Committed: yes (the TASK-43B commit holds this file)
+Open questions: none; site.js still not run in a browser (no server in this run)
+Next: review of PR #86 (advisor opens both pages on a local server, D-170); then TASK-44

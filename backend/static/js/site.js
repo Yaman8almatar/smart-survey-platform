@@ -7,6 +7,7 @@
 
     runWhenReady(function () {
         initOptionBuilders();
+        initAttentionCheck();
         initSystemReportChart();
         initReachCard();
     });
@@ -76,6 +77,8 @@
                     })
                     .filter(Boolean)
                     .join("\n");
+                // The attention option (W-04) rebuilds its radio list from this value.
+                builder.dispatchEvent(new CustomEvent("ss:options-change"));
             }
         });
     }
@@ -110,6 +113,177 @@
         list.appendChild(row);
 
         return input;
+    }
+
+    /*
+     * W-04 attention option of the question form. The server renders every caption and the
+     * two ready texts (data attributes); this script only shows, hides, enables and fills.
+     * The radio list is rebuilt from the hidden options field, so its positions are the ones
+     * the server reads (non-blank lines, in order).
+     */
+    function initAttentionCheck() {
+        var section = document.querySelector("[data-attention-check]");
+        if (!section) {
+            return;
+        }
+        var form = section.closest("form");
+        var builder = form && form.querySelector("[data-option-builder]");
+        var typeSelect = form && form.querySelector("select[name='question_type']");
+        var questionText = form && form.querySelector("textarea[name='question_text']");
+        var required = form && form.querySelector("input[name='is_required']");
+        var toggle = section.querySelector("[data-attention-toggle]");
+        if (!builder || !typeSelect || !questionText || !required || !toggle) {
+            return;
+        }
+
+        var source = builder.querySelector("[data-option-source-wrap] textarea");
+        var choices = section.querySelector("[data-attention-choices]");
+        var few = section.querySelector("[data-attention-few]");
+        var details = section.querySelector("[data-attention-details]");
+        var ready = section.querySelector("[data-attention-ready]");
+        var readyButton = section.querySelector("[data-attention-ready-button]");
+        var requiredCaption = form.querySelector("[data-attention-required-caption]");
+        var limitReached = section.getAttribute("data-limit-reached") === "true";
+
+        // The required state before the option locked it; the server's default is checked.
+        var requiredBefore = required.disabled ? true : required.checked;
+        // The builder input of the chosen option, so the choice follows its row.
+        var chosenInput = null;
+        var initial = choices.querySelector("input[type='radio']:checked");
+        if (initial) {
+            chosenInput = nonBlankInputs()[Number(initial.value)] || null;
+        }
+
+        ready.hidden = false;
+        rebuildChoices();
+        apply();
+
+        typeSelect.addEventListener("change", apply);
+        toggle.addEventListener("change", apply);
+        builder.addEventListener("ss:options-change", function () {
+            rebuildChoices();
+            apply();
+        });
+        choices.addEventListener("change", function (event) {
+            if (event.target.name === "expected_option") {
+                chosenInput = nonBlankInputs()[Number(event.target.value)] || null;
+                apply();
+            }
+        });
+        section.querySelectorAll("input[name='expected_rating']").forEach(function (input) {
+            input.addEventListener("change", apply);
+        });
+        readyButton.addEventListener("click", function () {
+            var answer = expectedAnswer();
+            if (answer === null) {
+                return;
+            }
+            var template = section.getAttribute(
+                typeSelect.value === "RATING_SCALE" ? "data-ready-rating" : "data-ready-choice"
+            );
+            // A replacer function, so "$&", "$'" or "$`" in an option's text stays literal.
+            questionText.value = template.replace("{answer}", function () {
+                return answer;
+            });
+        });
+
+        function nonBlankInputs() {
+            return Array.from(builder.querySelectorAll("[data-option-input]")).filter(
+                function (input) {
+                    return input.value.trim() !== "";
+                }
+            );
+        }
+
+        function optionLines() {
+            return source ? source.value.split("\n").filter(Boolean) : [];
+        }
+
+        function rebuildChoices() {
+            var lines = optionLines();
+            var index = chosenInput ? nonBlankInputs().indexOf(chosenInput) : -1;
+            if (index === -1) {
+                // The chosen row was removed or emptied.
+                chosenInput = null;
+            }
+            choices.replaceChildren();
+            lines.forEach(function (line, position) {
+                var label = document.createElement("label");
+                label.className = "attention-choice";
+                var input = document.createElement("input");
+                input.className = "form-check-input";
+                input.type = "radio";
+                input.name = "expected_option";
+                input.value = String(position);
+                input.checked = position === index;
+                var text = document.createElement("span");
+                text.setAttribute("data-choice-text", "");
+                text.textContent = line;
+                label.appendChild(input);
+                label.appendChild(text);
+                choices.appendChild(label);
+            });
+            choices.hidden = lines.length < 2;
+            few.hidden = lines.length >= 2;
+        }
+
+        function expectedAnswer() {
+            if (typeSelect.value === "RATING_SCALE") {
+                var rating = section.querySelector("input[name='expected_rating']:checked");
+                return rating ? rating.value : null;
+            }
+            if (typeSelect.value === "MULTIPLE_CHOICE" && chosenInput) {
+                return chosenInput.value.trim();
+            }
+            return null;
+        }
+
+        function apply() {
+            var type = typeSelect.value;
+            var caption = "help";
+            if (limitReached) {
+                caption = "limit";
+            } else if (type === "OPEN_TEXT") {
+                caption = "open";
+            }
+            if (caption !== "help") {
+                toggle.checked = false;
+            }
+            toggle.disabled = caption !== "help";
+            section.querySelectorAll("[data-attention-caption]").forEach(function (node) {
+                node.hidden = node.getAttribute("data-attention-caption") !== caption;
+                if (!node.hidden) {
+                    toggle.setAttribute("aria-describedby", node.id);
+                }
+            });
+
+            var on = toggle.checked;
+            details.hidden = !on;
+            section.querySelectorAll("[data-attention-for]").forEach(function (block) {
+                block.hidden = block.getAttribute("data-attention-for") !== type;
+            });
+
+            if (on && !required.disabled) {
+                requiredBefore = required.checked;
+                required.checked = true;
+                required.disabled = true;
+            } else if (!on && required.disabled) {
+                required.disabled = false;
+                required.checked = requiredBefore;
+            }
+            if (requiredCaption) {
+                requiredCaption.hidden = !on;
+            }
+
+            var enabled = on && expectedAnswer() !== null;
+            readyButton.disabled = !enabled;
+            ready.querySelectorAll("[data-ready-caption]").forEach(function (node) {
+                node.hidden = node.getAttribute("data-ready-caption") !== (enabled ? "on" : "off");
+                if (!node.hidden) {
+                    readyButton.setAttribute("aria-describedby", node.id);
+                }
+            });
+        }
     }
 
     /*

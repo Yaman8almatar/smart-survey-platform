@@ -49,6 +49,65 @@ class QuestionForm(BootstrapFormMixin, forms.Form):
         widget=forms.Textarea(attrs={"rows": 4}),
         help_text="For multiple-choice questions, enter one option per line.",
     )
+    # FR-04 (W-04): the attention option and its expected answer.
+    is_attention_check = forms.BooleanField(required=False)
+    # The 0-based position among the non-blank option lines; the template renders the radios.
+    expected_option = forms.IntegerField(required=False, min_value=0)
+    expected_rating = forms.TypedChoiceField(
+        required=False,
+        choices=[(value, str(value)) for value in range(1, 6)],
+        coerce=int,
+        empty_value=None,
+        widget=forms.RadioSelect(attrs={"class": "visually-hidden"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.is_bound and self["is_attention_check"].value():
+            # An attention check is always required; a disabled field keeps its initial True.
+            self.fields["is_required"].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("is_attention_check"):
+            # A hidden radio may still be posted; an ordinary question has no expected answer.
+            cleaned_data["expected_option"] = None
+            cleaned_data["expected_rating"] = None
+            return cleaned_data
+
+        # The disabled checkbox is not posted.
+        cleaned_data["is_required"] = True
+        question_type = cleaned_data.get("question_type")
+        if question_type == QuestionType.OPEN_TEXT:
+            self.add_error(
+                "is_attention_check",
+                "Attention checks work on multiple-choice and rating questions.",
+            )
+        elif question_type == QuestionType.MULTIPLE_CHOICE:
+            cleaned_data["expected_rating"] = None
+            self._require_expected("expected_option")
+        elif question_type == QuestionType.RATING_SCALE:
+            cleaned_data["expected_option"] = None
+            self._require_expected("expected_rating")
+        return cleaned_data
+
+    def _require_expected(self, name):
+        """Add "Choose the expected answer." when the field is empty and has no other error."""
+        if self.cleaned_data.get(name) is None and name not in self.errors:
+            self.add_error(name, "Choose the expected answer.")
+
+    def option_lines(self):
+        """Return the non-blank option lines, read as QuestionService._normalize_options reads them."""
+        value = self["options"].value() or ""
+        return [line.strip() for line in value.splitlines() if line.strip()]
+
+    def expected_option_rows(self):
+        """Return the radio rows of the expected option: index, text and whether it is chosen."""
+        chosen = str(self["expected_option"].value())
+        return [
+            {"index": index, "text": text, "checked": str(index) == chosen}
+            for index, text in enumerate(self.option_lines())
+        ]
 
 
 def _targeting_choices(enum):

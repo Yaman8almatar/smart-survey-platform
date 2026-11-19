@@ -132,6 +132,9 @@ def manage_questions(request, survey_id):
                     form.cleaned_data["is_required"],
                     form.cleaned_data["order_index"],
                     form.cleaned_data["options"],
+                    is_attention_check=form.cleaned_data["is_attention_check"],
+                    expected_option_index=form.cleaned_data["expected_option"],
+                    expected_rating=form.cleaned_data["expected_rating"],
                 )
             except SmartSurveyException as error:
                 _show_service_error(request, error)
@@ -141,10 +144,15 @@ def manage_questions(request, survey_id):
     else:
         form = QuestionForm(initial={"order_index": 0, "is_required": True})
 
+    questions = QuestionService().get_survey_question_rows(request.user, survey_id)
+    attention_check_count = sum(1 for question in questions if question["is_attention_check"])
     context = {
         "survey": _survey_row(survey),
-        "questions": QuestionService().get_survey_question_rows(request.user, survey_id),
+        "questions": questions,
         "form": form,
+        "attention_check_count": attention_check_count,
+        "attention_check_limit": QuestionService.MAX_ATTENTION_CHECKS,
+        "attention_limit_reached": attention_check_count >= QuestionService.MAX_ATTENTION_CHECKS,
     }
     return render(request, "surveys/manage_questions.html", context)
 
