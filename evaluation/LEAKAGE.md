@@ -19,19 +19,27 @@ Evidence comes from each model card on the Hugging Face Hub, read 2026-11-18 (co
 
 | Candidate | Corpus (Hub) | Configs / rows | Removed in Step 3 |
 |---|---|---|---|
-| M0 | cardiffnlp/tweet_eval | sentiment, all splits | to fill |
-| M1 | cardiffnlp/tweet_sentiment_multilingual | arabic, english, all splits | to fill |
-| M2 | tyqiangz/multilingual-sentiments | arabic, english, all splits | to fill |
-| M4 | clapAI/MultiLingualSentiment | all splits, language "ar" or "en" | to fill |
-| M5 | arbml/ASTD | default, all splits | to fill |
-| M5 | arbml/ArSAS | default, all splits | to fill |
-| M5 | cardiffnlp/tweet_sentiment_multilingual (SemEval-2017 Arabic) | arabic, all splits | to fill |
+| M0 | cardiffnlp/tweet_eval | sentiment, all splits (59,899 rows) | 0 |
+| M1 | cardiffnlp/tweet_sentiment_multilingual | arabic, english, all splits (6,066 rows) | 294 (ar_posts 294) |
+| M2 | tyqiangz/multilingual-sentiments | arabic, english, all splits (6,066 rows) | 294 (ar_posts 294) |
+| M4 | clapAI/MultiLingualSentiment | all splits, language "ar" or "en" (1,728,235 rows) | 772 (en_service 8, ar_reviews 468, ar_posts 296) |
+| M5 | arbml/ASTD | default, all splits (9,694 rows) | 1,065 (ar_posts 1,065) |
+| M5 | arbml/ArSAS | default, all splits (19,897 rows) | 0 |
+| M5 | cardiffnlp/tweet_sentiment_multilingual (SemEval-2017 Arabic) | arabic, all splits (3,033 rows) | 294 (ar_posts 294) |
+
+Counts are items matching that corpus; an item can match several corpora, so the per-corpus counts do not add up
+to the per-pool totals below. Source: `results/overlap.csv`. Sensitivity check, not applied (the protocol uses
+"ar" and "en" only): the 9,391 clapAI rows whose language value is "multilingual" match 0 pool items.
+ArSarcasm v2 reuses tweets from ASTD and SemEval-2017, which is why most of the ar_posts drops come from those two.
 
 ## Per test pool
 
 | Pool | Items after filters | Dropped (any corpus) | Items kept |
 |---|---|---|---|
-| en_reviews | to fill | to fill | to fill |
-| en_service | to fill | to fill | to fill |
-| ar_reviews | to fill | to fill | to fill |
-| ar_posts | to fill | to fill | to fill |
+| en_reviews | 2,171 | 0 | 2,171 |
+| en_service | 9,317 | 8 | 9,309 |
+| ar_reviews | 3,827 | 468 | 3,359 |
+| ar_posts | 4,156 | 1,369 | 2,787 |
+
+Every sampling cell was filled from the test split (the train fallback was not needed): test 150 per language,
+dev 30 per language, with the class and domain counts of PROTOCOL.md section 5.
