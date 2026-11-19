@@ -112,7 +112,7 @@ def test_queue_writes_one_pending_row_per_open_text_answer_with_text():
     )
     client = FakeClient()
 
-    AnalysisService(huggingface_client=client).queue_open_text_answers([with_text, blank, rating])
+    AnalysisService(analyzer=client).queue_open_text_answers([with_text, blank, rating])
 
     rows = list(SentimentAnalysisResult.objects.all())
     assert [row.answer_id for row in rows] == [with_text.answer_id]
@@ -129,7 +129,7 @@ def test_success_stores_label_score_language_and_model_id():
     result = create_pending(create_survey("ok"), "الخدمة ممتازة")
     client = FakeClient({"label": "POSITIVE", "score": 0.95})
 
-    processed = AnalysisService(huggingface_client=client).process_pending_batch()
+    processed = AnalysisService(analyzer=client).process_pending_batch()
 
     stored = reload(result)
     assert [row.pk for row in processed] == [result.pk]
@@ -149,7 +149,7 @@ def test_text_without_letters_is_skipped_without_a_gateway_call():
     result = create_pending(create_survey("skip"), "123 !!!")
     client = FakeClient()
 
-    AnalysisService(huggingface_client=client).process_pending_batch()
+    AnalysisService(analyzer=client).process_pending_batch()
 
     stored = reload(result)
     assert stored.status == AnalysisStatus.SKIPPED
@@ -171,7 +171,7 @@ def test_text_without_letters_is_skipped_without_a_gateway_call():
 def test_payment_config_and_bad_output_fail_at_once(error, error_code):
     result = create_pending(create_survey("fail"))
 
-    AnalysisService(huggingface_client=FakeClient(error)).process_pending_batch()
+    AnalysisService(analyzer=FakeClient(error)).process_pending_batch()
 
     stored = reload(result)
     assert stored.status == AnalysisStatus.FAILED
@@ -186,7 +186,7 @@ def test_unknown_label_from_the_client_fails_as_bad_output():
     result = create_pending(create_survey("label"))
 
     AnalysisService(
-        huggingface_client=FakeClient({"label": "MIXED", "score": 0.5})
+        analyzer=FakeClient({"label": "MIXED", "score": 0.5})
     ).process_pending_batch()
 
     stored = reload(result)
@@ -208,7 +208,7 @@ def test_unavailable_twice_then_success():
         AnalysisUnavailable("HTTP 503"),
         {"label": "NEGATIVE", "score": 0.8},
     )
-    service = AnalysisService(huggingface_client=client)
+    service = AnalysisService(analyzer=client)
 
     before = timezone.now()
     service.process_pending_batch()
@@ -238,7 +238,7 @@ def test_unavailable_twice_then_success():
 @pytest.mark.django_db
 def test_unavailable_three_times_fails_as_unavailable():
     result = create_pending(create_survey("exhaust"))
-    service = AnalysisService(huggingface_client=FakeClient(AnalysisUnavailable("down")))
+    service = AnalysisService(analyzer=FakeClient(AnalysisUnavailable("down")))
 
     for _ in range(3):
         service.process_pending_batch()
@@ -258,7 +258,7 @@ def test_row_whose_next_attempt_is_not_due_is_not_claimed():
     )
     client = FakeClient()
 
-    processed = AnalysisService(huggingface_client=client).process_pending_batch()
+    processed = AnalysisService(analyzer=client).process_pending_batch()
 
     assert processed == []
     assert client.calls == []
@@ -277,7 +277,7 @@ def test_fresh_running_row_is_not_claimed():
         )
     )
 
-    processed = AnalysisService(huggingface_client=FakeClient()).process_pending_batch()
+    processed = AnalysisService(analyzer=FakeClient()).process_pending_batch()
 
     assert processed == []
 
@@ -294,7 +294,7 @@ def test_stale_running_row_is_reclaimed():
         )
     )
 
-    AnalysisService(huggingface_client=FakeClient()).process_pending_batch()
+    AnalysisService(analyzer=FakeClient()).process_pending_batch()
 
     stored = reload(result)
     assert stored.status == AnalysisStatus.COMPLETED
@@ -314,7 +314,7 @@ def test_stale_running_row_with_three_attempts_fails_without_a_call():
     )
     client = FakeClient()
 
-    processed = AnalysisService(huggingface_client=client).process_pending_batch()
+    processed = AnalysisService(analyzer=client).process_pending_batch()
 
     stored = reload(result)
     assert stored.status == AnalysisStatus.FAILED
@@ -330,7 +330,7 @@ def test_batch_claims_at_most_the_limit_in_result_id_order():
     survey = create_survey("limit")
     results = [create_pending(survey, f"Answer {index}") for index in range(3)]
 
-    processed = AnalysisService(huggingface_client=FakeClient()).process_pending_batch(limit=2)
+    processed = AnalysisService(analyzer=FakeClient()).process_pending_batch(limit=2)
 
     assert [row.pk for row in processed] == [results[0].pk, results[1].pk]
     assert reload(results[2]).status == AnalysisStatus.PENDING
@@ -437,7 +437,7 @@ def test_overdue_constant():
 
 
 def overdue(survey):
-    return AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+    return AnalysisService(analyzer=FakeClient()).get_survey_results(
         survey.provider, survey.survey_id
     )["analysis_overdue"]
 
@@ -489,7 +489,7 @@ def test_failed_reasons_group_codes_map_none_to_empty_and_order_by_count():
         create_result(survey, AnalysisStatus.FAILED, error_code=code)
     create_result(survey, AnalysisStatus.SKIPPED, error_code="no_text")
 
-    results = AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+    results = AnalysisService(analyzer=FakeClient()).get_survey_results(
         survey.provider, survey.survey_id
     )
 
@@ -509,7 +509,7 @@ def test_survey_results_report_waiting_and_skipped_counts():
     create_result(survey, AnalysisStatus.RUNNING)
     create_result(survey, AnalysisStatus.SKIPPED)
 
-    results = AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+    results = AnalysisService(analyzer=FakeClient()).get_survey_results(
         survey.provider, survey.survey_id
     )
 
@@ -529,7 +529,7 @@ def test_retry_failed_resets_only_failed_rows_of_the_survey():
     completed = create_result(survey, AnalysisStatus.COMPLETED)
     skipped = create_result(survey, AnalysisStatus.SKIPPED)
     other_failed = create_result(create_survey("retry-other"), AnalysisStatus.FAILED)
-    service = AnalysisService(huggingface_client=FakeClient())
+    service = AnalysisService(analyzer=FakeClient())
     before = timezone.now()
 
     reset = service.retry_failed(survey.provider, survey.survey_id)
@@ -554,7 +554,7 @@ def test_retry_failed_rejects_a_provider_who_does_not_own_the_survey():
     other = create_user("other-retry@example.com", UserType.SERVICE_PROVIDER)
 
     with pytest.raises(UnauthorizedAction):
-        AnalysisService(huggingface_client=FakeClient()).retry_failed(other, survey.survey_id)
+        AnalysisService(analyzer=FakeClient()).retry_failed(other, survey.survey_id)
 
     assert reload(failed).status == AnalysisStatus.FAILED
 
@@ -563,7 +563,7 @@ def test_retry_failed_rejects_a_provider_who_does_not_own_the_survey():
 def test_retry_failed_rejects_a_respondent_and_a_missing_survey():
     survey = create_survey("retry-role")
     respondent = create_user("respondent-retry@example.com", UserType.RESPONDENT)
-    service = AnalysisService(huggingface_client=FakeClient())
+    service = AnalysisService(analyzer=FakeClient())
 
     with pytest.raises(UnauthorizedAction):
         service.retry_failed(respondent, survey.survey_id)

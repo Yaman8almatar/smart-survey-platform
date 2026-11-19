@@ -480,7 +480,7 @@ class FailingClient:
 
 def real_analysis_response_service():
     return ResponseService(
-        analysis_service=AnalysisService(huggingface_client=FailingClient())
+        analysis_service=AnalysisService(analyzer=FailingClient())
     )
 
 
@@ -561,7 +561,7 @@ def test_pending_rows_roll_back_with_the_response():
     survey = create_survey(provider)
     question = create_question(survey, QuestionType.OPEN_TEXT)
     service = ResponseService(
-        analysis_service=FailingAfterQueueAnalysisService(huggingface_client=FailingClient())
+        analysis_service=FailingAfterQueueAnalysisService(analyzer=FailingClient())
     )
 
     with pytest.raises(RuntimeError):

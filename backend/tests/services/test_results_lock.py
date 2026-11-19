@@ -80,7 +80,7 @@ def test_threshold_is_the_disclosure_constant():
 def test_four_responses_return_only_the_locked_dictionary():
     provider, survey = create_survey_with_responses(4)
 
-    results = AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+    results = AnalysisService(analyzer=FakeClient()).get_survey_results(
         provider, survey.survey_id
     )
 
@@ -95,7 +95,7 @@ def test_four_responses_return_only_the_locked_dictionary():
 @pytest.mark.django_db
 def test_locked_call_reads_no_answers_results_or_questions(django_assert_max_num_queries):
     provider, survey = create_survey_with_responses(4)
-    service = AnalysisService(huggingface_client=FakeClient())
+    service = AnalysisService(analyzer=FakeClient())
 
     # Two queries: the survey for the owner check and the COUNT of its responses.
     # The answers, sentiment results and questions are never queried.
@@ -113,7 +113,7 @@ def test_locked_call_reads_no_answers_results_or_questions(django_assert_max_num
 def test_five_responses_open_the_results():
     provider, survey = create_survey_with_responses(5)
 
-    results = AnalysisService(huggingface_client=FakeClient()).get_survey_results(
+    results = AnalysisService(analyzer=FakeClient()).get_survey_results(
         provider, survey.survey_id
     )
 
@@ -142,7 +142,7 @@ def test_retry_failed_is_refused_while_results_are_locked():
     mark_failed(survey, 2)
 
     with pytest.raises(ValidationError, match="Results open at 5 responses."):
-        AnalysisService(huggingface_client=FakeClient()).retry_failed(provider, survey.survey_id)
+        AnalysisService(analyzer=FakeClient()).retry_failed(provider, survey.survey_id)
 
     assert SentimentAnalysisResult.objects.filter(status=AnalysisStatus.FAILED).count() == 2
 
@@ -152,7 +152,7 @@ def test_retry_failed_returns_the_count_when_results_are_open():
     provider, survey = create_survey_with_responses(5)
     mark_failed(survey, 2)
 
-    reset = AnalysisService(huggingface_client=FakeClient()).retry_failed(
+    reset = AnalysisService(analyzer=FakeClient()).retry_failed(
         provider, survey.survey_id
     )
 
@@ -166,7 +166,7 @@ def test_retry_failed_checks_the_owner_before_any_count():
     other_provider = create_user("other-retry-lock@example.com", UserType.SERVICE_PROVIDER)
     service = AnalysisService(
         response_repository=ResponseRepositoryThatMustNotCount(),
-        huggingface_client=FakeClient(),
+        analyzer=FakeClient(),
     )
 
     with pytest.raises(UnauthorizedAction):
@@ -179,7 +179,7 @@ def test_another_provider_is_refused_before_any_count():
     other_provider = create_user("other-provider-lock@example.com", UserType.SERVICE_PROVIDER)
     service = AnalysisService(
         response_repository=ResponseRepositoryThatMustNotCount(),
-        huggingface_client=FakeClient(),
+        analyzer=FakeClient(),
     )
 
     with pytest.raises(UnauthorizedAction):

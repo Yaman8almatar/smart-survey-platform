@@ -12,7 +12,7 @@ from core.exceptions import (
     UnauthorizedAction,
     ValidationError,
 )
-from infrastructure.huggingface_client import HuggingFaceClient
+from infrastructure.sentiment_analyzer import build_analyzer
 from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
@@ -27,8 +27,10 @@ class AnalysisService:
     RATING_LABELS = [1, 2, 3, 4, 5]
     MAX_TEXT_ANSWERS_SHOWN = 50
 
-    # Worker rules (T-9). A full batch (8 calls x 15 s client timeout) ends well
-    # before LOCK_TIMEOUT, so a row that is still being analysed is never reclaimed.
+    # Worker rules (T-9). A full batch ends well before LOCK_TIMEOUT, so a row that is
+    # still being analysed is never reclaimed. Worst case per adapter: huggingface 8 calls
+    # x 15 s client timeout = 2 min; local the one-off model load (about 6 s in T-2) plus
+    # 8 CPU calls (p95 0.6 s in T-2, a few seconds for a 512-token text), under a minute.
     BATCH_SIZE = 8
     LOCK_TIMEOUT = timedelta(minutes=5)
     RETRY_DELAYS_SECONDS = (30, 120)  # after attempt 1 and attempt 2
@@ -42,14 +44,14 @@ class AnalysisService:
         response_repository=None,
         analysis_repository=None,
         question_repository=None,
-        huggingface_client=None,
+        analyzer=None,
         survey_repository=None,
     ):
-        """Wire repositories and infrastructure used by analytics workflows."""
+        """Wire repositories and the sentiment analyzer; building the analyzer loads no model."""
         self.response_repository = response_repository or ResponseRepository()
         self.analysis_repository = analysis_repository or AnalysisRepository()
         self.question_repository = question_repository or QuestionRepository()
-        self.huggingface_client = huggingface_client or HuggingFaceClient()
+        self.analyzer = analyzer or build_analyzer()
         self.survey_repository = survey_repository or SurveyRepository()
 
     def queue_open_text_answers(self, answers):
@@ -118,7 +120,7 @@ class AnalysisService:
             return
 
         try:
-            analysis = self.huggingface_client.analyze_sentiment(text)
+            analysis = self.analyzer.analyze_sentiment(text)
         except AnalysisUnavailable:
             if result.attempts >= self.MAX_ATTEMPTS:
                 result.mark_failed(AnalysisUnavailable.error_code)
@@ -141,7 +143,7 @@ class AnalysisService:
             analysis.get("score"),
             timezone.now(),
             language=language,
-            model_id=self.huggingface_client.model_id,
+            model_id=self.analyzer.model_id,
         )
 
     def get_survey_results(self, provider_user, survey_id):
