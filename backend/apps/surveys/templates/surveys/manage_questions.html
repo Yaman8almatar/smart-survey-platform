@@ -37,6 +37,12 @@
                                                     {{ question.type_label }}
                                                     - {{ question.required_label }}
                                                 </div>
+                                                {% if question.is_attention_check %}
+                                                    <div class="attention-meta">
+                                                        <span class="attention-badge"><i class="bi bi-shield-check" aria-hidden="true"></i>Attention check</span>
+                                                        <span class="attention-expected">Expected answer: <strong>{{ question.expected_answer_label }}</strong></span>
+                                                    </div>
+                                                {% endif %}
                                             </div>
                                             {% if survey.can_edit %}
                                                 <form
@@ -58,15 +64,22 @@
                                         {% if question.options %}
                                             <div class="option-list">
                                                 {% for option in question.options %}
-                                                    <span class="option-pill">
-                                                        {{ option.option_text }}
-                                                    </span>
+                                                    {% if option.option_id == question.expected_option_id %}
+                                                        <span class="option-pill option-pill--expected"><i class="bi bi-check-lg" aria-hidden="true"></i>{{ option.option_text }}</span>
+                                                    {% else %}
+                                                        <span class="option-pill">
+                                                            {{ option.option_text }}
+                                                        </span>
+                                                    {% endif %}
                                                 {% endfor %}
                                             </div>
                                         {% endif %}
                                     </div>
                                 {% endfor %}
                             </div>
+                            {% if attention_check_count %}
+                                <p class="attention-usage">{{ attention_check_count }} of {{ attention_check_limit }} attention checks used in this survey.</p>
+                            {% endif %}
                         {% else %}
                             <div class="empty-state">No questions added yet.</div>
                         {% endif %}
@@ -125,6 +138,7 @@
                                 </div>
                             </div>
 
+                            {% with attention_on=form.is_attention_check.value question_type=form.question_type.value %}
                             <div class="form-check my-3">
                                 {{ form.is_required }}
                                 <label
@@ -133,7 +147,110 @@
                                 >
                                     Required question
                                 </label>
+                                <div class="form-text mt-0" data-attention-required-caption{% if not attention_on %} hidden{% endif %}>An attention check is always required.</div>
                             </div>
+
+                            <!-- W-04: the attention option; site.js applies the type states and writes no copy -->
+                            <hr class="attention-divider">
+                            <section
+                                class="attention-check mb-4"
+                                aria-labelledby="attention-title"
+                                data-attention-check
+                                data-limit-reached="{% if attention_limit_reached %}true{% else %}false{% endif %}"
+                                data-ready-choice='To show that you are reading, choose "{answer}" for this question.'
+                                data-ready-rating='To show that you are reading, choose {answer} on this scale.'
+                            >
+                                <h3 id="attention-title" class="attention-check__title">
+                                    <i class="bi bi-shield-check" aria-hidden="true"></i>
+                                    Attention check
+                                </h3>
+                                <div class="form-check">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        name="{{ form.is_attention_check.html_name }}"
+                                        id="{{ form.is_attention_check.id_for_label }}"
+                                        aria-describedby="{% if attention_limit_reached %}attention-caption-limit{% else %}attention-caption-help{% endif %}"
+                                        data-attention-toggle
+                                        {% if attention_on and not attention_limit_reached %}checked{% endif %}
+                                        {% if attention_limit_reached %}disabled{% endif %}
+                                    >
+                                    <label class="form-check-label" for="{{ form.is_attention_check.id_for_label }}">Use this question as an attention check</label>
+                                    <div id="attention-caption-help" class="form-text mt-0" data-attention-caption="help"{% if attention_limit_reached %} hidden{% endif %}>Attention checks work on multiple-choice and rating questions.</div>
+                                    <div id="attention-caption-open" class="form-text mt-0" data-attention-caption="open" hidden>Attention checks work on multiple-choice and rating questions.</div>
+                                    <div id="attention-caption-limit" class="form-text mt-0" data-attention-caption="limit"{% if not attention_limit_reached %} hidden{% endif %}>This survey already has {{ attention_check_limit }} attention checks.</div>
+                                    {% for error in form.is_attention_check.errors %}
+                                        <div class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="attention-details" data-attention-details{% if not attention_on or attention_limit_reached %} hidden{% endif %}>
+                                    <div id="attention-expected-label" class="form-label mb-1">Expected answer</div>
+
+                                    {% with option_rows=form.expected_option_rows %}
+                                    <div data-attention-for="MULTIPLE_CHOICE"{% if question_type == "RATING_SCALE" or question_type == "OPEN_TEXT" %} hidden{% endif %}>
+                                        <div
+                                            class="attention-choices{% if form.expected_option.errors %} is-invalid{% endif %}"
+                                            role="radiogroup"
+                                            aria-labelledby="attention-expected-label"
+                                            aria-describedby="attention-expected-help{% if form.expected_option.errors %} attention-option-error{% endif %}"
+                                            data-attention-choices
+                                            {% if option_rows|length < 2 %}hidden{% endif %}
+                                        >
+                                            {% for row in option_rows %}
+                                                <label class="attention-choice">
+                                                    <input class="form-check-input" type="radio" name="{{ form.expected_option.html_name }}" value="{{ row.index }}"{% if row.checked %} checked{% endif %}>
+                                                    <span data-choice-text>{{ row.text }}</span>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                        <p class="attention-caption" data-attention-few{% if option_rows|length >= 2 %} hidden{% endif %}>Add at least two options, then choose the expected one.</p>
+                                        {% for error in form.expected_option.errors %}
+                                            <div id="attention-option-error" class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endwith %}
+
+                                    <div data-attention-for="RATING_SCALE"{% if question_type != "RATING_SCALE" %} hidden{% endif %}>
+                                        <div
+                                            class="ss-segmented ss-segmented--five{% if form.expected_rating.errors %} is-invalid{% endif %}"
+                                            role="radiogroup"
+                                            aria-labelledby="attention-expected-label"
+                                            aria-describedby="attention-expected-help{% if form.expected_rating.errors %} attention-rating-error{% endif %}"
+                                        >
+                                            {% for choice in form.expected_rating %}
+                                                <label class="ss-segment" for="{{ choice.id_for_label }}">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                                            {% endfor %}
+                                        </div>
+                                        {% for error in form.expected_rating.errors %}
+                                            <div id="attention-rating-error" class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
+                                        {% endfor %}
+                                    </div>
+
+                                    <div id="attention-expected-help" class="form-text">The question text must name this answer.</div>
+
+                                    <div class="attention-ready" data-attention-ready hidden>
+                                        <button
+                                            class="btn btn-sm btn-outline-secondary"
+                                            type="button"
+                                            aria-describedby="attention-ready-off"
+                                            data-attention-ready-button
+                                            disabled
+                                        >
+                                            <i class="bi bi-text-left me-1" aria-hidden="true"></i>
+                                            Use the ready text
+                                        </button>
+                                        <div id="attention-ready-on" class="form-text" data-ready-caption="on" hidden>Fills the question text from the expected answer. You can edit it.</div>
+                                        <div id="attention-ready-off" class="form-text" data-ready-caption="off">Choose the expected answer first.</div>
+                                    </div>
+
+                                    <div class="alert alert-info d-flex gap-2 mt-3 mb-0" role="note">
+                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                        <div>The app shows this question like any other. The expected answer stays on the server, and the answers to this question are left out of the question charts.</div>
+                                    </div>
+                                </div>
+                            </section>
+                            {% endwith %}
 
                             <div class="mb-4 option-builder" data-option-builder>
                                 <div

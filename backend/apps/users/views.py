@@ -189,7 +189,7 @@ def _quick_actions_for(user_type):
         ],
         UserType.RESPONDENT: [
             {
-                "title": "Answer Surveys in the App",
+                "title": "Answer surveys in the app",
                 "description": "Answer surveys and keep your profile in the Smart Survey app.",
                 "url_name": "responses:use_app",
                 "icon": "bi-phone",

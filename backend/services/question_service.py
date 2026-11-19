@@ -251,6 +251,9 @@ class QuestionService:
             raise ValidationError("This survey already has 2 attention checks.")
 
         if question.question_type == QuestionType.MULTIPLE_CHOICE:
+            # One option measures nothing, so the count is checked before the expected answer.
+            if len(options) < 2:
+                raise ValidationError("Add at least two options, then choose the expected one.")
             if expected_rating is not None or expected_option_index is None:
                 raise ValidationError("Choose the expected answer.")
             if (
@@ -337,7 +340,24 @@ class QuestionService:
             "text": question.question_text,
             "type_label": QUESTION_TYPE_LABELS[question.question_type],
             "required_label": "Required" if question.is_required else "Optional",
+            # The provider's page only; the respondent form never carries these (D-046 rule 4).
+            "is_attention_check": question.is_attention_check,
+            "expected_option_id": question.expected_option_id,
+            "expected_answer_label": self._expected_answer_label(question, options),
         }
+
+    def _expected_answer_label(self, question, options):
+        """Return the expected option's text, the expected rating as text, or ""."""
+        if not question.is_attention_check:
+            return ""
+        if question.expected_option_id is not None:
+            for option in options:
+                if option.option_id == question.expected_option_id:
+                    return option.option_text
+            return ""
+        if question.expected_rating is not None:
+            return str(question.expected_rating)
+        return ""
 
     def _response_form_question(self, question):
         """Build one respondent-facing response form question."""

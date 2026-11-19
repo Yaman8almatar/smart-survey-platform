@@ -41,6 +41,7 @@
                 <div class="metric-card">
                     <span>Responses</span>
                     <strong>{{ results.response_count }}</strong>
+                    <small>{{ results.included_count }} included</small>
                 </div>
             </div>
             <div class="col-sm-6 col-lg-3">
@@ -65,6 +66,86 @@
                 </div>
             </div>
         </div>
+
+        {% if quality %}
+        <!-- W-04: response quality; nothing is excluded automatically (P-08) -->
+        <div class="card table-card mb-4 quality-panel">
+            <div class="card-body">
+                <div class="quality-panel__head">
+                    <h2 class="section-title mb-0">Response quality</h2>
+                    <span class="quality-caption">Rules version {{ quality.rules_version }}</span>
+                </div>
+                <p class="quality-count-line"><strong>{{ quality.included }} of {{ quality.total }}</strong> responses included.{% if quality.excluded > 0 %} {{ quality.excluded }} excluded.{% endif %}</p>
+
+                {% if quality.before_checks > 0 %}
+                    <div class="alert alert-info d-flex gap-2" role="note">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <div>{% if quality.before_checks == 1 %}<strong>1 response was collected before quality checks.</strong> It has no score and stays included.{% else %}<strong>{{ quality.before_checks }} responses were collected before quality checks.</strong> They have no score and stay included.{% endif %}</div>
+                    </div>
+                {% endif %}
+
+                <ul class="quality-bands">
+                    <li class="quality-band">
+                        <span class="quality-band__name"><span class="quality-dot quality-dot--clean" aria-hidden="true"></span>Clean</span>
+                        <strong>{{ quality.bands.CLEAN }}</strong>
+                        <span class="quality-caption">No flag</span>
+                    </li>
+                    <li class="quality-band">
+                        <span class="quality-band__name"><span class="quality-dot quality-dot--check" aria-hidden="true"></span>Check</span>
+                        <strong>{{ quality.bands.CHECK }}</strong>
+                        <span class="quality-caption">Score 60 to 99</span>
+                    </li>
+                    <li class="quality-band">
+                        <span class="quality-band__name"><span class="quality-dot quality-dot--low" aria-hidden="true"></span>Low</span>
+                        <strong>{{ quality.bands.LOW }}</strong>
+                        <span class="quality-caption">Score under 60</span>
+                    </li>
+                </ul>
+
+                {% if not quality.flag_rows %}
+                    <p>No response is flagged.</p>
+                {% endif %}
+                {% if quality.flag_rows or quality.not_checked_rows %}
+                    <div class="table-responsive">
+                        <table class="table quality-table">
+                            <thead>
+                                <tr><th scope="col">Flag</th><th scope="col">What it means</th><th scope="col">Responses</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in quality.flag_rows %}
+                                    <tr>
+                                        {% if row.code == "ATTENTION_FAILED" %}<td>Failed attention check</td><td>Did not give the expected answer to an attention check.</td>{% elif row.code == "SPEEDING" %}<td>Answered very fast</td><td>Half or more closed answers took under 2 seconds, or the response was twice as fast as most.</td>{% elif row.code == "DUPLICATE_DEVICE" %}<td>Same device as another account</td><td>Sent from a device that another account also used for this survey.</td>{% elif row.code == "STRAIGHT_LINING" %}<td>Same rating on every rating question</td><td>Gave one rating to all of 5 or more rating questions.</td>{% else %}<td>Timing or device data missing</td><td>The app sent no timings or device ID, or the timings do not add up.</td>{% endif %}
+                                        <td>{{ row.count }}</td>
+                                    </tr>
+                                {% endfor %}
+                                {% for code in quality.not_checked_rows %}
+                                    <tr class="quality-row--muted">
+                                        {% if code == "ATTENTION_FAILED" %}<td>Failed attention check</td><td>Not checked: this survey has no attention check.</td>{% elif code == "SPEEDING" %}<td>Answered very fast</td><td>Not checked: needs at least 3 answered closed questions.</td>{% else %}<td>Same rating on every rating question</td><td>Not checked: needs 5 or more rating questions.</td>{% endif %}
+                                        <td>&ndash;</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+
+                <div class="quality-actions">
+                    {% if quality.flagged_included > 0 %}
+                        <a class="btn btn-outline-danger" href="{% url 'analysis:exclude_flagged' results.survey_id %}"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Exclude flagged responses ({{ quality.flagged_included }})</a>
+                    {% else %}
+                        <button type="button" class="btn btn-outline-danger" disabled><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Exclude flagged responses</button>
+                    {% endif %}
+                    {% if quality.excluded > 0 %}
+                        <a class="btn btn-outline-secondary" href="{% url 'analysis:include_all' results.survey_id %}"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Include all ({{ quality.excluded }} excluded)</a>
+                    {% else %}
+                        <button type="button" class="btn btn-outline-secondary" disabled><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Include all</button>
+                    {% endif %}
+                </div>
+                <p class="quality-footer">Flagged responses are kept. You decide which ones count.</p>
+                <p class="quality-caption mb-0">Charts, summaries and the export count included responses only. Speed says little on factual questions, where people who know the answer are quick.</p>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Analytics charts -->
         <div class="row g-4">

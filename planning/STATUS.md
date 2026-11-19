@@ -1,12 +1,12 @@
-# STATUS — 2026-11-19
-Branch: feat/fr04-rules
-Task: TASK-42 — FR-04 Part 2: the quality rules, the score, and include or exclude
-Done: services/quality_rules.py (pure Python, RULES_VERSION 1, five flags, score, bands) evaluates every response of a survey on read.
-  QualityService.evaluate_survey (owner only, P-20 lock, 4 queries), set_inclusion, exclude_flagged, include_all (one bulk update, atomic).
-  Analytics charts and sentiment counts use included responses only and leave attention questions out; lock and response_count stay on submitted; included_count added.
-Changes: 6 modified, 6 new, 0 deleted — backend/services/quality_rules.py, backend/services/quality_service.py, backend/services/analysis_service.py, backend/repositories/, backend/tests/
-Tests: rule tests 40 passed in 0.16s; task files 176 passed in 16.71s; whole suite 1013 passed in 74.70s (once, before commit); full suites run in CI
+# STATUS — 2026-11-20
+Branch: feat/fr04-web
+Task: TASK-43 — FR-04 Part 3, web: attention option on the question form, response quality panel, bulk include or exclude
+Done: Question form marks a choice or rating question as an attention check, with expected answer, ready text and the two-option rule; list shows badge and usage.
+  Analytics page shows the "Response quality" panel once results are open; exclude and include go through GET confirmation pages and CSRF POSTs.
+  Riders: respondent home card in sentence case; services/survey_access.ensure_survey_owner replaces both _ensure_survey_owner copies.
+Changes: 12 modified, 7 new, 0 deleted — backend/apps/surveys/, backend/apps/analysis/, backend/services/survey_access.py, backend/static/, backend/tests/
+Tests: task files 67 passed in 9.40s; whole suite 1080 passed in 55.21s (once, before commit); full suites run in CI
 Check: OK
-Committed: yes (start commit cd58459; change commit holds this file)
-Open questions: none
-Next: board W-04 — quality panel, confirmation pages and the web question form
+Committed: yes (start commit dc8276e; change commit holds this file)
+Open questions: flag meanings, the attention helper caption and the limit caption were not in the brief (see PR "Decisions taken alone"); site.js not run in a browser (no server in this run)
+Next: review of the PR (advisor opens both pages on a local server, D-170); then TASK-44

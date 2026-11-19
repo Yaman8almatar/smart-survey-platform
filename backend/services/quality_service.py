@@ -9,18 +9,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import ResponseQuality
-from core.enums import QuestionType, UserType
-from core.exceptions import (
-    QuestionNotFound,
-    ResponseNotFound,
-    SurveyNotFound,
-    UnauthorizedAction,
-    ValidationError,
-)
+from core.enums import QuestionType
+from core.exceptions import QuestionNotFound, ResponseNotFound, ValidationError
 from repositories.quality_repository import QualityRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from services import disclosure, quality_rules
+from services.survey_access import ensure_survey_owner
 
 
 class QualityService:
@@ -159,7 +154,7 @@ class QualityService:
         the answered question types. No entry holds a device hash, a timing, the RSI, a
         respondent id or a profile field (DESIGN-INC2 2.4, privacy limit 3).
         """
-        self._ensure_survey_owner(provider_user, survey_id)
+        ensure_survey_owner(self.survey_repository, provider_user, survey_id)
         response_count = self.response_repository.find_by_survey_id(survey_id).count()
         if not disclosure.results_open(response_count):
             return {
@@ -236,7 +231,7 @@ class QualityService:
         Every id must belong to the survey, otherwise nothing changes. Returns the number
         of responses whose state changed.
         """
-        self._ensure_survey_owner(provider_user, survey_id)
+        ensure_survey_owner(self.survey_repository, provider_user, survey_id)
         self._ensure_results_open(survey_id)
         if not isinstance(excluded, bool):
             raise ValidationError("Excluded must be true or false.")
@@ -260,7 +255,7 @@ class QualityService:
 
     def include_all(self, provider_user, survey_id):
         """Include every excluded response of a survey; return the count."""
-        self._ensure_survey_owner(provider_user, survey_id)
+        ensure_survey_owner(self.survey_repository, provider_user, survey_id)
         self._ensure_results_open(survey_id)
         excluded = set(self.response_repository.find_excluded_ids_by_survey_id(survey_id))
         return self._apply_inclusion(survey_id, excluded, False)
@@ -311,16 +306,3 @@ class QualityService:
     def _locked_message(self):
         """Return the message of a refused change while results are locked."""
         return f"Results open at {disclosure.MIN_GROUP_SIZE} responses."
-
-    def _ensure_survey_owner(self, provider_user, survey_id):
-        """Ensure only the provider who owns the survey can read or change its quality;
-        the same errors as AnalysisService._ensure_survey_owner."""
-        if provider_user.user_type != UserType.SERVICE_PROVIDER:
-            raise UnauthorizedAction("Only service providers can view survey analytics.")
-
-        survey = self.survey_repository.find_by_id(survey_id)
-        if survey is None:
-            raise SurveyNotFound("Survey not found.")
-
-        if survey.provider_id != provider_user.user_id:
-            raise UnauthorizedAction("Only the survey owner can view survey analytics.")
