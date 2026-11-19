@@ -150,6 +150,43 @@
                                 <div class="form-text mt-0" data-attention-required-caption{% if not attention_on %} hidden{% endif %}>An attention check is always required.</div>
                             </div>
 
+                            <div class="mb-4 option-builder" data-option-builder>
+                                <div
+                                    class="d-flex flex-column flex-sm-row justify-content-between gap-2 mb-2"
+                                >
+                                    <div>
+                                        <label class="form-label mb-1">
+                                            Multiple-choice options
+                                        </label>
+                                        <div class="form-text mt-0">
+                                            Add one option per row for multiple-choice questions.
+                                        </div>
+                                    </div>
+                                    <button
+                                        class="btn btn-sm btn-outline-secondary align-self-sm-start"
+                                        type="button"
+                                        data-option-add
+                                    >
+                                        <i class="bi bi-plus-circle me-1"></i>
+                                        Add option
+                                    </button>
+                                </div>
+                                <div
+                                    class="option-builder-list"
+                                    data-option-list
+                                ></div>
+                                <div
+                                    class="option-source-wrap"
+                                    data-option-source-wrap
+                                >
+                                    {{ form.options }}
+                                </div>
+                                <div class="form-text">{{ form.options.help_text }}</div>
+                                {% for error in form.options.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
                             <!-- W-04: the attention option; site.js applies the type states and writes no copy -->
                             <hr class="attention-divider">
                             <section
@@ -176,9 +213,9 @@
                                         {% if attention_limit_reached %}disabled{% endif %}
                                     >
                                     <label class="form-check-label" for="{{ form.is_attention_check.id_for_label }}">Use this question as an attention check</label>
-                                    <div id="attention-caption-help" class="form-text mt-0" data-attention-caption="help"{% if attention_limit_reached %} hidden{% endif %}>Attention checks work on multiple-choice and rating questions.</div>
+                                    <div id="attention-caption-help" class="form-text mt-0" data-attention-caption="help"{% if attention_limit_reached %} hidden{% endif %}>The question asks respondents to pick a stated answer, to show they are reading. One or two per survey are enough.</div>
                                     <div id="attention-caption-open" class="form-text mt-0" data-attention-caption="open" hidden>Attention checks work on multiple-choice and rating questions.</div>
-                                    <div id="attention-caption-limit" class="form-text mt-0" data-attention-caption="limit"{% if not attention_limit_reached %} hidden{% endif %}>This survey already has {{ attention_check_limit }} attention checks.</div>
+                                    <div id="attention-caption-limit" class="form-text mt-0" data-attention-caption="limit"{% if not attention_limit_reached %} hidden{% endif %}>This survey already has {{ attention_check_limit }} attention checks. Delete one to add another.</div>
                                     {% for error in form.is_attention_check.errors %}
                                         <div class="field-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></div>
                                     {% endfor %}
@@ -251,43 +288,6 @@
                                 </div>
                             </section>
                             {% endwith %}
-
-                            <div class="mb-4 option-builder" data-option-builder>
-                                <div
-                                    class="d-flex flex-column flex-sm-row justify-content-between gap-2 mb-2"
-                                >
-                                    <div>
-                                        <label class="form-label mb-1">
-                                            Multiple-choice options
-                                        </label>
-                                        <div class="form-text mt-0">
-                                            Add one option per row for multiple-choice questions.
-                                        </div>
-                                    </div>
-                                    <button
-                                        class="btn btn-sm btn-outline-secondary align-self-sm-start"
-                                        type="button"
-                                        data-option-add
-                                    >
-                                        <i class="bi bi-plus-circle me-1"></i>
-                                        Add option
-                                    </button>
-                                </div>
-                                <div
-                                    class="option-builder-list"
-                                    data-option-list
-                                ></div>
-                                <div
-                                    class="option-source-wrap"
-                                    data-option-source-wrap
-                                >
-                                    {{ form.options }}
-                                </div>
-                                <div class="form-text">{{ form.options.help_text }}</div>
-                                {% for error in form.options.errors %}
-                                    <div class="invalid-feedback d-block">{{ error }}</div>
-                                {% endfor %}
-                            </div>
 
                             <button class="btn btn-primary w-100" type="submit">
                                 <i class="bi bi-plus-circle me-1"></i>

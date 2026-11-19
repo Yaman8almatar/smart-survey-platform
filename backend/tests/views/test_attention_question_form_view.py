@@ -13,6 +13,12 @@ CHOOSE = "Choose the expected answer."
 OPEN_TEXT_ERROR = "Attention checks work on multiple-choice and rating questions."
 READY_CHOICE = 'To show that you are reading, choose "{answer}" for this question.'
 READY_RATING = "To show that you are reading, choose {answer} on this scale."
+# The approved captions (board W-04, D-188; TASK-43B).
+HELPER = (
+    "The question asks respondents to pick a stated answer, to show they are reading. "
+    "One or two per survey are enough."
+)
+LIMIT = "This survey already has 2 attention checks. Delete one to add another."
 
 
 @pytest.fixture
@@ -177,9 +183,8 @@ def test_at_two_checks_the_page_shows_the_limit_and_a_disabled_checkbox(
 
     content = page(client, provider, survey)
 
-    limit = content.index('data-attention-caption="limit"')
-    assert "This survey already has 2 attention checks." in content[limit:limit + 120]
-    assert 'data-attention-caption="limit">' in content
+    assert f'data-attention-caption="limit">{LIMIT}</div>' in content
+    assert f'data-attention-caption="help" hidden>{HELPER}</div>' in content
     toggle = content[content.index("data-attention-toggle"):]
     assert toggle.index("disabled") < toggle.index(">")
     assert "2 of 2 attention checks used in this survey." in content
@@ -190,7 +195,19 @@ def test_below_the_limit_the_checkbox_is_enabled(client, provider, survey):
 
     toggle = content[content.index("data-attention-toggle"):]
     assert "disabled" not in toggle[: toggle.index(">")]
-    assert 'data-attention-caption="limit" hidden' in content
+    assert f'data-attention-caption="help">{HELPER}</div>' in content
+    assert f'data-attention-caption="open" hidden>{OPEN_TEXT_ERROR}</div>' in content
+    assert f'data-attention-caption="limit" hidden>{LIMIT}</div>' in content
+
+
+def test_the_attention_section_sits_under_the_options(client, provider, survey):
+    content = page(client, provider, survey)
+
+    required_caption = content.index("data-attention-required-caption")
+    builder = content.index("data-option-builder")
+    section = content.index("data-attention-check")
+    submit = content.index('<button class="btn btn-primary w-100" type="submit">')
+    assert required_caption < builder < section < submit
 
 
 def test_the_list_shows_the_badge_the_expected_answer_and_the_usage(client, provider, survey):

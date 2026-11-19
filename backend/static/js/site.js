@@ -181,7 +181,10 @@
             var template = section.getAttribute(
                 typeSelect.value === "RATING_SCALE" ? "data-ready-rating" : "data-ready-choice"
             );
-            questionText.value = template.replace("{answer}", answer);
+            // A replacer function, so "$&", "$'" or "$`" in an option's text stays literal.
+            questionText.value = template.replace("{answer}", function () {
+                return answer;
+            });
         });
 
         function nonBlankInputs() {

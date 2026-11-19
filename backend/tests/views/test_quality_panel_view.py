@@ -35,6 +35,29 @@ NAMES = {
     "STRAIGHT_LINING": "Same rating on every rating question",
     "SIGNALS_MISSING": "Timing or device data missing",
 }
+# The approved meanings (board W-04, D-188), in the board order of NAMES.
+MEANINGS = {
+    "ATTENTION_FAILED": "Chose a different answer than the attention check asked for.",
+    "SPEEDING": (
+        "Half or more of the closed questions took under 2 seconds, "
+        "or the whole response was twice as fast as most."
+    ),
+    "DUPLICATE_DEVICE": (
+        "Two accounts answered from one app installation. Both responses are flagged."
+    ),
+    "STRAIGHT_LINING": "All 5 or more rating answers are identical.",
+    "SIGNALS_MISSING": (
+        "The app sent no timings or device ID, or its times exceed the server's clock."
+    ),
+}
+# The texts TASK-43 wrote before the approved copy (TASK-43B).
+OLD_MEANINGS = (
+    "Did not give the expected answer",
+    "do not add up",
+    "Sent from a device",
+    "Gave one rating",
+    "Half or more closed answers",
+)
 NOT_CHECKED = {
     "ATTENTION_FAILED": "Not checked: this survey has no attention check.",
     "SPEEDING": "Not checked: needs at least 3 answered closed questions.",
@@ -207,11 +230,14 @@ def test_flag_rows_follow_the_board_order_with_their_meanings(client, provider, 
     add_response(survey, active_ms=500)
     add_response(survey, attention_total=1, attention_failed=1)
 
-    rows = table_rows(dashboard(client, provider, survey))
+    content = dashboard(client, provider, survey)
+    rows = table_rows(content)
 
     assert [row[0] for row in rows] == list(NAMES.values())
+    assert [row[1] for row in rows] == list(MEANINGS.values())
     assert [row[2] for row in rows] == ["1", "1", "2", "1", "1"]
-    assert all(row[1] and not row[1].startswith("Not checked") for row in rows)
+    for old in OLD_MEANINGS:
+        assert old not in content
 
 
 def test_flag_rows_stay_after_an_exclusion(client, provider, survey):
@@ -231,7 +257,7 @@ def test_not_checked_rows_follow_the_flag_rows(client, provider, survey):
     rows = table_rows(dashboard(client, provider, survey))
 
     assert rows == [
-        [NAMES["SPEEDING"], rows[0][1], "1"],
+        [NAMES["SPEEDING"], MEANINGS["SPEEDING"], "1"],
         [NAMES["ATTENTION_FAILED"], NOT_CHECKED["ATTENTION_FAILED"], "&ndash;"],
         [NAMES["STRAIGHT_LINING"], NOT_CHECKED["STRAIGHT_LINING"], "&ndash;"],
     ]
@@ -255,7 +281,7 @@ def test_no_answered_very_fast_row_when_every_response_lacks_its_timings(
 
     rows = table_rows(dashboard(client, provider, survey))
 
-    assert rows[0] == [NAMES["SIGNALS_MISSING"], rows[0][1], "5"]
+    assert rows[0] == [NAMES["SIGNALS_MISSING"], MEANINGS["SIGNALS_MISSING"], "5"]
     assert NAMES["SPEEDING"] not in [row[0] for row in rows]
 
 
