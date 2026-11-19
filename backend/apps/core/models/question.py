@@ -16,6 +16,16 @@ class Question(models.Model):
     question_type = models.CharField(max_length=32, choices=QuestionType.choices)
     is_required = models.BooleanField(default=True)
     order_index = models.PositiveIntegerField(default=0)
+    # FR-04 attention check (P-03). Neither field ever leaves the server (D-046 rule 4).
+    is_attention_check = models.BooleanField(default=False, db_default=False)
+    expected_option = models.ForeignKey(
+        "core.QuestionOption",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    expected_rating = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "questions"

@@ -434,13 +434,13 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         regions=["DAMASCUS"],
     )
 
-    surveys = survey_service.get_eligible_surveys(respondent)
+    surveys = eligible_list(survey_service, respondent)
 
     assert [survey.survey_id for survey in surveys] == [eligible.survey_id]
 
 
 @pytest.mark.django_db
-def test_eligible_surveys_match_equal_governorate_codes_only(survey_service):
+def test_eligible_list_matches_equal_governorate_codes_only(survey_service):
     provider = create_user("provider-eligible-region@example.com", UserType.SERVICE_PROVIDER)
     respondent = create_user("respondent-eligible-region@example.com", UserType.RESPONDENT)
     ProfileRepository().save(
@@ -461,9 +461,13 @@ def test_eligible_surveys_match_equal_governorate_codes_only(survey_service):
     add_targeting(other, regions=["RIF_DIMASHQ"])
     survey_service.publish_survey(provider, other.survey_id)
 
-    surveys = survey_service.get_eligible_surveys(respondent)
+    surveys = eligible_list(survey_service, respondent)
 
     assert [eligible.survey_id for eligible in surveys] == [matching.survey_id]
+
+
+def eligible_list(survey_service, respondent):
+    return [item["survey"] for item in survey_service.get_eligible_survey_items(respondent)]
 
 
 def add_choice_question(survey, option_count):
@@ -516,7 +520,7 @@ def test_publish_survey_accepts_multiple_choice_question_with_two_options(survey
 
 
 @pytest.mark.django_db
-def test_eligible_survey_items_include_question_count_for_eligible_surveys_only(
+def test_eligible_survey_items_include_question_count_for_eligible_only(
     survey_service,
 ):
     provider = create_user("provider-items@example.com", UserType.SERVICE_PROVIDER)
@@ -598,24 +602,24 @@ def respondent_with_profile(email, age=30, gender=Gender.FEMALE, region="DAMASCU
         ({"age_max": 35}, 36, False),
     ],
 )
-def test_eligible_surveys_include_age_bounds(survey_service, targeting, age, eligible):
+def test_eligible_list_includes_age_bounds(survey_service, targeting, age, eligible):
     provider = create_user("provider-age-bound@example.com", UserType.SERVICE_PROVIDER)
     respondent, _ = respondent_with_profile("respondent-age-bound@example.com", age=age)
     survey = published_survey_with_targeting(survey_service, provider, **targeting)
 
-    surveys = survey_service.get_eligible_surveys(respondent)
+    surveys = eligible_list(survey_service, respondent)
 
     assert (survey in surveys) is eligible
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("gender", [Gender.MALE, Gender.FEMALE])
-def test_eligible_surveys_with_gender_any_include_every_gender(survey_service, gender):
+def test_eligible_list_with_gender_any_includes_every_gender(survey_service, gender):
     provider = create_user("provider-gender-any@example.com", UserType.SERVICE_PROVIDER)
     respondent, _ = respondent_with_profile("respondent-gender-any@example.com", gender=gender)
     survey = published_survey_with_targeting(survey_service, provider, gender=Gender.ANY)
 
-    surveys = survey_service.get_eligible_surveys(respondent)
+    surveys = eligible_list(survey_service, respondent)
 
     assert [eligible.survey_id for eligible in surveys] == [survey.survey_id]
 
@@ -822,7 +826,7 @@ def test_publish_stores_the_reach_that_matches_the_eligible_lists(survey_service
     seeing = [
         respondent
         for respondent in active_respondents
-        if survey in survey_service.get_eligible_surveys(respondent)
+        if survey in eligible_list(survey_service, respondent)
     ]
     survey.refresh_from_db()
     assert survey.reach_at_publish == len(seeing) == 6

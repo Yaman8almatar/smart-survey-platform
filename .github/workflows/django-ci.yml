@@ -35,6 +35,7 @@ jobs:
 
     env:
       SECRET_KEY: ci-only-not-for-production-django-secret-key-0123456789-abcdefghij
+      DEVICE_HASH_KEY: ci-only-not-for-production-device-hash-key-0123456789
       DEBUG: "False"
       ALLOWED_HOSTS: localhost,127.0.0.1
       DB_NAME: smart_survey_ci

@@ -17,6 +17,14 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG is False.")
     # Local development fallback only; minimum 32 chars to satisfy SHA256 length.
     SECRET_KEY = "django-insecure-dev-fallback-secret-key-32chars"
+# FR-04: key of the device-id HMAC. Separate from SECRET_KEY, so rotating SECRET_KEY keeps
+# the same-device comparison working (DESIGN-INC2 2.4).
+DEVICE_HASH_KEY = os.getenv("DEVICE_HASH_KEY", "").strip()
+if not DEVICE_HASH_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("DEVICE_HASH_KEY must be set when DEBUG is False.")
+    # Local development fallback only.
+    DEVICE_HASH_KEY = "insecure-dev-fallback-device-hash-key-32chars"
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "").split(",")

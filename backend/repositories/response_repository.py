@@ -39,6 +39,10 @@ class ResponseRepository:
             respondent_id=respondent_id,
         ).exists()
 
+    def survey_has_responses(self, survey_id):
+        """Return whether any response was submitted for a survey."""
+        return Response.objects.filter(survey_id=survey_id).exists()
+
     def save_answer(self, answer):
         """Persist a response answer."""
         answer.save()

@@ -1,5 +1,7 @@
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.db.models import Value
 
 from core.enums import QuestionType
 
@@ -20,6 +22,25 @@ class Response(models.Model):
     )
     started_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
+    # FR-04 include/exclude decision; unused until TASK-42.
+    is_excluded = models.BooleanField(default=False, db_default=False)
+    excluded_at = models.DateTimeField(null=True, blank=True)
+    # FR-04 snapshot: the respondent's profile as it was at submit (P-08). Lengths match
+    # RespondentProfile; no choices, so a later list change never rewrites history.
+    snap_age = models.PositiveSmallIntegerField(null=True, blank=True)
+    snap_gender = models.CharField(max_length=16, blank=True, default="", db_default="")
+    snap_region = models.CharField(max_length=32, blank=True, default="", db_default="")
+    snap_education = models.CharField(max_length=32, blank=True, default="", db_default="")
+    snap_occupation = models.CharField(max_length=32, blank=True, default="", db_default="")
+    snap_marital_status = models.CharField(
+        max_length=32, blank=True, default="", db_default=""
+    )
+    snap_interests = ArrayField(
+        models.CharField(max_length=32),
+        default=list,
+        blank=True,
+        db_default=Value([], output_field=ArrayField(models.CharField(max_length=32))),
+    )
 
     class Meta:
         db_table = "responses"

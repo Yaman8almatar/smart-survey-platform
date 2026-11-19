@@ -79,34 +79,10 @@
                         {% elif user.user_type == "RESPONDENT" %}
                             <li class="nav-item">
                                 <a
-                                    class="nav-link"{% if request.resolver_match.url_name == "respondent_dashboard" %} aria-current="page"{% endif %}
-                                    href="{% url 'responses:respondent_dashboard' %}"
+                                    class="nav-link"{% if request.resolver_match.url_name == "use_app" %} aria-current="page"{% endif %}
+                                    href="{% url 'responses:use_app' %}"
                                 >
-                                    <i class="bi bi-speedometer2 me-1"></i>Respondent dashboard
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a
-                                    class="nav-link"{% if request.resolver_match.url_name == "demographic_profile" %} aria-current="page"{% endif %}
-                                    href="{% url 'responses:demographic_profile' %}"
-                                >
-                                    <i class="bi bi-person-vcard me-1"></i>Demographic profile
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a
-                                    class="nav-link"{% if request.resolver_match.url_name == "eligible_surveys" %} aria-current="page"{% endif %}
-                                    href="{% url 'responses:eligible_surveys' %}"
-                                >
-                                    <i class="bi bi-ui-checks-grid me-1"></i>Eligible surveys
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a
-                                    class="nav-link"{% if request.resolver_match.url_name == "answered_surveys" %} aria-current="page"{% endif %}
-                                    href="{% url 'responses:answered_surveys' %}"
-                                >
-                                    <i class="bi bi-check2-square me-1"></i>Answered surveys
+                                    <i class="bi bi-phone me-1"></i>Smart Survey app
                                 </a>
                             </li>
                         {% elif user.user_type == "ADMIN" %}

@@ -122,7 +122,7 @@ def _dashboard_url_for(user):
     """Return the dashboard URL for the authenticated user's role."""
     route_names = {
         UserType.SERVICE_PROVIDER: ["surveys:provider_dashboard"],
-        UserType.RESPONDENT: ["responses:respondent_dashboard"],
+        UserType.RESPONDENT: ["responses:use_app"],
         UserType.ADMIN: ["admin_panel:admin_dashboard"],
     }.get(user.user_type, [])
 
@@ -189,28 +189,10 @@ def _quick_actions_for(user_type):
         ],
         UserType.RESPONDENT: [
             {
-                "title": "Respondent Dashboard",
-                "description": "View your respondent workspace.",
-                "url_name": "responses:respondent_dashboard",
-                "icon": "bi-speedometer2",
-            },
-            {
-                "title": "Demographic Profile",
-                "description": "Keep eligibility information current.",
-                "url_name": "responses:demographic_profile",
-                "icon": "bi-person-vcard",
-            },
-            {
-                "title": "Eligible Surveys",
-                "description": "See surveys currently available to you.",
-                "url_name": "responses:eligible_surveys",
-                "icon": "bi-ui-checks-grid",
-            },
-            {
-                "title": "Answered Surveys",
-                "description": "Review surveys you have already submitted.",
-                "url_name": "responses:answered_surveys",
-                "icon": "bi-check2-square",
+                "title": "Answer Surveys in the App",
+                "description": "Answer surveys and keep your profile in the Smart Survey app.",
+                "url_name": "responses:use_app",
+                "icon": "bi-phone",
             },
         ],
         UserType.ADMIN: [
@@ -242,7 +224,7 @@ def _welcome_message_for(user_type):
     messages_by_role = {
         UserType.SERVICE_PROVIDER: "Manage surveys, questions, targeting criteria, and analytics.",
         UserType.RESPONDENT: (
-            "Manage your profile and participate only in surveys you are eligible for."
+            "Answer surveys and keep your profile in the Smart Survey app."
         ),
         UserType.ADMIN: "Manage users and monitor system activity.",
     }

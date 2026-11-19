@@ -22,7 +22,7 @@ def test_suspended_or_deleted_user_loses_existing_session(client, action):
     admin = create_user(f"admin-{action}@example.com", UserType.ADMIN)
     respondent = create_user(f"respondent-{action}@example.com", UserType.RESPONDENT)
     client.force_login(respondent)
-    dashboard_url = reverse("responses:respondent_dashboard")
+    dashboard_url = reverse("responses:use_app")
     assert client.get(dashboard_url).status_code == 200
 
     getattr(AdminService(), action)(admin, respondent.user_id)
@@ -42,4 +42,4 @@ def test_reactivated_user_can_log_in_again(client):
     admin_service.activate_account(admin, respondent.user_id)
     client.force_login(User.objects.get(user_id=respondent.user_id))
 
-    assert client.get(reverse("responses:respondent_dashboard")).status_code == 200
+    assert client.get(reverse("responses:use_app")).status_code == 200

@@ -18,6 +18,8 @@ class QuestionService:
     """Handles Question management for provider-owned draft surveys."""
 
     RATING_VALUES = [1, 2, 3, 4, 5]
+    MAX_ATTENTION_CHECKS = 2
+    ATTENTION_TYPES = {QuestionType.MULTIPLE_CHOICE, QuestionType.RATING_SCALE}
 
     def __init__(
         self,
@@ -62,12 +64,22 @@ class QuestionService:
         is_required,
         order_index,
         options=None,
+        is_attention_check=False,
+        expected_option_index=None,
+        expected_rating=None,
     ):
-        """Create a survey question and persist its options when the type is multiple choice."""
+        """Create a survey question and persist its options when the type is multiple choice.
+
+        An attention check (FR-04, P-03) names its expected answer: the position of an option
+        in options (ids do not exist yet) or a rating from 1 to 5.
+        """
         normalized_options = self._normalize_options(options)
+        if is_attention_check:
+            # An attention check that may be skipped measures nothing.
+            is_required = True
 
         with transaction.atomic():
-            # Keep question and multiple-choice options in a single save workflow.
+            # Keep question, multiple-choice options and expected answer in one save workflow.
             question = self.add_question(
                 provider_user,
                 survey_id,
@@ -76,9 +88,17 @@ class QuestionService:
                 is_required,
                 order_index,
             )
+            self._validate_attention_check(
+                question,
+                is_attention_check,
+                expected_option_index,
+                expected_rating,
+                normalized_options,
+            )
 
+            saved_options = []
             if question.question_type == QuestionType.MULTIPLE_CHOICE:
-                self.add_question_options(
+                saved_options = self.add_question_options(
                     provider_user,
                     question.question_id,
                     normalized_options,
@@ -87,6 +107,14 @@ class QuestionService:
                 raise ValidationError(
                     "Options are only allowed for multiple-choice questions."
                 )
+
+            if is_attention_check:
+                question.is_attention_check = True
+                if question.question_type == QuestionType.MULTIPLE_CHOICE:
+                    question.expected_option = saved_options[expected_option_index]
+                else:
+                    question.expected_rating = expected_rating
+                self.question_repository.update(question)
 
             return question
 
@@ -117,7 +145,8 @@ class QuestionService:
         self._validate_question_data(text, order_index)
 
         question.question_text = text
-        question.is_required = is_required
+        # An attention check stays required (P-03).
+        question.is_required = True if question.is_attention_check else is_required
         question.order_index = order_index
         return self.question_repository.update(question)
 
@@ -195,6 +224,45 @@ class QuestionService:
         """Ensure questions are changed only before survey publication."""
         if not survey.can_edit():
             raise NotEditable("Questions can only be managed for draft surveys.")
+
+    def _validate_attention_check(
+        self,
+        question,
+        is_attention_check,
+        expected_option_index,
+        expected_rating,
+        options,
+    ):
+        """Validate the attention-check flag and its expected answer (P-03)."""
+        if not is_attention_check:
+            if expected_option_index is not None or expected_rating is not None:
+                raise ValidationError("Only an attention check has an expected answer.")
+            return
+
+        if question.question_type not in self.ATTENTION_TYPES:
+            raise ValidationError(
+                "Attention checks work on multiple-choice and rating questions."
+            )
+        # The new question is not flagged yet, so the count holds only the earlier ones.
+        if (
+            self.question_repository.count_attention_checks(question.survey_id)
+            >= self.MAX_ATTENTION_CHECKS
+        ):
+            raise ValidationError("This survey already has 2 attention checks.")
+
+        if question.question_type == QuestionType.MULTIPLE_CHOICE:
+            if expected_rating is not None or expected_option_index is None:
+                raise ValidationError("Choose the expected answer.")
+            if (
+                type(expected_option_index) is not int
+                or not 0 <= expected_option_index < len(options)
+            ):
+                raise ValidationError("The expected answer must be one of the options.")
+        else:
+            if expected_option_index is not None or expected_rating is None:
+                raise ValidationError("Choose the expected answer.")
+            if type(expected_rating) is not int or expected_rating not in self.RATING_VALUES:
+                raise ValidationError("The expected rating must be from 1 to 5.")
 
     def _validate_question_data(self, text, order_index):
         """Validate common question text and ordering rules."""

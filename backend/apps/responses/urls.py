@@ -4,23 +4,7 @@ from . import views
 
 app_name = "responses"
 
+# P-09: respondents answer in the app; the web keeps one page that sends them there.
 urlpatterns = [
-    path(
-        "respondent/dashboard/",
-        views.respondent_dashboard,
-        name="respondent_dashboard",
-    ),
-    path("profile/", views.demographic_profile, name="demographic_profile"),
-    path("eligible-surveys/", views.eligible_surveys, name="eligible_surveys"),
-    path("answered-surveys/", views.answered_surveys, name="answered_surveys"),
-    path(
-        "surveys/<int:survey_id>/submit/",
-        views.submit_survey_response,
-        name="submit_survey_response",
-    ),
-    path(
-        "submission-confirmation/",
-        views.submission_confirmation,
-        name="submission_confirmation",
-    ),
+    path("", views.use_app, name="use_app"),
 ]
