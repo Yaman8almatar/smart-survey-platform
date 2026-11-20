@@ -57,10 +57,7 @@ def response_export_xlsx(request, survey_id):
     sheet = workbook.active
     sheet.title = "Responses"
     for row in table:
-        # openpyxl refuses control characters that the XML format cannot hold.
-        sheet.append(
-            [ILLEGAL_CHARACTERS_RE.sub("", cell) if isinstance(cell, str) else cell for cell in row]
-        )
+        sheet.append(row)
     content = io.BytesIO()
     workbook.save(content)
     response = HttpResponse(content.getvalue(), content_type=XLSX_CONTENT_TYPE)
@@ -91,7 +88,7 @@ def export_table(result):
         header.append(f"Q{question['position']}. {question['question_text']}")
         if open_text:
             header.append(f"Q{question['position']} sentiment")
-    table = [[_guard(cell) for cell in header]]
+    table = [[_clean(cell) for cell in header]]
 
     for row in result["rows"]:
         if row["status"] == quality_rules.BEFORE_CHECKS:
@@ -110,8 +107,16 @@ def export_table(result):
             cells.append("" if answer["value"] is None else answer["value"])
             if open_text:
                 cells.append(SENTIMENT_NAMES.get(answer["sentiment"], ""))
-        table.append([_guard(cell) for cell in cells])
+        table.append([_clean(cell) for cell in cells])
     return table
+
+
+def _clean(cell):
+    """Return a text cell without the control characters openpyxl refuses, then guarded."""
+    if isinstance(cell, str):
+        # Strip first: "\x07=1" passes the guard, then the strip would leave the formula "=1".
+        return _guard(ILLEGAL_CHARACTERS_RE.sub("", cell))
+    return cell
 
 
 def _guard(cell):

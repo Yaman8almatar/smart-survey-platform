@@ -171,7 +171,7 @@ def test_a_cell_that_could_run_as_a_formula_gets_an_apostrophe(client, provider,
     assert all(cell.data_type != "f" for row in sheet.iter_rows() for cell in row)
 
 
-def test_control_characters_do_not_break_the_excel_file(client, provider, survey):
+def test_control_characters_are_removed_from_both_files(client, provider, survey):
     add_response(survey, minutes=0, text="Bell\x07 and\x0b tab")
     add_responses(survey, 4)
 
@@ -179,7 +179,19 @@ def test_control_characters_do_not_break_the_excel_file(client, provider, survey
 
     assert as_xlsx.status_code == 200
     assert xlsx_rows(as_xlsx)[1][7] == "Bell and tab"
-    assert csv_rows(as_csv)[1][7] == "Bell\x07 and\x0b tab"
+    assert csv_rows(as_csv)[1][7] == "Bell and tab"
+
+
+def test_a_control_character_cannot_hide_a_formula_from_the_guard(client, provider, survey):
+    add_response(survey, minutes=0, text="\x07=1+1")
+    add_responses(survey, 4)
+
+    as_csv, as_xlsx = download(client, provider, survey)
+
+    assert csv_rows(as_csv)[1][7] == "'=1+1"
+    assert xlsx_rows(as_xlsx)[1][7] == "'=1+1"
+    sheet = load_workbook(io.BytesIO(as_xlsx.content)).active
+    assert sheet.cell(row=2, column=8).data_type == "s"
 
 
 def test_neither_file_names_times_or_locates_a_respondent(client, provider, survey):
