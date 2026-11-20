@@ -187,7 +187,7 @@ Django only.
 an `ON DELETE` clause. The ORM performs the delete rules: `CASCADE` for every foreign key, except
 `answers.selected_option_id` and `questions.expected_option_id`, which are `SET_NULL`.
 
-**Note: no stored verdict.** `response_quality` holds evidence only. No table stores a quality flag, score or band:
+**Note: no stored verdict.** `response_quality` (model `ResponseQuality`, one row per response) holds evidence only. No table stores a quality flag, score or band:
 they are derived on read (P-01). The include or exclude decision is `responses.is_excluded` and `excluded_at`.
 
 ## Constraints and indexes
