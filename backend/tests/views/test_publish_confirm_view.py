@@ -41,7 +41,7 @@ def add_questions(survey, count):
 
 
 def publish_url(survey):
-    return reverse("surveys:publish_survey", args=[survey.survey_id])
+    return reverse("surveys:submit_for_review", args=[survey.survey_id])
 
 
 def messages_of(response):
@@ -91,8 +91,13 @@ def test_confirmation_shows_reach_criteria_rows_and_question_count(owner_client,
     assert "<dt>Marital status</dt><dd>Any</dd>" in html
     assert "<dt>Interests</dt><dd>At least one of: Technology, Education</dd>" in html
     assert "2 questions" in html
-    assert "After publishing, the questions and the targeting can no longer be changed." in html
-    assert "You can publish. People who match later will see the survey." not in html
+    assert "Submit for review" in html
+    assert "Check who will see the survey before you submit it for review." in html
+    assert (
+        "After you submit it, the questions and the targeting can no longer be changed. "
+        "An admin then publishes the survey or returns it to you with a reason."
+    ) in html
+    assert "You can still submit it. People who match later will see the survey." not in html
     assert reverse("surveys:targeting_criteria", args=[survey.survey_id]) in html
     assert 'method="post"' in html
     assert Survey.objects.get(pk=survey.pk).status == SurveyStatus.DRAFT
@@ -132,7 +137,7 @@ def test_few_and_none_show_their_warning(owner_client, survey, matching, big_lin
     ring_centre = ">&lt;5</text>" if matching else ">0</text>"
     assert ring_centre in html
     assert warning in html
-    assert "You can publish. People who match later will see the survey." in html
+    assert "You can still submit it. People who match later will see the survey." in html
     assert f"{matching} of" not in html
 
 
@@ -171,7 +176,7 @@ def test_another_providers_survey_redirects_with_the_service_message(client, sur
 
 
 @pytest.mark.django_db
-def test_post_publishes_and_stores_reach_at_publish(owner_client, survey):
+def test_post_submits_for_review_and_stores_no_reach_yet(owner_client, survey):
     create_respondents(["HOMS"] * 6 + ["DAMASCUS"] * 3)
     add_questions(survey, 1)
     TargetingCriteria.objects.create(survey=survey, regions=["HOMS"])
@@ -180,10 +185,10 @@ def test_post_publishes_and_stores_reach_at_publish(owner_client, survey):
 
     assert response.status_code == 302
     assert response.url == reverse("surveys:survey_list")
-    assert messages_of(response) == ["Survey published successfully."]
+    assert messages_of(response) == ["Survey submitted for review."]
     survey.refresh_from_db()
-    assert survey.status == SurveyStatus.PUBLISHED
-    assert survey.reach_at_publish == 6
+    assert survey.status == SurveyStatus.PENDING_REVIEW
+    assert survey.reach_at_publish is None
 
 
 @pytest.mark.django_db

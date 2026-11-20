@@ -13,6 +13,7 @@ from repositories.question_repository import QuestionRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
 from services.question_service import QuestionService
+from tests.review_helpers import publish_through_review
 
 
 @pytest.fixture
@@ -36,14 +37,9 @@ def create_survey(provider, title="Survey"):
     )
 
 
-def publish_survey(survey):
-    survey.publish()
-    return SurveyRepository().update(survey)
-
-
 def make_survey_answerable(survey, target_gender=Gender.ANY):
     TargetingRepository().create_or_update(survey=survey, gender=target_gender)
-    publish_survey(survey)
+    publish_through_review(survey.provider, survey.survey_id)
     respondent = create_user(
         f"respondent-form-{survey.survey_id}@example.com",
         UserType.RESPONDENT,
@@ -117,7 +113,10 @@ def test_provider_cannot_add_question_to_another_providers_survey(question_servi
 @pytest.mark.django_db
 def test_provider_cannot_add_question_to_published_survey(question_service):
     provider = create_user("provider-published@example.com", UserType.SERVICE_PROVIDER)
-    survey = publish_survey(create_survey(provider))
+    survey = create_survey(provider)
+    add_question(question_service, provider, survey)
+    TargetingRepository().create_or_update(survey=survey, gender=Gender.ANY)
+    survey = publish_through_review(provider, survey.survey_id)
 
     with pytest.raises(NotEditable):
         add_question(question_service, provider, survey)
@@ -594,7 +593,8 @@ def test_provider_cannot_delete_question_in_published_survey(question_service):
     )
     survey = create_survey(provider)
     question = add_question(question_service, provider, survey)
-    publish_survey(survey)
+    TargetingRepository().create_or_update(survey=survey, gender=Gender.ANY)
+    publish_through_review(provider, survey.survey_id)
 
     with pytest.raises(NotEditable):
         question_service.delete_question(provider, question.question_id)
@@ -608,7 +608,8 @@ def test_provider_cannot_delete_question_in_closed_survey(question_service):
     )
     survey = create_survey(provider)
     question = add_question(question_service, provider, survey)
-    close_survey(publish_survey(survey))
+    TargetingRepository().create_or_update(survey=survey, gender=Gender.ANY)
+    close_survey(publish_through_review(provider, survey.survey_id))
 
     with pytest.raises(NotEditable):
         question_service.delete_question(provider, question.question_id)

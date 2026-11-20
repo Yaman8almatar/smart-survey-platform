@@ -1,12 +1,13 @@
 import pytest
 
-from apps.core.models import RespondentProfile, Survey, TargetingCriteria, User
-from core.enums import AccountStatus, Gender, UserType
+from apps.core.models import Question, RespondentProfile, Survey, TargetingCriteria, User
+from core.enums import AccountStatus, Gender, QuestionType, UserType
 from core.exceptions import NotEditable, UnauthorizedAction, ValidationError
 from repositories.profile_repository import ProfileRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
 from services.targeting_service import TargetingService
+from tests.review_helpers import publish_through_review
 
 
 @pytest.fixture
@@ -30,9 +31,17 @@ def create_survey(provider, title="Survey"):
     )
 
 
-def publish_survey(survey):
-    survey.publish()
-    return SurveyRepository().update(survey)
+def create_published_survey(provider):
+    survey = create_survey(provider)
+    Question.objects.create(
+        survey=survey,
+        question_text="How was the service?",
+        question_type=QuestionType.OPEN_TEXT,
+        is_required=True,
+        order_index=0,
+    )
+    TargetingRepository().create_or_update(survey=survey, gender=Gender.ANY)
+    return publish_through_review(provider, survey.survey_id)
 
 
 def create_profile(user, age=30, gender=Gender.FEMALE, region="DAMASCUS"):
@@ -88,7 +97,7 @@ def test_provider_cannot_save_criteria_for_another_providers_survey(targeting_se
 @pytest.mark.django_db
 def test_provider_cannot_update_criteria_for_published_survey(targeting_service):
     provider = create_user("provider-published-criteria@example.com", UserType.SERVICE_PROVIDER)
-    survey = publish_survey(create_survey(provider))
+    survey = create_published_survey(provider)
 
     with pytest.raises(NotEditable):
         targeting_service.save_criteria(provider, survey.survey_id)
@@ -520,7 +529,7 @@ def test_reach_is_for_the_owner_only(targeting_service):
 @pytest.mark.django_db
 def test_reach_is_for_draft_surveys_only(targeting_service):
     provider = create_user("provider-reach-published@example.com", UserType.SERVICE_PROVIDER)
-    survey = publish_survey(create_survey(provider))
+    survey = create_published_survey(provider)
 
     with pytest.raises(NotEditable):
         targeting_service.reach(provider, survey.survey_id)

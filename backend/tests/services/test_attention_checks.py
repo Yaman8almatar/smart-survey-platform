@@ -15,6 +15,7 @@ from core.enums import AccountStatus, Gender, QuestionType, SurveyStatus, UserTy
 from core.exceptions import NotEditable, ValidationError
 from services.question_service import QuestionService
 from services.survey_service import SurveyService
+from tests.review_helpers import publish_through_review
 
 pytestmark = pytest.mark.django_db
 
@@ -171,12 +172,14 @@ def test_update_question_still_changes_a_plain_question_to_optional(provider, su
     assert Question.objects.get(pk=question.pk).is_required is False
 
 
-def test_publish_refuses_an_attention_check_whose_option_was_deleted(provider, survey):
+def test_submit_for_review_refuses_an_attention_check_whose_option_was_deleted(
+    provider, survey
+):
     question = add(provider, survey, is_attention_check=True, expected_option_index=2)
     QuestionOption.objects.filter(question=question, option_text="C").delete()
 
     with pytest.raises(ValidationError, match="^An attention check needs its expected answer.$"):
-        SurveyService().publish_survey(provider, survey.survey_id)
+        SurveyService().submit_for_review(provider, survey.survey_id)
 
     assert Survey.objects.get(pk=survey.pk).status == SurveyStatus.DRAFT
 
@@ -185,7 +188,7 @@ def test_publish_accepts_attention_checks_with_their_expected_answers(provider, 
     add(provider, survey, is_attention_check=True, expected_option_index=2)
     add(provider, survey, QuestionType.RATING_SCALE, is_attention_check=True, expected_rating=4)
 
-    SurveyService().publish_survey(provider, survey.survey_id)
+    publish_through_review(provider, survey.survey_id)
 
     assert Survey.objects.get(pk=survey.pk).status == SurveyStatus.PUBLISHED
 

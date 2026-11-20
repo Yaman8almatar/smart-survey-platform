@@ -230,7 +230,8 @@ def test_delete_without_debug_removes_only_the_simulation_domain():
     with override_settings(DEBUG=False):
         output = run("--delete")
 
-    assert "Deleted simulation users: 37, surveys: 1, responses: 36." in output
+    # 36 respondents, the provider and the FR-12 simulation admin.
+    assert "Deleted simulation users: 38, surveys: 1, responses: 36." in output
     assert not User.objects.filter(email__endswith=DOMAIN).exists()
     assert set(Survey.objects.all()) == {real_survey}
     assert list(Response.objects.all()) == [real_response]

@@ -96,6 +96,14 @@
                             </li>
                             <li class="nav-item">
                                 <a
+                                    class="nav-link"{% if request.resolver_match.url_name == "review_queue" or request.resolver_match.url_name == "review_survey" %} aria-current="page"{% endif %}
+                                    href="{% url 'admin_panel:review_queue' %}"
+                                >
+                                    <i class="bi bi-clipboard-check me-1"></i>Survey review
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a
                                     class="nav-link"{% if request.resolver_match.url_name == "user_management" %} aria-current="page"{% endif %}
                                     href="{% url 'admin_panel:user_management' %}"
                                 >

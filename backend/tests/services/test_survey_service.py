@@ -38,6 +38,7 @@ from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
 from services.survey_service import SurveyService
 from services.targeting_service import TargetingService
+from tests.review_helpers import publish_through_review
 
 
 @pytest.fixture
@@ -81,7 +82,8 @@ def action_flags(item):
     return {
         "can_edit": item["can_edit"],
         "can_delete": item["can_delete"],
-        "can_publish": item["can_publish"],
+        "can_submit": item["can_submit"],
+        "is_pending_review": item["is_pending_review"],
         "can_close": item["can_close"],
         "can_manage_questions": item["can_manage_questions"],
         "can_manage_targeting": item["can_manage_targeting"],
@@ -156,7 +158,7 @@ def test_provider_cannot_update_published_survey(survey_service):
     survey = survey_service.create_survey(provider, "Survey", "Description")
     add_question(survey)
     add_targeting(survey)
-    survey_service.publish_survey(provider, survey.survey_id)
+    publish_through_review(provider,survey.survey_id)
 
     with pytest.raises(NotEditable):
         survey_service.update_survey(provider, survey.survey_id, "Title", "Description")
@@ -229,7 +231,7 @@ def test_provider_can_delete_own_closed_survey(survey_service):
     survey = survey_service.create_survey(provider, "Survey", "Description")
     add_question(survey)
     add_targeting(survey)
-    survey_service.publish_survey(provider, survey.survey_id)
+    publish_through_review(provider,survey.survey_id)
     survey_service.close_survey(provider, survey.survey_id)
 
     survey_service.delete_survey(provider, survey.survey_id)
@@ -246,7 +248,7 @@ def test_provider_cannot_delete_published_survey(survey_service):
     survey = survey_service.create_survey(provider, "Survey", "Description")
     add_question(survey)
     add_targeting(survey)
-    survey_service.publish_survey(provider, survey.survey_id)
+    publish_through_review(provider,survey.survey_id)
 
     with pytest.raises(NotEditable):
         survey_service.delete_survey(provider, survey.survey_id)
@@ -263,23 +265,23 @@ def test_provider_cannot_delete_another_providers_survey(survey_service):
 
 
 @pytest.mark.django_db
-def test_publish_survey_requires_at_least_one_question(survey_service):
+def test_submit_for_review_requires_at_least_one_question(survey_service):
     provider = create_user("provider-question@example.com", UserType.SERVICE_PROVIDER)
     survey = survey_service.create_survey(provider, "Survey", "Description")
     add_targeting(survey)
 
     with pytest.raises(ValidationError):
-        survey_service.publish_survey(provider, survey.survey_id)
+        survey_service.submit_for_review(provider, survey.survey_id)
 
 
 @pytest.mark.django_db
-def test_publish_survey_requires_targeting_criteria(survey_service):
+def test_submit_for_review_requires_targeting_criteria(survey_service):
     provider = create_user("provider-targeting@example.com", UserType.SERVICE_PROVIDER)
     survey = survey_service.create_survey(provider, "Survey", "Description")
     add_question(survey)
 
     with pytest.raises(TargetingCriteriaNotFound):
-        survey_service.publish_survey(provider, survey.survey_id)
+        survey_service.submit_for_review(provider, survey.survey_id)
 
 
 @pytest.mark.django_db
@@ -289,7 +291,7 @@ def test_publish_survey_changes_status_to_published(survey_service):
     add_question(survey)
     add_targeting(survey)
 
-    published = survey_service.publish_survey(provider, survey.survey_id)
+    published = publish_through_review(provider,survey.survey_id)
 
     assert published.status == SurveyStatus.PUBLISHED
     assert published.published_at is not None
@@ -301,7 +303,7 @@ def test_close_survey_changes_status_to_closed(survey_service):
     survey = survey_service.create_survey(provider, "Survey", "Description")
     add_question(survey)
     add_targeting(survey)
-    published = survey_service.publish_survey(provider, survey.survey_id)
+    published = publish_through_review(provider,survey.survey_id)
 
     closed = survey_service.close_survey(provider, published.survey_id)
 
@@ -320,7 +322,8 @@ def test_draft_survey_action_flags_are_correct(survey_service):
     assert action_flags(items[0]) == {
         "can_edit": True,
         "can_delete": True,
-        "can_publish": True,
+        "can_submit": True,
+        "is_pending_review": False,
         "can_close": False,
         "can_manage_questions": True,
         "can_manage_targeting": True,
@@ -337,14 +340,15 @@ def test_published_survey_action_flags_are_correct(survey_service):
     survey = survey_service.create_survey(provider, "Published Survey", "Description")
     add_question(survey)
     add_targeting(survey)
-    survey_service.publish_survey(provider, survey.survey_id)
+    publish_through_review(provider,survey.survey_id)
 
     items = survey_service.list_provider_survey_items(provider)
 
     assert action_flags(items[0]) == {
         "can_edit": False,
         "can_delete": False,
-        "can_publish": False,
+        "can_submit": False,
+        "is_pending_review": False,
         "can_close": True,
         "can_manage_questions": False,
         "can_manage_targeting": False,
@@ -358,7 +362,7 @@ def test_closed_survey_action_flags_are_correct(survey_service):
     survey = survey_service.create_survey(provider, "Closed Survey", "Description")
     add_question(survey)
     add_targeting(survey)
-    survey_service.publish_survey(provider, survey.survey_id)
+    publish_through_review(provider,survey.survey_id)
     survey_service.close_survey(provider, survey.survey_id)
 
     items = survey_service.list_provider_survey_items(provider)
@@ -366,7 +370,8 @@ def test_closed_survey_action_flags_are_correct(survey_service):
     assert action_flags(items[0]) == {
         "can_edit": False,
         "can_delete": True,
-        "can_publish": False,
+        "can_submit": False,
+        "is_pending_review": False,
         "can_close": False,
         "can_manage_questions": False,
         "can_manage_targeting": False,
@@ -405,12 +410,12 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         age_max=40,
         regions=["DAMASCUS"],
     )
-    survey_service.publish_survey(provider, eligible.survey_id)
+    publish_through_review(provider,eligible.survey_id)
 
     wrong_target = survey_service.create_survey(provider, "Wrong Target", "Description")
     add_question(wrong_target)
     add_targeting(wrong_target, gender=Gender.MALE, age_min=18, age_max=40)
-    survey_service.publish_survey(provider, wrong_target.survey_id)
+    publish_through_review(provider,wrong_target.survey_id)
 
     answered = survey_service.create_survey(provider, "Answered", "Description")
     add_question(answered)
@@ -421,7 +426,7 @@ def test_respondent_gets_only_eligible_published_unanswered_surveys(survey_servi
         age_max=40,
         regions=["DAMASCUS"],
     )
-    survey_service.publish_survey(provider, answered.survey_id)
+    publish_through_review(provider,answered.survey_id)
     ResponseRepository().save(Response(survey=answered, respondent=respondent))
 
     draft = survey_service.create_survey(provider, "Draft", "Description")
@@ -455,11 +460,11 @@ def test_eligible_list_matches_equal_governorate_codes_only(survey_service):
     matching = survey_service.create_survey(provider, "Damascus", "Description")
     add_question(matching)
     add_targeting(matching, regions=["DAMASCUS"])
-    survey_service.publish_survey(provider, matching.survey_id)
+    publish_through_review(provider,matching.survey_id)
     other = survey_service.create_survey(provider, "Rif Dimashq", "Description")
     add_question(other)
     add_targeting(other, regions=["RIF_DIMASHQ"])
-    survey_service.publish_survey(provider, other.survey_id)
+    publish_through_review(provider,other.survey_id)
 
     surveys = eligible_list(survey_service, respondent)
 
@@ -489,7 +494,7 @@ def add_choice_question(survey, option_count):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("option_count", [0, 1])
-def test_publish_survey_rejects_multiple_choice_question_with_fewer_than_two_options(
+def test_submit_for_review_rejects_multiple_choice_question_with_fewer_than_two_options(
     survey_service,
     option_count,
 ):
@@ -502,7 +507,7 @@ def test_publish_survey_rejects_multiple_choice_question_with_fewer_than_two_opt
     add_targeting(survey)
 
     with pytest.raises(ValidationError):
-        survey_service.publish_survey(provider, survey.survey_id)
+        survey_service.submit_for_review(provider, survey.survey_id)
 
     assert SurveyRepository().find_by_id(survey.survey_id).status == SurveyStatus.DRAFT
 
@@ -514,7 +519,7 @@ def test_publish_survey_accepts_multiple_choice_question_with_two_options(survey
     add_choice_question(survey, 2)
     add_targeting(survey)
 
-    published = survey_service.publish_survey(provider, survey.survey_id)
+    published = publish_through_review(provider,survey.survey_id)
 
     assert published.status == SurveyStatus.PUBLISHED
 
@@ -547,12 +552,12 @@ def test_eligible_survey_items_include_question_count_for_eligible_only(
         )
     )
     add_targeting(eligible, gender=Gender.FEMALE)
-    survey_service.publish_survey(provider, eligible.survey_id)
+    publish_through_review(provider,eligible.survey_id)
 
     wrong_target = survey_service.create_survey(provider, "Wrong Target", "Description")
     add_question(wrong_target)
     add_targeting(wrong_target, gender=Gender.MALE)
-    survey_service.publish_survey(provider, wrong_target.survey_id)
+    publish_through_review(provider,wrong_target.survey_id)
 
     items = survey_service.get_eligible_survey_items(respondent)
 
@@ -573,7 +578,7 @@ def published_survey_with_targeting(survey_service, provider, **targeting):
     survey = survey_service.create_survey(provider, "Targeted", "Description")
     add_question(survey)
     add_targeting(survey, **targeting)
-    return survey_service.publish_survey(provider, survey.survey_id)
+    return publish_through_review(provider,survey.survey_id)
 
 
 def respondent_with_profile(email, age=30, gender=Gender.FEMALE, region="DAMASCUS"):

@@ -140,7 +140,7 @@
                                 <div>
                                     <h2 class="section-title mb-1">Surveys by status</h2>
                                     <p class="item-subtitle mb-0">
-                                        Draft, published, and closed survey inventory.
+                                        Draft, pending, published, and closed survey inventory.
                                     </p>
                                 </div>
                                 <span class="badge text-bg-light">
@@ -152,6 +152,10 @@
                                     <div class="report-value-item">
                                         <span>Draft</span>
                                         <strong>{{ report.surveys_by_status.DRAFT }}</strong>
+                                    </div>
+                                    <div class="report-value-item">
+                                        <span>Pending review</span>
+                                        <strong>{{ report.surveys_by_status.PENDING_REVIEW }}</strong>
                                     </div>
                                     <div class="report-value-item">
                                         <span>Published</span>

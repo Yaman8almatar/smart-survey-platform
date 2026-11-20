@@ -16,6 +16,23 @@ class SurveyRepository:
         """Return a survey by its primary key."""
         return Survey.objects.filter(survey_id=survey_id).first()
 
+    def find_by_id_for_update(self, survey_id):
+        """Return a survey with its row locked; call only inside transaction.atomic()."""
+        return Survey.objects.select_for_update().filter(survey_id=survey_id).first()
+
+    def find_pending_review(self):
+        """Return surveys waiting for review, oldest submission first, with question counts."""
+        return (
+            Survey.objects.filter(status=SurveyStatus.PENDING_REVIEW)
+            .select_related("provider")
+            .annotate(question_count=Count("questions", distinct=True))
+            .order_by("submitted_at", "survey_id")
+        )
+
+    def count_pending_review(self):
+        """Return how many surveys are waiting for review."""
+        return Survey.objects.filter(status=SurveyStatus.PENDING_REVIEW).count()
+
     def find_by_provider_id(self, provider_id):
         """Return surveys owned by the selected service provider."""
         return Survey.objects.filter(provider_id=provider_id)

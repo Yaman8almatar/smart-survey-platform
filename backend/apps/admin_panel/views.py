@@ -2,10 +2,13 @@ from datetime import date, timedelta
 
 from django.contrib import messages
 from django.shortcuts import redirect, render
+from django.views.decorators.http import require_POST
 
+from apps.surveys.views import publish_summary_context
 from core.enums import USER_TYPE_LABELS, AccountStatus, UserType
-from core.exceptions import SmartSurveyException
+from core.exceptions import SmartSurveyException, ValidationError
 from services.admin_service import AdminService
+from services.survey_review_service import SurveyReviewService
 
 
 def admin_dashboard(request):
@@ -14,7 +17,85 @@ def admin_dashboard(request):
     if response:
         return response
 
-    return render(request, "admin_panel/admin_dashboard.html")
+    pending_count = SurveyReviewService().count_pending(request.user)
+    return render(
+        request,
+        "admin_panel/admin_dashboard.html",
+        {"pending_count": pending_count},
+    )
+
+
+def review_queue(request):
+    """Render the surveys waiting for review, oldest first (FR-12)."""
+    response = _redirect_if_not_admin(request)
+    if response:
+        return response
+
+    try:
+        rows = SurveyReviewService().list_pending(request.user)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+        rows = []
+    return render(request, "admin_panel/review_queue.html", {"rows": rows})
+
+
+def review_survey(request, survey_id):
+    """Render one pending survey with its targeting and questions for the admin's decision."""
+    response = _redirect_if_not_admin(request)
+    if response:
+        return response
+
+    try:
+        review = SurveyReviewService().get_review(request.user, survey_id)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+        return redirect("admin_panel:review_queue")
+
+    context = {
+        "survey": review["survey"],
+        "provider_name": review["provider_name"],
+        "provider_email": review["provider_email"],
+        "submitted_at": review["submitted_at"],
+        "questions": review["questions"],
+        **publish_summary_context(review["criteria"], review["reach"]),
+    }
+    return render(request, "admin_panel/review_survey.html", context)
+
+
+@require_POST
+def approve_survey(request, survey_id):
+    """Approve a pending survey; it is published at once."""
+    response = _redirect_if_not_admin(request)
+    if response:
+        return response
+
+    try:
+        SurveyReviewService().approve(request.user, survey_id)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+    else:
+        messages.success(request, "Survey approved and published.")
+    return redirect("admin_panel:review_queue")
+
+
+@require_POST
+def reject_survey(request, survey_id):
+    """Return a pending survey to its provider with the admin's reason."""
+    response = _redirect_if_not_admin(request)
+    if response:
+        return response
+
+    try:
+        SurveyReviewService().reject(request.user, survey_id, request.POST.get("reason", ""))
+    except ValidationError as error:
+        # A reason error keeps the admin on the review page to write it again.
+        messages.error(request, str(error), extra_tags="danger")
+        return redirect("admin_panel:review_survey", survey_id)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+    else:
+        messages.success(request, "Survey returned to the provider.")
+    return redirect("admin_panel:review_queue")
 
 
 def user_management(request):

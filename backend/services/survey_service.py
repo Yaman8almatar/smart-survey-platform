@@ -107,13 +107,12 @@ class SurveyService:
 
         return self.survey_repository.delete(survey.survey_id)
 
-    def publish_survey(self, provider_user, survey_id):
-        """Publish a complete draft survey after validating questions and targeting criteria."""
-        survey, _, criteria = self._get_publishable_survey(provider_user, survey_id)
+    def submit_for_review(self, provider_user, survey_id):
+        """Submit a complete draft survey for admin review (FR-12); it is locked until then."""
+        survey, _, _ = self._get_publishable_survey(provider_user, survey_id)
 
-        # Unbanded on purpose: every display of reach_at_publish goes through disclosure.band.
-        survey.reach_at_publish = self.profile_repository.count_matching(criteria)
-        survey.publish()
+        # The reach is counted at approval, when the survey is published.
+        survey.submit_for_review()
         return self.survey_repository.update(survey)
 
     def get_publish_preview(self, provider_user, survey_id):
@@ -131,7 +130,7 @@ class SurveyService:
 
         # Validate the status transition before changing the survey state.
         if not survey.can_edit():
-            raise NotEditable("Only draft surveys can be published.")
+            raise NotEditable("Only draft surveys can be submitted for review.")
 
         # Published surveys must have at least one question.
         questions = list(self.question_repository.find_by_survey_id(survey.survey_id))
@@ -271,7 +270,8 @@ class SurveyService:
         return {
             "can_edit": is_draft,
             "can_delete": survey.can_delete(),
-            "can_publish": is_draft,
+            "can_submit": is_draft,
+            "is_pending_review": survey.is_pending_review(),
             "can_close": is_published,
             "can_manage_questions": is_draft,
             "can_manage_targeting": is_draft,

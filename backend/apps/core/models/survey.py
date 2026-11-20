@@ -31,6 +31,19 @@ class Survey(models.Model):
     # FR-16: each respondent sees a fixed order of their own (services.presentation_order).
     shuffle_questions = models.BooleanField(default=False, db_default=False)
     shuffle_options = models.BooleanField(default=False, db_default=False)
+    # FR-12: an admin approves (publishes) or rejects (back to draft, with a reason).
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_surveys",
+    )
+    rejection_reason = models.CharField(
+        max_length=1000, blank=True, default="", db_default=""
+    )
 
     class Meta:
         db_table = "surveys"
@@ -54,6 +67,31 @@ class Survey(models.Model):
         """Move the survey to the published state."""
         self.status = SurveyStatus.PUBLISHED
         self.published_at = timezone.now()
+
+    def submit_for_review(self):
+        """Lock the survey until an admin approves or rejects it; clear the last review."""
+        self.status = SurveyStatus.PENDING_REVIEW
+        self.submitted_at = timezone.now()
+        self.rejection_reason = ""
+        self.reviewed_at = None
+        self.reviewed_by = None
+
+    def approve(self, admin_user):
+        """Record the approving admin, then publish the survey."""
+        self.reviewed_by = admin_user
+        self.reviewed_at = timezone.now()
+        self.publish()
+
+    def reject(self, admin_user, reason):
+        """Return the survey to its provider as a draft with the admin's reason."""
+        self.status = SurveyStatus.DRAFT
+        self.rejection_reason = reason
+        self.reviewed_by = admin_user
+        self.reviewed_at = timezone.now()
+
+    def is_pending_review(self):
+        """Return whether the survey is waiting for an admin's review."""
+        return self.status == SurveyStatus.PENDING_REVIEW
 
     def close(self):
         """Move the survey to the closed state."""

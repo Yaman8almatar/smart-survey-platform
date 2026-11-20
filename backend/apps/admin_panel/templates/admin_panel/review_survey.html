@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="publish-shell">
+            <div class="page-header">
+                <div>
+                    <div class="page-kicker">Survey review</div>
+                    <h1>{{ survey.title }}</h1>
+                    <p class="section-subtitle mb-0">Submitted on {{ submitted_at|date:"j M Y" }} by {{ provider_name }}, {{ provider_email }}.</p>
+                </div>
+            </div>
+
+            <!-- FR-12: what the admin reads before approving or rejecting -->
+            <div class="card targeting-card mb-4">
+                <div class="card-body">
+                    <section class="publish-section" aria-labelledby="description-title">
+                        <h2 id="description-title" class="publish-title">Description</h2>
+                        <p class="mb-0">{{ survey.description|default:"No description." }}</p>
+                    </section>
+
+                    {% include "surveys/_publish_summary.html" with show_edit_link=False %}
+
+                    <section class="publish-section" aria-labelledby="questions-title">
+                        <h2 id="questions-title" class="publish-title">Questions</h2>
+                        <div class="question-list">
+                            {% for question in questions %}
+                                <div class="question-item">
+                                    <div class="item-title">{{ forloop.counter }}. {{ question.text }}</div>
+                                    <div class="item-subtitle">{{ question.type_label }} - {{ question.required_label }}</div>
+                                    {% if question.is_attention_check %}
+                                        <div class="attention-meta">
+                                            <span class="attention-badge"><i class="bi bi-shield-check" aria-hidden="true"></i>Attention check</span>
+                                            <span class="attention-expected">Expected answer: <strong>{{ question.expected_answer_label }}</strong></span>
+                                        </div>
+                                    {% endif %}
+                                    {% if question.options %}
+                                        <div class="option-list">
+                                            {% for option in question.options %}
+                                                {% if option.option_id == question.expected_option_id %}
+                                                    <span class="option-pill option-pill--expected"><i class="bi bi-check-lg" aria-hidden="true"></i>{{ option.option_text }}</span>
+                                                {% else %}
+                                                    <span class="option-pill">{{ option.option_text }}</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card table-card h-100">
+                        <div class="card-body">
+                            <h2 class="section-title">Approve</h2>
+                            <p class="item-subtitle">The survey is published at once and matching respondents can answer it.</p>
+                            <form method="post" action="{% url 'admin_panel:approve_survey' survey.survey_id %}">
+                                {% csrf_token %}
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
+                                    Approve and publish
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card table-card h-100">
+                        <div class="card-body">
+                            <h2 class="section-title">Reject</h2>
+                            <form method="post" action="{% url 'admin_panel:reject_survey' survey.survey_id %}">
+                                {% csrf_token %}
+                                <label class="form-label" for="reject-reason">Reason for the provider</label>
+                                <textarea
+                                    class="form-control"
+                                    id="reject-reason"
+                                    name="reason"
+                                    rows="4"
+                                    required
+                                    maxlength="1000"
+                                    aria-describedby="reject-reason-help"
+                                ></textarea>
+                                <div id="reject-reason-help" class="form-text mb-3">The provider sees this reason on the survey list, can edit the survey and submit it again.</div>
+                                <button class="btn btn-outline-danger" type="submit">
+                                    <i class="bi bi-arrow-return-left me-1" aria-hidden="true"></i>
+                                    Reject and return
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <a class="btn btn-outline-secondary mt-4" href="{% url 'admin_panel:review_queue' %}">
+                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
+                Back to the review list
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

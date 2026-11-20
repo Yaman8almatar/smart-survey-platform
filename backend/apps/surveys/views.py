@@ -294,11 +294,10 @@ def delete_survey(request, survey_id):
 
 
 @require_http_methods(["GET", "POST"])
-def publish_survey(request, survey_id):
-    """GET shows the publish confirmation (W-03, P-19); POST publishes through SurveyService.
+def submit_for_review(request, survey_id):
+    """GET shows the submit confirmation (W-03, P-19); POST submits through SurveyService (FR-12).
 
-    The service stores reach_at_publish at the POST, which may differ from the number shown
-    if profiles changed in between.
+    The reach is stored when an admin approves, so it may differ from the number shown here.
     """
     response = _redirect_if_unauthenticated(request)
     if response:
@@ -307,15 +306,15 @@ def publish_survey(request, survey_id):
     service = SurveyService()
     if request.method == "POST":
         try:
-            service.publish_survey(request.user, survey_id)
+            service.submit_for_review(request.user, survey_id)
         except SmartSurveyException as error:
             _show_service_error(request, error)
         else:
-            messages.success(request, "Survey published successfully.")
+            messages.success(request, "Survey submitted for review.")
         return redirect("surveys:survey_list")
 
     try:
-        # Raises what publishing would raise, so a survey that cannot be published never
+        # Raises what submitting would raise, so a survey that cannot be submitted never
         # reaches the page.
         preview = service.get_publish_preview(request.user, survey_id)
         survey = service.get_provider_survey(request.user, survey_id)
@@ -323,11 +322,18 @@ def publish_survey(request, survey_id):
         _show_service_error(request, error)
         return redirect("surveys:survey_list")
 
-    criteria = preview["criteria"]
     context = {
         "survey": _survey_row(survey),
-        "reach": _reach_card(preview["reach"]),
         "question_count": preview["question_count"],
+        **publish_summary_context(preview["criteria"], preview["reach"]),
+    }
+    return render(request, "surveys/publish_confirm.html", context)
+
+
+def publish_summary_context(criteria, reach):
+    """Return the "Who can answer" rows and the reach card of W-03 (also the admin review page)."""
+    return {
+        "reach": _reach_card(reach),
         "who": {
             "gender": Gender(criteria["gender"]).label if criteria["gender"] else "",
             "age": _age_phrase(criteria["age_min"], criteria["age_max"]),
@@ -338,7 +344,6 @@ def publish_survey(request, survey_id):
             "interests": _labels(Interest, criteria["interests"]),
         },
     }
-    return render(request, "surveys/publish_confirm.html", context)
 
 
 @require_POST
@@ -409,6 +414,7 @@ def _dashboard_metrics(surveys):
     return {
         "total": len(surveys),
         "draft": _status_count(surveys, SurveyStatus.DRAFT),
+        "pending": _status_count(surveys, SurveyStatus.PENDING_REVIEW),
         "published": _status_count(surveys, SurveyStatus.PUBLISHED),
         "closed": _status_count(surveys, SurveyStatus.CLOSED),
     }
@@ -433,6 +439,10 @@ def _survey_row(survey):
         "closed_at": survey.closed_at,
         "can_edit": survey.can_edit(),
         "can_delete": survey.can_delete(),
+        "is_pending_review": survey.is_pending_review(),
+        # FR-12: the admin's reason stays on the draft until the next submit clears it.
+        "rejection_reason": survey.rejection_reason,
+        "reviewed_at": survey.reviewed_at,
     }
 
 
@@ -443,7 +453,8 @@ def _survey_item_row(item):
         {
             "can_edit": item["can_edit"],
             "can_delete": item["can_delete"],
-            "can_publish": item["can_publish"],
+            "can_submit": item["can_submit"],
+            "is_pending_review": item["is_pending_review"],
             "can_close": item["can_close"],
             "can_manage_questions": item["can_manage_questions"],
             "can_manage_targeting": item["can_manage_targeting"],
@@ -457,6 +468,7 @@ def _status_badge(status):
     """Return the Bootstrap badge class for a survey status."""
     return {
         SurveyStatus.DRAFT: "text-bg-secondary",
+        SurveyStatus.PENDING_REVIEW: "text-bg-warning",
         SurveyStatus.PUBLISHED: "text-bg-success",
         SurveyStatus.CLOSED: "text-bg-dark",
     }.get(status, "text-bg-secondary")
