@@ -53,6 +53,15 @@ class AnalysisRepository:
             ).values_list("answer_id", "status", "sentiment_label")
         }
 
+    def find_statuses_by_answer_for_survey(self, survey_id):
+        """Return {answer_id: (status, sentiment_label)} of every result of a survey, in one query."""
+        return {
+            answer_id: (status, label)
+            for answer_id, status, label in SentimentAnalysisResult.objects.filter(
+                answer__response__survey_id=survey_id
+            ).values_list("answer_id", "status", "sentiment_label")
+        }
+
     def find_included_by_survey_id(self, survey_id):
         """Return the sentiment results of a survey's responses that are not excluded."""
         return self.find_by_survey_id(survey_id).filter(answer__response__is_excluded=False)
