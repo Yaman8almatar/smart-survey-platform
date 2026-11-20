@@ -5,6 +5,7 @@ import 'app.dart';
 import 'core/api/api_client.dart';
 import 'core/api/api_config.dart';
 import 'core/api/token_store.dart';
+import 'core/device_id_store.dart';
 import 'features/answer/answer_repository.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/profile/profile_repository.dart';
@@ -23,7 +24,10 @@ void main() {
       authRepository: AuthRepository(api: api, tokens: tokens),
       surveysRepository: SurveysRepository(api: api),
       profileRepository: ProfileRepository(api: api),
-      answerRepository: AnswerRepository(api: api),
+      answerRepository: AnswerRepository(
+        api: api,
+        deviceIds: SecureDeviceIdStore(),
+      ),
     ),
   );
 }

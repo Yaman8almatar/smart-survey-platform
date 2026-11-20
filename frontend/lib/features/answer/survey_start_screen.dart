@@ -6,6 +6,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/match_badge.dart';
 import '../../widgets/signal_ring.dart';
 import '../profile/profile_hero.dart';
+import 'active_time.dart';
 import 'answer_models.dart';
 import 'answer_repository.dart';
 import 'survey_answer_screen.dart';
@@ -20,11 +21,15 @@ class SurveyStartScreen extends StatefulWidget {
     required this.answerRepository,
     required this.surveyId,
     required this.onSessionExpired,
+    this.clock,
   });
 
   final AnswerRepository answerRepository;
   final int surveyId;
   final VoidCallback onSessionExpired;
+
+  /// Passed to the questions for active time; null means a running stopwatch.
+  final ElapsedClock? clock;
 
   @override
   State<SurveyStartScreen> createState() => _SurveyStartScreenState();
@@ -33,6 +38,11 @@ class SurveyStartScreen extends StatefulWidget {
 class _SurveyStartScreenState extends State<SurveyStartScreen> {
   _Phase _phase = _Phase.loading;
   SurveyDetail? _detail;
+
+  /// The draft as the server holds it, even one with only the start mark.
+  SurveyDraft? _rawDraft;
+
+  /// The draft's answers the survey still accepts; null shows Start survey.
   SurveyDraft? _draft;
   SurveyBlock? _block;
   ApiException? _error;
@@ -55,6 +65,7 @@ class _SurveyStartScreenState extends State<SurveyStartScreen> {
       final draft = results[1] as SurveyDraft?;
       setState(() {
         _detail = detail;
+        _rawDraft = draft;
         _draft = draft?.keptFor(detail);
         _phase = _Phase.content;
       });
@@ -80,9 +91,13 @@ class _SurveyStartScreenState extends State<SurveyStartScreen> {
   }
 
   /// Opens the questions; coming back loads what was saved meanwhile.
+  ///
+  /// With no draft on the server, the questions save the start mark first.
   Future<void> _open({
     Map<int, Answer> answers = const {},
     int index = 0,
+    bool draftExists = false,
+    Map<int, int> timings = const {},
   }) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -91,6 +106,9 @@ class _SurveyStartScreenState extends State<SurveyStartScreen> {
           survey: _detail!,
           initialAnswers: answers,
           initialIndex: index,
+          draftExists: draftExists,
+          initialTimings: timings,
+          clock: widget.clock,
           onSessionExpired: widget.onSessionExpired,
         ),
       ),
@@ -98,11 +116,21 @@ class _SurveyStartScreenState extends State<SurveyStartScreen> {
     if (mounted) _retry();
   }
 
+  void _start() {
+    final raw = _rawDraft;
+    _open(draftExists: raw != null, timings: raw?.timings ?? const {});
+  }
+
   void _continue() {
     final answers = _draft!.answers;
     final questions = _detail!.questions;
     final next = questions.indexWhere((q) => !answers.containsKey(q.id));
-    _open(answers: answers, index: next == -1 ? questions.length : next);
+    _open(
+      answers: answers,
+      index: next == -1 ? questions.length : next,
+      draftExists: true,
+      timings: _rawDraft!.timings,
+    );
   }
 
   Future<void> _startOver() async {
@@ -204,7 +232,7 @@ class _SurveyStartScreenState extends State<SurveyStartScreen> {
 
   Widget _buildActions() {
     if (_draft == null) {
-      return FilledButton(onPressed: _open, child: const Text('Start survey'));
+      return FilledButton(onPressed: _start, child: const Text('Start survey'));
     }
     return Row(
       children: [
@@ -299,6 +327,8 @@ class _SurveyHero extends StatelessWidget {
                 _Fact(icon: Icons.last_page, text: '$optional optional'),
             ],
           ),
+          const SizedBox(height: SsSpace.s3),
+          const _RecordingNotice(),
         ],
       ),
     );
@@ -345,6 +375,8 @@ class _DraftHero extends StatelessWidget {
                 'You answered $questions $day.',
                 style: SsType.body.copyWith(color: SsColors.onBrandMuted),
               ),
+              const SizedBox(height: SsSpace.s2),
+              const _RecordingNotice(),
             ],
           ),
         ),
@@ -368,6 +400,38 @@ class _Fact extends StatelessWidget {
         Icon(icon, size: SsLayout.iconSmall, color: muted),
         const SizedBox(width: SsSpace.s1),
         Text(text, style: SsType.label.copyWith(color: muted)),
+      ],
+    );
+  }
+}
+
+/// A-04 (D-188): what FR-04 records, shown on every survey.
+const String _recordingNoticeText =
+    'We record how long each question takes and an anonymous app ID, to spot '
+    'careless or repeated answers. The survey owner never sees your name or '
+    'email.';
+
+class _RecordingNotice extends StatelessWidget {
+  const _RecordingNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    const muted = SsColors.onBrandMuted;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.shield_outlined,
+          size: SsLayout.iconSmall,
+          color: muted,
+        ),
+        const SizedBox(width: SsSpace.s1),
+        Expanded(
+          child: Text(
+            _recordingNoticeText,
+            style: SsType.label.copyWith(color: muted),
+          ),
+        ),
       ],
     );
   }
