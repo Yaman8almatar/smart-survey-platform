@@ -9,7 +9,13 @@
                 <h1>{{ survey.title }}</h1>
                 <p class="section-subtitle mb-0">Each response is shown under a number. The platform never shows who answered.</p>
             </div>
-            <a class="btn btn-outline-secondary" href="{% url 'analysis:analytics_dashboard' survey.id %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to analytics</a>
+            <div class="page-actions">
+                <a class="btn btn-outline-secondary" href="{% url 'analysis:analytics_dashboard' survey.id %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to analytics</a>
+                {% if not locked %}
+                <a class="btn btn-outline-primary" href="{% url 'analysis:response_export_csv' survey.id %}"><i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Download CSV</a>
+                <a class="btn btn-outline-primary" href="{% url 'analysis:response_export_xlsx' survey.id %}"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Download Excel</a>
+                {% endif %}
+            </div>
         </div>
 
         {% if locked %}
@@ -43,6 +49,7 @@
         <div class="card table-card">
             <div class="card-body">
                 <p class="quality-count-line"><strong>{{ included }} of {{ total }}</strong> responses included.{% if excluded > 0 %} {{ excluded }} excluded.{% endif %}</p>
+                <p class="quality-caption">Downloads hold the included responses only, one row each, under these numbers. They show no names, accounts or times of day.</p>
                 {% if rows %}
                     <div class="table-responsive response-table-scroll">
                         <table class="table response-table">

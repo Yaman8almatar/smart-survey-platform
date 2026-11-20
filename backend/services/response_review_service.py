@@ -136,6 +136,58 @@ class ResponseReviewService:
             ],
         }
 
+    def export_responses(self, provider_user, survey_id):
+        """Return the included responses as rows under their list numbers, for FR-14; owner only.
+
+        Eight queries, whatever the number of responses. Each row holds one answer item per
+        question, in the question order; excluded responses keep their numbers but give no row.
+        """
+        evaluation = self.quality_service.evaluate_survey(provider_user, survey_id)
+        if evaluation["locked"]:
+            return evaluation
+
+        questions = list(self.question_repository.find_by_survey_id_with_options(survey_id))
+        answers = {
+            (answer.response_id, answer.question_id): answer
+            for answer in self.response_repository.find_included_answers_by_survey_id(survey_id)
+        }
+        sentiments = self.analysis_repository.find_statuses_by_answer_for_survey(survey_id)
+
+        def export_answer(response_id, question):
+            answer = answers.get((response_id, question.question_id))
+            sentiment = None
+            if question.question_type == QuestionType.OPEN_TEXT and answer is not None:
+                status, label = sentiments.get(answer.answer_id, (None, None))
+                sentiment = self._open_answer_key(status, label)
+            return {"value": self._answer_value(question, answer), "sentiment": sentiment}
+
+        return {
+            "locked": False,
+            "questions": [
+                {
+                    "position": position,
+                    "question_text": question.question_text,
+                    "question_type": question.question_type,
+                }
+                for position, question in enumerate(questions, start=1)
+            ],
+            "rows": [
+                {
+                    "number": number,
+                    "submitted_at": entry["submitted_at"],
+                    "status": entry["status"],
+                    "score": entry["score"],
+                    "band": entry["band"],
+                    "flags": entry["flags"],
+                    "answers": [
+                        export_answer(entry["response_id"], question) for question in questions
+                    ],
+                }
+                for number, entry in self._numbered(evaluation["responses"])
+                if not entry["is_excluded"]
+            ],
+        }
+
     def _numbered(self, entries):
         """Return [(number, entry)] in RESPONSE_NUMBER_ORDER, numbered from 1."""
         ordered = sorted(

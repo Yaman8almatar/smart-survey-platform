@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import response_views, views
+from . import export_views, response_views, views
 
 app_name = "analysis"
 
@@ -14,6 +14,16 @@ urlpatterns = [
         "surveys/<int:survey_id>/responses/",
         response_views.response_list,
         name="response_list",
+    ),
+    path(
+        "surveys/<int:survey_id>/responses/export/csv/",
+        export_views.response_export_csv,
+        name="response_export_csv",
+    ),
+    path(
+        "surveys/<int:survey_id>/responses/export/xlsx/",
+        export_views.response_export_xlsx,
+        name="response_export_xlsx",
     ),
     path(
         "surveys/<int:survey_id>/responses/<int:number>/",
