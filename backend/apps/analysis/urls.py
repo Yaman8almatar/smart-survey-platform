@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import response_views, views
 
 app_name = "analysis"
 
@@ -9,6 +9,21 @@ urlpatterns = [
         "surveys/<int:survey_id>/",
         views.analytics_dashboard,
         name="analytics_dashboard",
+    ),
+    path(
+        "surveys/<int:survey_id>/responses/",
+        response_views.response_list,
+        name="response_list",
+    ),
+    path(
+        "surveys/<int:survey_id>/responses/<int:number>/",
+        response_views.response_detail,
+        name="response_detail",
+    ),
+    path(
+        "surveys/<int:survey_id>/responses/<int:number>/inclusion/",
+        response_views.response_inclusion,
+        name="response_inclusion",
     ),
     path(
         "<int:survey_id>/retry-failed/",
