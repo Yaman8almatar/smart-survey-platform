@@ -7,6 +7,7 @@ from django.core.paginator import Paginator
 from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.enums import QuestionType
@@ -162,7 +163,7 @@ def response_detail(request, survey_id, number):
         {
             "number": result["number"],
             "total": result["total"],
-            "submitted_at": result["submitted_at"],
+            "submitted_on": timezone.localdate(result["submitted_at"]),
             "active_time": None if before_checks else _active_time(result["active_ms"]),
             "is_excluded": result["is_excluded"],
             "before_checks": before_checks,
@@ -230,7 +231,7 @@ def _list_row(row):
         flags = ", ".join(names) if names else "No flag"
     return {
         "number": row["number"],
-        "submitted_at": row["submitted_at"],
+        "submitted_on": timezone.localdate(row["submitted_at"]),
         "score": score,
         "flags": flags,
         "open_answers": _open_answers_text(row["open_answers"]),

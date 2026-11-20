@@ -6,7 +6,7 @@ These tests run at the real threshold, services.disclosure.MIN_GROUP_SIZE (5 res
 import html
 import itertools
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -567,6 +567,25 @@ def test_no_page_shows_who_answered_when_in_the_day_or_from_which_device(
         assert DEVICE_HASH not in content
         assert "14:37" not in content
         assert "2:37" not in content
+
+
+def test_both_pages_receive_a_date_and_no_time_of_day(client, provider, survey):
+    add_responses(survey, 5)
+    client.force_login(provider)
+
+    listed = client.get(list_url(survey))
+    shown = client.get(detail_url(survey, 1))
+
+    rows = listed.context["rows"]
+    assert len(rows) == 5
+    for row in rows:
+        assert type(row["submitted_on"]) is date
+        assert "submitted_at" not in row
+        assert not any(isinstance(value, datetime) for value in row.values())
+    assert type(shown.context["submitted_on"]) is date
+    assert not any(isinstance(shown.context[key], datetime) for key in shown.context.keys())
+    for response in (listed, shown):
+        assert "18 Nov 2026" in html.unescape(response.content.decode())
 
 
 # Include or exclude one response.

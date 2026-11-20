@@ -17,7 +17,7 @@
             <div>
                 <div class="page-kicker">{{ survey.title }} · Response {{ number }} of {{ total }}</div>
                 <h1>Response {{ number }}</h1>
-                <p class="section-subtitle mb-0">Submitted {{ submitted_at|date:"j M Y" }}{% if active_time %} · Active time {{ active_time }}{% endif %}</p>
+                <p class="section-subtitle mb-0">Submitted {{ submitted_on|date:"j M Y" }}{% if active_time %} · Active time {{ active_time }}{% endif %}</p>
             </div>
             <a class="btn btn-outline-secondary" href="{% url 'analysis:response_list' survey.id %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to responses</a>
         </div>
