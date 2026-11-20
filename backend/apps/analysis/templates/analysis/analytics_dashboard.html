@@ -273,7 +273,10 @@
                                         <!-- W-05b: sentiment of this question, then the optional group table -->
                                         <div class="question-sentiment">
                                             {% if question.sentiment.analysed == 0 %}
-                                                <p class="question-sentiment__line">No answers to this question have been analysed yet.</p>
+                                                {% if question.sentiment.total > 0 %}
+                                                    <p class="question-sentiment__line">Analysed 0 of {{ question.sentiment.total }} answers.</p>
+                                                {% endif %}
+                                                <p class="question-sentiment__message">No answers to this question have been analysed yet.</p>
                                             {% else %}
                                                 <p class="question-sentiment__line">Analysed {{ question.sentiment.analysed }} of {{ question.sentiment.total }} answers.</p>
                                                 <div class="sentiment-bar" role="img" aria-label="{{ question.sentiment.analysed }} analysed answers: {{ question.sentiment.positive }} positive, {{ question.sentiment.neutral }} neutral, {{ question.sentiment.negative }} negative">
@@ -305,7 +308,7 @@
                                                         </div>
                                                         <p class="sentiment-caption group-breakdown__caption">Shares of the analysed answers in each group.</p>
                                                     {% else %}
-                                                        <p class="question-sentiment__line">Not enough responses to show this breakdown.</p>
+                                                        <p class="question-sentiment__message">Not enough responses to show this breakdown.</p>
                                                     {% endif %}
                                                 {% endif %}
                                             {% endif %}

@@ -97,7 +97,7 @@ class QualityService:
         for question in questions:
             answer = answer_by_question.get(question.question_id)
             if question.is_attention_check:
-                expected = self._expected_answer(question)
+                expected = self.expected_answer(question)
                 if expected is None:
                     continue
                 attention_total += 1
@@ -129,7 +129,7 @@ class QualityService:
             )
         )
 
-    def _expected_answer(self, question):
+    def expected_answer(self, question):
         """Return the expected option id or rating of an attention question, or None."""
         if question.question_type == QuestionType.MULTIPLE_CHOICE:
             return question.expected_option_id

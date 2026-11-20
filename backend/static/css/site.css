@@ -1429,6 +1429,14 @@ textarea.form-control {
     color: var(--ss-ink);
 }
 
+.question-sentiment__message {
+    margin: 0;
+    padding: 0.75rem 0.875rem;
+    color: var(--ss-ink);
+    background: var(--ss-surface);
+    border-radius: var(--ss-radius-sm);
+}
+
 .sentiment-bar {
     display: flex;
     height: 0.75rem;

@@ -178,7 +178,7 @@ class ResponseReviewService:
     def _answer_item(self, position, question, answer, sentiments):
         """Return the display data of one question and this response's answer to it."""
         value = self._answer_value(question, answer)
-        expected_answer = self.quality_service._expected_answer(question)
+        expected_answer = self.quality_service.expected_answer(question)
         is_attention_check = question.is_attention_check and expected_answer is not None
         expected = None
         if is_attention_check:

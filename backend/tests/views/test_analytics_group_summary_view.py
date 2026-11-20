@@ -164,17 +164,39 @@ def test_breakdown_with_one_row_left_shows_the_not_enough_line(client):
 
 
 @pytest.mark.django_db
-def test_question_with_nothing_analysed_shows_only_its_line(client):
+def test_breakdown_not_enough_line_is_the_message_box(client):
+    provider, survey = create_survey(region("DAMASCUS", POSITIVE, 6) + region("HOMS", NEGATIVE, 2))
+
+    content = get_dashboard(client, provider, survey, group_by="governorate")
+
+    assert f'<p class="question-sentiment__message">{NOT_ENOUGH}</p>' in content
+    assert f'<p class="question-sentiment__line">{NOT_ENOUGH}</p>' not in content
+
+
+@pytest.mark.django_db
+def test_question_with_nothing_analysed_shows_its_count_line_then_the_message(client):
     provider, survey = create_survey([({"snap_gender": "FEMALE"}, PENDING)] * 5)
 
     content = get_dashboard(client, provider, survey, group_by="gender")
 
     assert NOT_ANALYSED in content
-    assert "of 5 answers.</p>" not in content
+    assert "Analysed 0 of 5 answers.</p>" in content
+    assert content.index("Analysed 0 of 5 answers.</p>") < content.index(NOT_ANALYSED)
     assert 'class="sentiment-bar"' not in content
     assert "By gender" not in content
     assert NOT_ENOUGH not in content
     assert '<option value="gender" selected>Gender</option>' in content
+
+
+@pytest.mark.django_db
+def test_question_without_any_sentiment_result_shows_the_message_alone(client):
+    provider, survey = create_survey([({}, None)] * 5)
+
+    content = get_dashboard(client, provider, survey)
+
+    assert f'<p class="question-sentiment__message">{NOT_ANALYSED}</p>' in content
+    assert "Analysed 0 of" not in content
+    assert 'class="sentiment-bar"' not in content
 
 
 @pytest.mark.django_db

@@ -335,19 +335,30 @@ def _question_summaries_view(question_summaries):
 
 
 def _sentiment_shares(counts):
-    """Return each sentiment's count, share label and whole-number bar width of the analysed."""
+    """Return each sentiment's count, share label and whole-number bar width of the analysed.
+
+    The labels round each share on its own, as the metric cards do. The widths use the
+    largest remainder, so one bar's widths sum to 100 whenever an answer is analysed.
+    """
+    analysed = counts["analysed"]
     shares = []
     for key, name in SENTIMENT_NAMES:
-        rate = counts[key] / counts["analysed"] if counts["analysed"] else 0
+        rate = counts[key] / analysed if analysed else 0
         shares.append(
             {
                 "key": key,
                 "name": name,
                 "count": counts[key],
                 "label": _rate_label(rate),
-                "width": round(rate * 100),
+                "width": counts[key] * 100 // analysed if analysed else 0,
             }
         )
+    if analysed:
+        left = 100 - sum(share["width"] for share in shares)
+        # sorted() is stable, so ties keep the order positive, neutral, negative.
+        by_remainder = sorted(shares, key=lambda share: -(share["count"] * 100 % analysed))
+        for share in by_remainder[:left]:
+            share["width"] += 1
     return shares
 
 
