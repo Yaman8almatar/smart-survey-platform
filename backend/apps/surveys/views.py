@@ -59,6 +59,8 @@ def create_survey(request):
                     request.user,
                     form.cleaned_data["title"],
                     form.cleaned_data["description"],
+                    shuffle_questions=form.cleaned_data["shuffle_questions"],
+                    shuffle_options=form.cleaned_data["shuffle_options"],
                 )
             except SmartSurveyException as error:
                 _show_service_error(request, error)
@@ -91,6 +93,8 @@ def edit_survey(request, survey_id):
                     survey_id,
                     form.cleaned_data["title"],
                     form.cleaned_data["description"],
+                    shuffle_questions=form.cleaned_data["shuffle_questions"],
+                    shuffle_options=form.cleaned_data["shuffle_options"],
                 )
             except SmartSurveyException as error:
                 _show_service_error(request, error)
@@ -99,7 +103,12 @@ def edit_survey(request, survey_id):
                 return redirect("surveys:survey_list")
     else:
         form = SurveyForm(
-            initial={"title": survey.title, "description": survey.description}
+            initial={
+                "title": survey.title,
+                "description": survey.description,
+                "shuffle_questions": survey.shuffle_questions,
+                "shuffle_options": survey.shuffle_options,
+            }
         )
 
     return render(

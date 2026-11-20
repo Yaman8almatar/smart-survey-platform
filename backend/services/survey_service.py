@@ -37,34 +37,56 @@ class SurveyService:
         self.profile_repository = profile_repository or ProfileRepository()
         self.targeting_service = targeting_service or TargetingService()
 
-    def create_survey(self, provider_user, title, description):
+    def create_survey(
+        self,
+        provider_user,
+        title,
+        description,
+        shuffle_questions=False,
+        shuffle_options=False,
+    ):
         """Create a draft survey for a service provider."""
         self._ensure_service_provider(provider_user)
-        self._validate_survey_data(title)
+        self._validate_survey_data(title, shuffle_questions, shuffle_options)
 
         survey = Survey(
             provider=provider_user,
             title=title.strip(),
             description=description,
+            shuffle_questions=shuffle_questions,
+            shuffle_options=shuffle_options,
         )
         return self.survey_repository.save(survey)
 
-    def update_survey(self, provider_user, survey_id, title, description):
-        """Update the title and description of an owned draft survey."""
+    def update_survey(
+        self,
+        provider_user,
+        survey_id,
+        title,
+        description,
+        shuffle_questions=False,
+        shuffle_options=False,
+    ):
+        """Update the title, description and order settings of an owned draft survey."""
         survey = self._get_owned_survey(provider_user, survey_id)
-        self._validate_survey_data(title)
+        self._validate_survey_data(title, shuffle_questions, shuffle_options)
 
+        # FR-16: a published survey's order settings never change, like the rest of it.
         if not survey.can_edit():
             raise NotEditable("Only draft surveys can be updated.")
 
         survey.title = title.strip()
         survey.description = description
+        survey.shuffle_questions = shuffle_questions
+        survey.shuffle_options = shuffle_options
         return self.survey_repository.update(survey)
 
-    def _validate_survey_data(self, title):
-        """Validate required survey fields."""
+    def _validate_survey_data(self, title, shuffle_questions=False, shuffle_options=False):
+        """Validate required survey fields and the FR-16 order settings."""
         if not isinstance(title, str) or not title.strip():
             raise ValidationError("Survey title must be a non-empty string.")
+        if not isinstance(shuffle_questions, bool) or not isinstance(shuffle_options, bool):
+            raise ValidationError("Shuffle settings must be true or false.")
 
     def delete_survey(self, provider_user, survey_id):
         """Delete an owned draft or closed survey."""

@@ -11,6 +11,7 @@ from core.exceptions import (
 )
 from repositories.question_repository import QuestionRepository
 from repositories.survey_repository import SurveyRepository
+from services.presentation_order import respondent_order
 from services.response_service import ResponseService
 
 
@@ -167,10 +168,34 @@ class QuestionService:
             self.question_repository.find_by_survey_id_with_options(survey_id),
             key=lambda question: (question.order_index, question.question_id),
         )
-        return {
-            "survey": survey,
-            "questions": [self._response_form_question(question) for question in questions],
-        }
+        # FR-16: the respondent's own fixed order; the provider's pages keep the stored one.
+        if survey.shuffle_questions:
+            questions = respondent_order(
+                questions,
+                lambda question: question.question_id,
+                survey.survey_id,
+                respondent_user.user_id,
+                "questions",
+            )
+
+        rows = []
+        for position, question in enumerate(questions):
+            options = self._get_options_for_question(question)
+            # Rating scales and open text keep their order; only choices are shuffled.
+            if survey.shuffle_options and question.question_type == QuestionType.MULTIPLE_CHOICE:
+                options = respondent_order(
+                    options,
+                    lambda option: option.option_id,
+                    survey.survey_id,
+                    respondent_user.user_id,
+                    f"options:{question.question_id}",
+                )
+            row = self._response_form_question(question, options)
+            if survey.shuffle_questions:
+                # The app sorts by order_index, so it carries the position in the shuffled order.
+                row["order_index"] = position
+            rows.append(row)
+        return {"survey": survey, "questions": rows}
 
     def get_survey_question_rows(self, provider_user, survey_id):
         """Return ordered survey questions and options for the management page."""
@@ -359,10 +384,9 @@ class QuestionService:
             return str(question.expected_rating)
         return ""
 
-    def _response_form_question(self, question):
-        """Build one respondent-facing response form question."""
+    def _response_form_question(self, question, options):
+        """Build one respondent-facing question with its options in the given order."""
         question_id = question.question_id
-        options = self._get_options_for_question(question)
         return {
             "question_id": question_id,
             "question_text": question.question_text,
