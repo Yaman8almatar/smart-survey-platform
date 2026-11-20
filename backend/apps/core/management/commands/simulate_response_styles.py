@@ -88,7 +88,7 @@ class Command(BaseCommand):
         "Build one closed '[Simulation]' survey owned by " + PROVIDER_EMAIL + " and answer it "
         "with 36 SYNTHETIC respondents (sim-NNN@" + DOMAIN + ") in eight known response "
         "styles, through the real services. Prints the style injected against the flags "
-        "raised and fails if any response differs from its style. Not real data (P-10). "
+        "raised and fails if any response differs from its style. Synthetic only (P-10). "
         "A run needs DEBUG on; --delete runs on any database."
     )
 
