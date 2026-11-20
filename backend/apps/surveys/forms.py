@@ -35,6 +35,9 @@ class SurveyForm(BootstrapFormMixin, forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"rows": 4}),
     )
+    # FR-16: the respondent's own order of questions and of multiple-choice options.
+    shuffle_questions = forms.BooleanField(required=False)
+    shuffle_options = forms.BooleanField(required=False)
 
 
 class QuestionForm(BootstrapFormMixin, forms.Form):

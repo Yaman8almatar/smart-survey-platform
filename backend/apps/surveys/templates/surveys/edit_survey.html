@@ -43,6 +43,35 @@
                                 {% endfor %}
                             </div>
 
+                            <!-- FR-16: the respondent's own order -->
+                            <fieldset class="mb-4">
+                                <legend class="form-label">Order for respondents</legend>
+                                <div class="form-check mb-2">
+                                    {{ form.shuffle_questions }}
+                                    <label
+                                        class="form-check-label"
+                                        for="{{ form.shuffle_questions.id_for_label }}"
+                                    >
+                                        Shuffle the order of questions
+                                    </label>
+                                    <div class="form-text mt-0">
+                                        Each respondent sees the questions in an order of their own, which stays the same if they leave and come back.
+                                    </div>
+                                </div>
+                                <div class="form-check">
+                                    {{ form.shuffle_options }}
+                                    <label
+                                        class="form-check-label"
+                                        for="{{ form.shuffle_options.id_for_label }}"
+                                    >
+                                        Shuffle the order of answer options
+                                    </label>
+                                    <div class="form-text mt-0">
+                                        Applies to multiple-choice questions. Rating scales keep their order.
+                                    </div>
+                                </div>
+                            </fieldset>
+
                             <div class="form-actions">
                                 <a
                                     class="btn btn-outline-secondary"

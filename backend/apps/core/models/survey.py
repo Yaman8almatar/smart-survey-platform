@@ -28,6 +28,9 @@ class Survey(models.Model):
     # FR-03 (P-19): respondents matching the criteria when the survey was published,
     # unbanded. Every display of it goes through services.disclosure.band.
     reach_at_publish = models.PositiveIntegerField(null=True, blank=True)
+    # FR-16: each respondent sees a fixed order of their own (services.presentation_order).
+    shuffle_questions = models.BooleanField(default=False, db_default=False)
+    shuffle_options = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "surveys"
