@@ -1,7 +1,7 @@
 from django.db.models import Count, Exists, OuterRef, Q
 
 from apps.core.models import Response, Survey, TargetingCriteria
-from core.enums import Gender, SurveyStatus
+from core.enums import Gender, QuestionType, SurveyStatus
 
 
 class SurveyRepository:
@@ -21,7 +21,11 @@ class SurveyRepository:
         return Survey.objects.filter(provider_id=provider_id)
 
     def find_eligible_for_respondent(self, profile, respondent_user_id):
-        """Return published unanswered surveys matching respondent demographics with question counts."""
+        """Return published unanswered surveys matching respondent demographics with question counts.
+
+        Each survey carries question_count and the count of each type: choice_count,
+        rating_count and open_count.
+        """
         has_responded = Response.objects.filter(
             survey=OuterRef("pk"),
             respondent_id=respondent_user_id,
@@ -66,7 +70,25 @@ class SurveyRepository:
                 interests_filter,
             )
             .filter(~Exists(has_responded))
-            .annotate(question_count=Count("questions", distinct=True))
+            .annotate(
+                question_count=Count("questions", distinct=True),
+                # FR-08: the expected-time estimate reads the count of each question type.
+                choice_count=Count(
+                    "questions",
+                    filter=Q(questions__question_type=QuestionType.MULTIPLE_CHOICE),
+                    distinct=True,
+                ),
+                rating_count=Count(
+                    "questions",
+                    filter=Q(questions__question_type=QuestionType.RATING_SCALE),
+                    distinct=True,
+                ),
+                open_count=Count(
+                    "questions",
+                    filter=Q(questions__question_type=QuestionType.OPEN_TEXT),
+                    distinct=True,
+                ),
+            )
             .select_related("criteria")
             .order_by("-published_at", "-survey_id")
         )

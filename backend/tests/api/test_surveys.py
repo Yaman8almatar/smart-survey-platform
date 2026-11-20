@@ -26,6 +26,10 @@ def test_eligible_lists_matching_survey_with_question_count(
             "title": "Campus survey",
             "description": "About campus life",
             "question_count": 3,
+            # Choice 10 s + rating 8 s + text 40 s = 58 s.
+            "expected_minutes": 1,
+            # The fixture survey is created published, without a publish time.
+            "published_on": None,
         }
     ]
 

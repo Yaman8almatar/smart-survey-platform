@@ -5,14 +5,19 @@ class EligibleSurvey {
     required this.title,
     required this.description,
     required this.questionCount,
+    required this.expectedMinutes,
+    this.publishedOn,
   });
 
   factory EligibleSurvey.fromJson(Map<String, dynamic> json) {
+    final publishedOn = json['published_on'] as String?;
     return EligibleSurvey(
       id: json['id'] as int,
       title: json['title'] as String,
       description: (json['description'] as String?) ?? '',
       questionCount: json['question_count'] as int,
+      expectedMinutes: json['expected_minutes'] as int,
+      publishedOn: publishedOn == null ? null : DateTime.parse(publishedOn),
     );
   }
 
@@ -20,6 +25,12 @@ class EligibleSurvey {
   final String title;
   final String description;
   final int questionCount;
+
+  /// About how many minutes the survey takes (FR-08).
+  final int expectedMinutes;
+
+  /// The publish date, without a time; null when the server has none.
+  final DateTime? publishedOn;
 }
 
 /// One row of `SurveysRepository.answeredSurveys`: a survey the respondent

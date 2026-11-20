@@ -1,3 +1,5 @@
+from django.utils import timezone
+
 from apps.core.models import Survey
 from core.enums import QuestionType, SurveyStatus, UserType
 from core.exceptions import (
@@ -8,10 +10,12 @@ from core.exceptions import (
     ValidationError,
 )
 from repositories.profile_repository import ProfileRepository
+from repositories.quality_repository import QualityRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from repositories.targeting_repository import TargetingRepository
+from services.expected_time import expected_minutes
 from services.targeting_service import TargetingService
 
 
@@ -28,6 +32,7 @@ class SurveyService:
         response_repository=None,
         profile_repository=None,
         targeting_service=None,
+        quality_repository=None,
     ):
         """Wire repositories and services used by survey workflows and eligibility checks."""
         self.survey_repository = survey_repository or SurveyRepository()
@@ -36,6 +41,7 @@ class SurveyService:
         self.response_repository = response_repository or ResponseRepository()
         self.profile_repository = profile_repository or ProfileRepository()
         self.targeting_service = targeting_service or TargetingService()
+        self.quality_repository = quality_repository or QualityRepository()
 
     def create_survey(
         self,
@@ -188,22 +194,46 @@ class SurveyService:
         ]
 
     def get_eligible_survey_items(self, respondent_user):
-        """Return eligible surveys with their question counts."""
+        """Return eligible surveys, most shared interests first, with counts, minutes and date."""
         self._ensure_respondent(respondent_user)
 
         profile = self.profile_repository.find_by_user_id(respondent_user.user_id)
         if profile is None or not profile.is_complete():
             return []
 
-        surveys = self.survey_repository.find_eligible_for_respondent(
-            profile=profile,
-            respondent_user_id=respondent_user.user_id,
+        surveys = list(
+            self.survey_repository.find_eligible_for_respondent(
+                profile=profile,
+                respondent_user_id=respondent_user.user_id,
+            )
+        )
+        valid_active_ms = self.quality_repository.find_valid_active_ms_by_survey_ids(
+            [survey.survey_id for survey in surveys]
+        )
+
+        # FR-08: most shared interests first; sorted() is stable, so equal counts keep the
+        # repository's order (newest published first).
+        interests = set(profile.interests)
+        surveys = sorted(
+            surveys,
+            key=lambda survey: -len(interests.intersection(survey.criteria.interests)),
         )
 
         return [
             {
                 "survey": survey,
                 "question_count": getattr(survey, "question_count", 0),
+                "expected_minutes": expected_minutes(
+                    {
+                        QuestionType.MULTIPLE_CHOICE.value: survey.choice_count,
+                        QuestionType.RATING_SCALE.value: survey.rating_count,
+                        QuestionType.OPEN_TEXT.value: survey.open_count,
+                    },
+                    valid_active_ms.get(survey.survey_id, []),
+                ),
+                "published_on": (
+                    timezone.localdate(survey.published_at) if survey.published_at else None
+                ),
             }
             for survey in surveys
         ]
