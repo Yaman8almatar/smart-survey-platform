@@ -1404,31 +1404,75 @@ textarea.form-control {
     color: var(--ssp-accent);
 }
 
-.analytics-list {
-    display: grid;
-    gap: 0.65rem;
+/* W-05b: group breakdown form, per-question sentiment bar and group table. */
+.group-breakdown-form {
+    margin-top: 1rem;
+}
+
+.group-breakdown-form__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.group-breakdown-form__row .form-select {
+    flex: 1 1 12rem;
+    width: auto;
+}
+
+.question-sentiment {
+    margin-bottom: 1.25rem;
+}
+
+.question-sentiment__line {
+    margin-bottom: 0.5rem;
+    color: var(--ss-ink);
+}
+
+.sentiment-bar {
+    display: flex;
+    height: 0.75rem;
+    overflow: hidden;
+    background: var(--ss-surface);
+    border: 1px solid var(--ssp-border-soft);
+    border-radius: var(--ss-radius-sm);
+}
+
+.sentiment-bar__segment {
+    display: block;
+    height: 100%;
+}
+
+.group-breakdown__heading {
     margin-top: 1.25rem;
 }
 
-.analytics-list div {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.85rem 0;
-    border-bottom: 1px solid var(--ssp-border-soft);
+.group-breakdown__scroll {
+    overflow-x: auto;
 }
 
-.analytics-list div:last-child {
-    border-bottom: 0;
+.group-breakdown-table {
+    margin-bottom: 0;
+    white-space: nowrap;
 }
 
-.analytics-list span {
-    color: var(--ssp-muted);
+.group-breakdown-table th[scope="row"] {
     font-weight: 600;
 }
 
-.analytics-list strong {
-    color: var(--ssp-navy-dark);
+.group-breakdown-table__pooled th,
+.group-breakdown-table__pooled td {
+    color: var(--ss-ink-muted);
+    font-style: italic;
+}
+
+.group-breakdown-table__share {
+    color: var(--ss-ink-muted);
+    font-size: 0.85rem;
+}
+
+.group-breakdown__caption {
+    margin-top: 0.5rem;
 }
 
 /* Signal ring (partials/signal_ring.html). Sizes are in the 88-unit viewBox. */

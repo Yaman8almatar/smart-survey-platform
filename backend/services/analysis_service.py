@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from core.enums import AnalysisStatus, QuestionType, SentimentLabel
+from core.enums import AnalysisStatus, Gender, Governorate, QuestionType, SentimentLabel
 from core.exceptions import (
     AnalysisBadOutput,
     AnalysisUnavailable,
@@ -25,6 +25,23 @@ class AnalysisService:
 
     RATING_LABELS = [1, 2, 3, 4, 5]
     MAX_TEXT_ANSWERS_SHOWN = 50
+
+    # FR-05 group breakdown (board W-05b, DESIGN-INC2 3.6): the profile details a provider
+    # may compare open answers by, read from the response's snapshot.
+    GROUP_BY_DIMENSIONS = ("gender", "age", "governorate")
+    NOT_STATED_LABEL = "Not stated"
+    OTHER_GROUPS_LABEL = "Other groups (combined)"
+    GENDER_LABELS = {Gender.FEMALE.value: Gender.FEMALE.label, Gender.MALE.value: Gender.MALE.label}
+    GOVERNORATE_LABELS = {choice.value: choice.label for choice in Governorate}
+    # (lowest age of the group, label); the last group has no upper bound.
+    AGE_GROUPS = (
+        (55, "55 and over"),
+        (45, "45 to 54"),
+        (35, "35 to 44"),
+        (25, "25 to 34"),
+        (18, "18 to 24"),
+    )
+    UNDER_18_LABEL = "Under 18"
 
     # Worker rules (T-9). A full batch ends well before LOCK_TIMEOUT, so a row that is
     # still being analysed is never reclaimed. Worst case per adapter: huggingface 8 calls
@@ -146,13 +163,19 @@ class AnalysisService:
             model_id=self.analyzer.model_id,
         )
 
-    def get_survey_results(self, provider_user, survey_id):
+    def get_survey_results(self, provider_user, survey_id, group_by=None):
         """Build survey analytics; below the P-20 threshold return only the locked state.
 
         The lock and response_count count every submitted response, so an exclusion never
         locks the results again (P-08). The charts and sentiment counts use the responses
         the provider has not excluded, and leave attention questions out.
+
+        group_by (FR-05) is "gender", "age" or "governorate"; any other value means no
+        breakdown. Each open-text question then gets its sentiment by group, with every
+        group under MIN_GROUP_SIZE analysed answers pooled (P-15).
         """
+        if group_by not in self.GROUP_BY_DIMENSIONS:
+            group_by = None
         ensure_survey_owner(self.survey_repository, provider_user, survey_id)
 
         response_count = self.response_repository.find_by_survey_id(survey_id).count()
@@ -181,8 +204,10 @@ class AnalysisService:
         waiting_count = 0
         skipped_count = 0
         failed_codes = Counter()
+        results_by_question_id = defaultdict(list)
 
         for result in sentiment_results:
+            results_by_question_id[result.answer.question_id].append(result)
             status = self._normalized_value(result.status)
             if status == AnalysisStatus.FAILED.value:
                 failed_count += 1
@@ -228,7 +253,10 @@ class AnalysisService:
             "positive_rate": self._rate(positive_count, completed_count),
             "neutral_rate": self._rate(neutral_count, completed_count),
             "negative_rate": self._rate(negative_count, completed_count),
-            "question_summaries": self._build_question_summaries(questions, answers),
+            "group_by": group_by,
+            "question_summaries": self._build_question_summaries(
+                questions, answers, results_by_question_id, group_by
+            ),
         }
 
     def _map_external_label(self, label):
@@ -246,7 +274,7 @@ class AnalysisService:
         """Return whether a sentiment result is completed."""
         return self._normalized_value(status) == AnalysisStatus.COMPLETED.value
 
-    def _build_question_summaries(self, questions, answers):
+    def _build_question_summaries(self, questions, answers, results_by_question_id, group_by):
         """Build question-level analytics summaries from submitted answers."""
         answers_by_question_id = defaultdict(list)
         for answer in answers:
@@ -256,11 +284,13 @@ class AnalysisService:
             self._question_summary(
                 question,
                 answers_by_question_id.get(question.question_id, []),
+                results_by_question_id.get(question.question_id, []),
+                group_by,
             )
             for question in questions
         ]
 
-    def _question_summary(self, question, answers):
+    def _question_summary(self, question, answers, sentiment_results, group_by):
         """Choose the correct analytics summary type for a question."""
         question_type = self._normalized_value(question.question_type)
 
@@ -268,7 +298,7 @@ class AnalysisService:
             return self._multiple_choice_summary(question, answers)
         if question_type == QuestionType.RATING_SCALE.value:
             return self._rating_summary(question, answers)
-        return self._open_text_summary(question, answers)
+        return self._open_text_summary(question, answers, sentiment_results, group_by)
 
     def _base_question_summary(self, question, chart_type):
         """Build the shared structure for a question analytics summary."""
@@ -318,8 +348,8 @@ class AnalysisService:
         ]
         return summary
 
-    def _open_text_summary(self, question, answers):
-        """Build the submitted text answer list for an open-text question."""
+    def _open_text_summary(self, question, answers, sentiment_results, group_by):
+        """Build the text answers, the sentiment and the optional breakdown of a question."""
         summary = self._base_question_summary(question, "text")
         text_answers = [
             answer.answer_value.strip()
@@ -328,7 +358,87 @@ class AnalysisService:
         ]
         summary["text_answer_total"] = len(text_answers)
         summary["text_answers"] = text_answers[: self.MAX_TEXT_ANSWERS_SHOWN]
+
+        completed = []
+        not_analysed = 0
+        for result in sentiment_results:
+            status = self._normalized_value(result.status)
+            if status in (
+                AnalysisStatus.PENDING.value,
+                AnalysisStatus.RUNNING.value,
+                AnalysisStatus.FAILED.value,
+            ):
+                not_analysed += 1
+            elif status == AnalysisStatus.COMPLETED.value and self._sentiment_key(result):
+                completed.append(result)
+        # The same counts as the survey panel: SKIPPED answers are left out of the total.
+        counts = self._sentiment_counts(completed)
+        summary["sentiment"] = {"total": counts["analysed"] + not_analysed, **counts}
+        summary["breakdown"] = (
+            self._sentiment_breakdown(completed, group_by) if group_by else None
+        )
         return summary
+
+    def _sentiment_key(self, result):
+        """Return "positive", "neutral" or "negative" for a result's label, or None."""
+        return {
+            SentimentLabel.POSITIVE.value: "positive",
+            SentimentLabel.NEUTRAL.value: "neutral",
+            SentimentLabel.NEGATIVE.value: "negative",
+        }.get(self._normalized_value(result.sentiment_label))
+
+    def _sentiment_counts(self, completed):
+        """Count completed results by sentiment."""
+        counts = {"analysed": len(completed), "positive": 0, "neutral": 0, "negative": 0}
+        for result in completed:
+            counts[self._sentiment_key(result)] += 1
+        return counts
+
+    def _sentiment_breakdown(self, completed, group_by):
+        """Group completed results by a snapshot detail and pool small groups (P-15).
+
+        The pool is formed on analysed answers, the count every figure of a row describes.
+        When fewer than two rows remain, no row is returned.
+        """
+        by_group = defaultdict(list)
+        for result in completed:
+            by_group[self._group_label(result.answer.response, group_by)].append(result)
+
+        pooling = disclosure.pool_groups(
+            {label: len(results) for label, results in by_group.items()}
+        )
+        rows = []
+        if pooling["enough"]:
+            rows = [
+                {"label": label, **self._sentiment_counts(by_group[label]), "pooled": False}
+                for label in pooling["shown"]
+            ]
+            if pooling["pooled"]:
+                pooled_results = [
+                    result for label in pooling["pooled"] for result in by_group[label]
+                ]
+                rows.append(
+                    {
+                        "label": self.OTHER_GROUPS_LABEL,
+                        **self._sentiment_counts(pooled_results),
+                        "pooled": True,
+                    }
+                )
+        return {"dimension": group_by, "enough": pooling["enough"], "rows": rows}
+
+    def _group_label(self, response, group_by):
+        """Return the group of a response from its snapshot, taken when it was submitted."""
+        if group_by == "gender":
+            return self.GENDER_LABELS.get(response.snap_gender, self.NOT_STATED_LABEL)
+        if group_by == "governorate":
+            return self.GOVERNORATE_LABELS.get(response.snap_region, self.NOT_STATED_LABEL)
+        age = response.snap_age
+        if age is None:
+            return self.NOT_STATED_LABEL
+        for lowest, label in self.AGE_GROUPS:
+            if age >= lowest:
+                return label
+        return self.UNDER_18_LABEL
 
     def _normalized_value(self, value):
         """Normalize enum-like values for comparison and reporting."""

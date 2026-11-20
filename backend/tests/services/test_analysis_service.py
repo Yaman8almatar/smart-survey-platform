@@ -307,6 +307,7 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
         "positive_rate": 0,
         "neutral_rate": 0,
         "negative_rate": 0,
+        "group_by": None,
         "question_summaries": [],
     }
 
@@ -788,6 +789,284 @@ def test_get_survey_results_rejects_missing_survey():
 
     with pytest.raises(SurveyNotFound):
         service.get_survey_results(provider, 999999)
+
+
+# ---------------------------------------------------------------------------
+# FR-05 (board W-05b): sentiment per open question and per group, small groups pooled
+# ---------------------------------------------------------------------------
+
+COMPLETED_POSITIVE = (AnalysisStatus.COMPLETED, SentimentLabel.POSITIVE)
+COMPLETED_NEUTRAL = (AnalysisStatus.COMPLETED, SentimentLabel.NEUTRAL)
+COMPLETED_NEGATIVE = (AnalysisStatus.COMPLETED, SentimentLabel.NEGATIVE)
+
+
+def create_grouped_survey(prefix, entries):
+    """Create a survey with one open-text question; each entry is (response fields, result).
+
+    result is (status, label), or None for an answer with no sentiment result.
+    """
+    provider = create_user(f"provider-{prefix}@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT, text="Any comments?")
+    for index, (fields, result) in enumerate(entries):
+        respondent = create_user(f"respondent-{prefix}-{index}@example.com", UserType.RESPONDENT)
+        response = ResponseRepository().save(
+            Response(survey=survey, respondent=respondent, **fields)
+        )
+        answer = create_answer(response, question, answer_value=f"Answer {index}")
+        if result is not None:
+            status, label = result
+            create_sentiment_result(answer, label, status=status)
+    return provider, survey
+
+
+def open_text_summary(provider, survey, group_by=None):
+    results = AnalysisService(analyzer=FakeHuggingFaceClient()).get_survey_results(
+        provider, survey.survey_id, group_by=group_by
+    )
+    return results, results["question_summaries"][0]
+
+
+def analysed_by_label(breakdown):
+    return {row["label"]: row["analysed"] for row in breakdown["rows"]}
+
+
+@pytest.mark.django_db
+def test_open_text_sentiment_counts_waiting_and_failed_and_leaves_skipped_out():
+    provider, survey = create_grouped_survey(
+        "fr05-counts",
+        [
+            ({}, COMPLETED_POSITIVE),
+            ({}, COMPLETED_POSITIVE),
+            ({}, COMPLETED_NEUTRAL),
+            ({}, COMPLETED_NEGATIVE),
+            ({}, (AnalysisStatus.PENDING, None)),
+            ({}, (AnalysisStatus.RUNNING, None)),
+            ({}, (AnalysisStatus.FAILED, None)),
+            ({}, (AnalysisStatus.SKIPPED, None)),
+            ({}, None),
+        ],
+    )
+    create_question(survey, QuestionType.RATING_SCALE, text="Rate us")
+
+    results, summary = open_text_summary(provider, survey)
+
+    assert summary["sentiment"] == {
+        "analysed": 4,
+        "total": 7,
+        "positive": 2,
+        "neutral": 1,
+        "negative": 1,
+    }
+    assert summary["breakdown"] is None
+    assert results["group_by"] is None
+    rating_summary = results["question_summaries"][1]
+    assert "sentiment" not in rating_summary
+    assert "breakdown" not in rating_summary
+
+
+@pytest.mark.django_db
+def test_open_text_sentiment_is_counted_per_question():
+    provider, survey = create_grouped_survey("fr05-per-question", [({}, COMPLETED_POSITIVE)])
+    other_question = create_question(survey, QuestionType.OPEN_TEXT, text="Anything else?")
+    response = Response.objects.get(survey=survey)
+    answer = create_answer(response, other_question, answer_value="Slow")
+    create_sentiment_result(answer, SentimentLabel.NEGATIVE)
+
+    results = AnalysisService(analyzer=FakeHuggingFaceClient()).get_survey_results(
+        provider, survey.survey_id
+    )
+    first, second = results["question_summaries"]
+
+    assert first["sentiment"]["positive"] == 1
+    assert first["sentiment"]["negative"] == 0
+    assert second["sentiment"]["positive"] == 0
+    assert second["sentiment"]["negative"] == 1
+
+
+@pytest.mark.django_db
+def test_excluded_response_counts_nowhere_in_question_sentiment_or_breakdown():
+    provider, survey = create_grouped_survey(
+        "fr05-excluded",
+        [
+            ({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "MALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "MALE", "is_excluded": True}, COMPLETED_NEGATIVE),
+            ({"snap_gender": "MALE", "is_excluded": True}, (AnalysisStatus.PENDING, None)),
+        ],
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="gender")
+
+    assert summary["sentiment"] == {
+        "analysed": 3,
+        "total": 3,
+        "positive": 3,
+        "neutral": 0,
+        "negative": 0,
+    }
+    assert summary["breakdown"]["rows"] == [
+        {"label": "Female", "analysed": 2, "positive": 2, "neutral": 0, "negative": 0,
+         "pooled": False},
+        {"label": "Male", "analysed": 1, "positive": 1, "neutral": 0, "negative": 0,
+         "pooled": False},
+    ]
+
+
+@pytest.mark.django_db
+def test_gender_breakdown_uses_gender_labels_and_not_stated():
+    provider, survey = create_grouped_survey(
+        "fr05-gender",
+        [
+            ({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "FEMALE"}, COMPLETED_NEGATIVE),
+            ({"snap_gender": "MALE"}, COMPLETED_NEUTRAL),
+            ({"snap_gender": ""}, COMPLETED_POSITIVE),
+            ({"snap_gender": "UNKNOWN"}, COMPLETED_POSITIVE),
+        ],
+    )
+
+    results, summary = open_text_summary(provider, survey, group_by="gender")
+
+    assert results["group_by"] == "gender"
+    assert summary["breakdown"]["dimension"] == "gender"
+    assert summary["breakdown"]["enough"] is True
+    assert [row["label"] for row in summary["breakdown"]["rows"]] == [
+        "Female",
+        "Not stated",
+        "Male",
+    ]
+    assert analysed_by_label(summary["breakdown"]) == {"Female": 2, "Not stated": 2, "Male": 1}
+
+
+@pytest.mark.django_db
+def test_age_breakdown_uses_the_age_groups():
+    ages = [16, 17, 18, 24, 25, 34, 35, 44, 45, 54, 55, 80, None]
+    provider, survey = create_grouped_survey(
+        "fr05-age", [({"snap_age": age}, COMPLETED_POSITIVE) for age in ages]
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="age")
+
+    assert analysed_by_label(summary["breakdown"]) == {
+        "Under 18": 2,
+        "18 to 24": 2,
+        "25 to 34": 2,
+        "35 to 44": 2,
+        "45 to 54": 2,
+        "55 and over": 2,
+        "Not stated": 1,
+    }
+
+
+@pytest.mark.django_db
+def test_governorate_breakdown_uses_governorate_labels():
+    provider, survey = create_grouped_survey(
+        "fr05-region",
+        [
+            ({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE),
+            ({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE),
+            ({"snap_region": "RIF_DIMASHQ"}, COMPLETED_NEGATIVE),
+            ({"snap_region": ""}, COMPLETED_NEUTRAL),
+            ({"snap_region": "Old free text"}, COMPLETED_NEUTRAL),
+        ],
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="governorate")
+
+    assert analysed_by_label(summary["breakdown"]) == {
+        "Damascus": 2,
+        "Not stated": 2,
+        "Rif Dimashq": 1,
+    }
+
+
+@pytest.mark.django_db
+def test_breakdown_pools_groups_under_five_analysed_answers(monkeypatch):
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 5)
+    entries = (
+        [({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE)] * 12
+        + [({"snap_region": "ALEPPO"}, COMPLETED_NEUTRAL)] * 7
+        + [({"snap_region": "HOMS"}, COMPLETED_POSITIVE)] * 3
+        + [({"snap_region": "HAMA"}, COMPLETED_NEGATIVE)] * 2
+        # Waiting answers are not analysed, so Hama stays a group of 2 and is pooled.
+        + [({"snap_region": "HAMA"}, (AnalysisStatus.PENDING, None))] * 3
+    )
+    provider, survey = create_grouped_survey("fr05-pooled", entries)
+
+    _, summary = open_text_summary(provider, survey, group_by="governorate")
+
+    assert summary["breakdown"] == {
+        "dimension": "governorate",
+        "enough": True,
+        "rows": [
+            {"label": "Damascus", "analysed": 12, "positive": 12, "neutral": 0, "negative": 0,
+             "pooled": False},
+            {"label": "Aleppo", "analysed": 7, "positive": 0, "neutral": 7, "negative": 0,
+             "pooled": False},
+            {"label": "Other groups (combined)", "analysed": 5, "positive": 3, "neutral": 0,
+             "negative": 2, "pooled": True},
+        ],
+    }
+
+
+@pytest.mark.django_db
+def test_breakdown_is_not_enough_when_only_one_row_would_remain(monkeypatch):
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 5)
+    entries = (
+        [({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE)] * 6
+        + [({"snap_region": "HOMS"}, COMPLETED_NEGATIVE)] * 2
+    )
+    provider, survey = create_grouped_survey("fr05-not-enough", entries)
+
+    _, summary = open_text_summary(provider, survey, group_by="governorate")
+
+    assert summary["breakdown"] == {"dimension": "governorate", "enough": False, "rows": []}
+    assert summary["sentiment"]["analysed"] == 8
+
+
+@pytest.mark.django_db
+def test_breakdown_without_analysed_answers_is_not_enough():
+    provider, survey = create_grouped_survey(
+        "fr05-none-analysed",
+        [({"snap_gender": "FEMALE"}, (AnalysisStatus.PENDING, None))] * 3,
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="gender")
+
+    assert summary["breakdown"] == {"dimension": "gender", "enough": False, "rows": []}
+
+
+@pytest.mark.django_db
+def test_unknown_group_by_is_treated_as_no_breakdown():
+    provider, survey = create_grouped_survey(
+        "fr05-unknown", [({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE)]
+    )
+
+    results, summary = open_text_summary(provider, survey, group_by="email")
+
+    assert results["group_by"] is None
+    assert summary["breakdown"] is None
+
+
+@pytest.mark.django_db
+def test_locked_survey_result_is_unchanged_with_a_group_by(monkeypatch):
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 5)
+    provider, survey = create_grouped_survey(
+        "fr05-locked", [({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE)] * 4
+    )
+
+    results = AnalysisService(analyzer=FakeHuggingFaceClient()).get_survey_results(
+        provider, survey.survey_id, group_by="gender"
+    )
+
+    assert results == {
+        "survey_id": survey.survey_id,
+        "response_count": 4,
+        "locked": True,
+        "min_responses": 5,
+    }
 
 
 class FakeHttpErrorResponse:

@@ -24,6 +24,19 @@ QUALITY_NOT_CHECKED_CODES = (
     quality_rules.SPEEDING,
     quality_rules.STRAIGHT_LINING,
 )
+# Board W-05b: the "Compare groups by" options; the service accepts the non-empty values.
+GROUP_BY_OPTIONS = (
+    ("", "No breakdown"),
+    ("gender", "Gender"),
+    ("age", "Age group"),
+    ("governorate", "Governorate"),
+)
+GROUP_BY_HEADINGS = {
+    "gender": "By gender",
+    "age": "By age group",
+    "governorate": "By governorate",
+}
+SENTIMENT_NAMES = (("positive", "Positive"), ("neutral", "Neutral"), ("negative", "Negative"))
 
 
 def analytics_dashboard(request, survey_id):
@@ -34,7 +47,9 @@ def analytics_dashboard(request, survey_id):
 
     try:
         survey = SurveyService().get_provider_survey(request.user, survey_id)
-        results = AnalysisService().get_survey_results(request.user, survey_id)
+        results = AnalysisService().get_survey_results(
+            request.user, survey_id, group_by=request.GET.get("group_by")
+        )
         # P-20: the quality evaluation is read only once the results are open.
         evaluation = (
             None
@@ -66,6 +81,8 @@ def analytics_dashboard(request, survey_id):
                 for summary in results_view["question_summaries"]
             ),
             "sentiment": _sentiment_panel(results),
+            "group_by": results["group_by"] or "",
+            "group_by_options": GROUP_BY_OPTIONS,
             "quality": None if evaluation["locked"] else _quality_panel(evaluation),
             "sentiment_chart_data": _sentiment_chart_data(results_view),
             "question_chart_data": _question_chart_data(
@@ -302,15 +319,55 @@ def _sentiment_chart_data(results):
 
 
 def _question_summaries_view(question_summaries):
-    """Add chart element ids and type labels to question-level analytics summaries."""
-    return [
-        {
+    """Add chart element ids, type labels and the W-05b sentiment blocks to question summaries."""
+    summaries = []
+    for summary in question_summaries:
+        view = {
             **summary,
             "chart_id": f"question-chart-{summary['question_id']}",
             "question_type_label": QUESTION_TYPE_LABELS[summary["question_type"]],
         }
-        for summary in question_summaries
-    ]
+        if "sentiment" in summary:
+            view["sentiment_shares"] = _sentiment_shares(summary["sentiment"])
+            view["breakdown_view"] = _breakdown_view(summary["breakdown"])
+        summaries.append(view)
+    return summaries
+
+
+def _sentiment_shares(counts):
+    """Return each sentiment's count, share label and whole-number bar width of the analysed."""
+    shares = []
+    for key, name in SENTIMENT_NAMES:
+        rate = counts[key] / counts["analysed"] if counts["analysed"] else 0
+        shares.append(
+            {
+                "key": key,
+                "name": name,
+                "count": counts[key],
+                "label": _rate_label(rate),
+                "width": round(rate * 100),
+            }
+        )
+    return shares
+
+
+def _breakdown_view(breakdown):
+    """Build the W-05b group table of one open question, or None without a dimension."""
+    if breakdown is None:
+        return None
+    return {
+        "heading": GROUP_BY_HEADINGS[breakdown["dimension"]],
+        "enough": breakdown["enough"],
+        "rows": [
+            {
+                "label": row["label"],
+                "analysed": row["analysed"],
+                "pooled": row["pooled"],
+                "shares": _sentiment_shares(row),
+            }
+            for row in breakdown["rows"]
+        ],
+    }
 
 
 def _question_chart_data(question_summaries):
