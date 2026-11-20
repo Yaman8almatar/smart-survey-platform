@@ -69,6 +69,9 @@ class QuestionForm(BootstrapFormMixin, forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
+        if cleaned_data.get("question_type") != QuestionType.MULTIPLE_CHOICE:
+            # The option builder keeps lines typed under another type; only choices have options.
+            cleaned_data["options"] = ""
         if not cleaned_data.get("is_attention_check"):
             # A hidden radio may still be posted; an ordinary question has no expected answer.
             cleaned_data["expected_option"] = None

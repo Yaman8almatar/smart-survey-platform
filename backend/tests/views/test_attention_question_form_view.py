@@ -175,6 +175,47 @@ def test_an_unticked_option_with_leftover_values_saves_an_ordinary_question(
     assert question.is_required is False
 
 
+@pytest.mark.parametrize("question_type", ["RATING_SCALE", "OPEN_TEXT"])
+def test_options_left_over_from_multiple_choice_do_not_block_the_save(
+    client, provider, survey, question_type
+):
+    # TASK-47 (D-194 (5)): the option builder keeps lines typed under "Multiple choice".
+    client.force_login(provider)
+    response = client.post(
+        url(survey),
+        {
+            "question_text": "How was it?",
+            "order_index": "0",
+            "question_type": question_type,
+            "options": "Agree\nDisagree",
+        },
+        follow=True,
+    )
+
+    assert "Question added successfully." in response.content.decode()
+    question = Question.objects.get(survey=survey)
+    assert question.question_type == question_type
+    assert not question.options.exists()
+
+
+def test_a_rating_check_with_leftover_options_saves_as_a_check(client, provider, survey):
+    response = post(
+        client,
+        provider,
+        survey,
+        question_type="RATING_SCALE",
+        options="Agree\nDisagree",
+        is_attention_check="on",
+        expected_rating="4",
+    )
+
+    assert response.status_code == 302
+    question = Question.objects.get(survey=survey)
+    assert question.is_attention_check is True
+    assert question.expected_rating == 4
+    assert not question.options.exists()
+
+
 def test_at_two_checks_the_page_shows_the_limit_and_a_disabled_checkbox(
     client, provider, survey
 ):
