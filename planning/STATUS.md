@@ -1,11 +1,11 @@
 # STATUS — 2026-11-20
-Branch: docs/fr04-diagram-exports
-Task: TASK-46B — PNG exports of the Increment 2 diagrams (class, ER, UC-04 sequence, FR-04 activity)
-Done: the advisor's four renders (from the sources at 581de58) checked byte for byte against the SHA-256 list and committed.
-  diagrams/README.md: Exports cells updated and the two exports paragraphs merged into one naming develop 9fd4097 (D-205).
-Changes: 4 modified, 1 new, 0 deleted (plus this file) — diagrams/exports/class-diagram.png, diagrams/exports/erd.png, diagrams/exports/sequence-uc04-answer.png, diagrams/exports/activity-fr04-quality-rules.png, diagrams/README.md
-Tests: skipped (no code changes); full suites run in CI
-Check: skipped (no code changes; the brief allows no backend command)
-Committed: yes (the TASK-46B change commit holds this file)
+Branch: fix/question-options-type
+Task: TASK-47 — question form: options left over from another type no longer block the save (D-194 (5))
+Done: QuestionForm.clean blanks cleaned options for a non-multiple-choice type, before the early return;
+  the bound field and option_lines keep the posted value; the service rule is unchanged. 6 new tests (3 form, 3 page).
+Changes: 3 modified, 0 new, 0 deleted (plus this file) — backend/apps/surveys/forms.py, backend/tests/views/test_question_form.py, backend/tests/views/test_attention_question_form_view.py
+Tests: task files 21 passed (5 of the 6 new failed before the fix); whole backend suite 1096 passed; full suites run in CI
+Check: System check identified no issues (0 silenced).
+Committed: yes (the TASK-47 change commit holds this file)
 Open questions: none
-Next: Hasan or Yousef opens the four PNGs in the PR's Files view and approves; Yaman merges with a squash
+Next: Yaman or Yousef reviews and approves the PR; Yaman merges with a squash
