@@ -6,19 +6,16 @@ Each source file starts with a Basis block and ends with a legend table.
 
 | Diagram | Source | Exports | Tool |
 |---|---|---|---|
-| Class diagram: 11 domain classes and their enumerations (Increment 2) | `class-diagram.md` | `exports/class-diagram.png` (Increment 1) | Mermaid `classDiagram` |
-| ER diagram: 11 tables, columns, keys and constraints table (Increment 2) | `erd.md` | `exports/erd.png` (Increment 1) | Mermaid `erDiagram` |
+| Class diagram: 11 domain classes and their enumerations (Increment 2) | `class-diagram.md` | `exports/class-diagram.png` | Mermaid `classDiagram` |
+| ER diagram: 11 tables, columns, keys and constraints table (Increment 2) | `erd.md` | `exports/erd.png` | Mermaid `erDiagram` |
 | Sequence diagram UC-02 Manage demographic profile (FR-02) | `sequence-uc02-profile.md` | `exports/sequence-uc02-profile.png` | Mermaid `sequenceDiagram` |
-| Sequence diagram UC-04 Answer a survey, draft and resume, quality evidence (FR-06, FR-04) (Increment 2) | `sequence-uc04-answer.md` | `exports/sequence-uc04-answer.png` (Increment 1) | Mermaid `sequenceDiagram` |
-| Activity diagram: FR-04 quality rules, version 1 (Increment 2) | `activity-fr04-quality-rules.md` | not rendered yet | Mermaid `flowchart` |
+| Sequence diagram UC-04 Answer a survey, draft and resume, quality evidence (FR-06, FR-04) (Increment 2) | `sequence-uc04-answer.md` | `exports/sequence-uc04-answer.png` | Mermaid `sequenceDiagram` |
+| Activity diagram: FR-04 quality rules, version 1 (Increment 2) | `activity-fr04-quality-rules.md` | `exports/activity-fr04-quality-rules.png` | Mermaid `flowchart` |
 | Sequence diagram UC-06 View answered surveys (FR-01) | `sequence-uc06-answered.md` | `exports/sequence-uc06-answered.png` | Mermaid `sequenceDiagram` |
 | Initial class diagram: 9 domain classes (Iteration 0, 2026-10-30; kept as a record, superseded by `class-diagram.md`) | - | `class-diagram.png` | Mermaid |
 | Use case diagrams: Respondent, Provider, Admin | - | `use-case-respondent.png`, `use-case-provider.png`, `use-case-admin.png` | UML 2.5 notation (preliminary) |
 
-PNG exports of the Increment 1 diagrams for the report and the deck are in `exports/`, rendered from the sources at
-develop 337648a with mermaid-cli 12.2.0 (scale 2, white background). Export again when a source changes.
-The class, ER and UC-04 sequence exports in `exports/` are still the Increment 1 renders: they do not show the
-Increment 2 sources until the advisor renders the new ones; the activity diagram has no export yet.
+PNG exports for the report and the deck are in `exports/`, rendered with mermaid-cli 12.2.0 (scale 2, white background): the UC-02 and UC-06 sequence diagrams from the sources at develop 337648a, and the class, ER, UC-04 sequence and FR-04 activity diagrams from the sources at develop 9fd4097 (D-205). Export again when a source changes.
 
 The architecture diagram is on slide 9 of the Seminar 1 deck in documentation/graduation-1/.
 
