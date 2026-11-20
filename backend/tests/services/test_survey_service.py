@@ -785,7 +785,8 @@ def test_eligible_survey_items_use_a_fixed_number_of_queries(
     for _ in range(5):
         published_survey_with_targeting(survey_service, provider, gender=Gender.FEMALE)
 
-    with django_assert_max_num_queries(3):
+    # FR-08: one query more, for the valid timings.
+    with django_assert_max_num_queries(4):
         items = survey_service.get_eligible_survey_items(respondent)
         question_counts = [item["question_count"] for item in items]
 

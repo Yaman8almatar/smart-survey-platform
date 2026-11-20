@@ -37,6 +37,18 @@ class QualityRepository:
             .values(*EVIDENCE_FIELDS)
         )
 
+    def find_valid_active_ms_by_survey_ids(self, survey_ids):
+        """Return {survey_id: [active_ms, ...]} over evidence with signals_ok and an active time, in one query."""
+        timings = {}
+        rows = ResponseQuality.objects.filter(
+            survey_id__in=list(survey_ids),
+            signals_ok=True,
+            active_ms__isnull=False,
+        ).values_list("survey_id", "active_ms")
+        for survey_id, active_ms in rows:
+            timings.setdefault(survey_id, []).append(active_ms)
+        return timings
+
     def find_answered_questions_by_survey_id(self, survey_id):
         """Return (response_id, question_id, question_type) of every answer of a survey, in one query."""
         return list(

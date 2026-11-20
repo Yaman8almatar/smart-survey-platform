@@ -114,12 +114,14 @@ class TokenPairSerializer(serializers.Serializer):
 
 
 class EligibleSurveySerializer(serializers.Serializer):
-    """One eligible survey row with its question count."""
+    """One eligible survey row with its question count, expected minutes and publish date."""
 
     id = serializers.IntegerField(source="survey.survey_id")
     title = serializers.CharField(source="survey.title")
     description = serializers.CharField(source="survey.description")
     question_count = serializers.IntegerField()
+    expected_minutes = serializers.IntegerField()
+    published_on = serializers.DateField(allow_null=True)
 
 
 class OptionSerializer(serializers.Serializer):

@@ -169,6 +169,8 @@ class FlowApi {
           'title': 'Transport in Homs',
           'description': 'Tell us about buses.',
           'question_count': 3,
+          'expected_minutes': 1,
+          'published_on': '2026-11-18',
         },
       ]);
     }

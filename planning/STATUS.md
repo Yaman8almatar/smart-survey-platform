@@ -1,12 +1,12 @@
 # STATUS — 2026-11-20
-Branch: feat/fr16-shuffle-order
-Task: TASK-52 — FR-16 shuffled order of questions and answer options, fixed per respondent (#30)
-Done: Survey.shuffle_questions / shuffle_options (migration 0014, db_default=False, not applied here);
-  services/presentation_order.respondent_order ranks items by sha256(scope:survey:respondent:item), nothing stored;
-  get_response_form reorders for the respondent (order_index = position), choices only; create/edit forms carry both settings.
-Changes: 7 modified, 6 new, 0 deleted (plus this file) — backend/services/presentation_order.py, backend/services/question_service.py, backend/services/survey_service.py, backend/apps/core/migrations/0014_fr16_shuffle_order.py, backend/apps/surveys/templates/surveys/
-Tests: task files 28 passed (all new); whole backend suite 1247 passed (1219 before); full suites run in CI
-Check: System check identified no issues (0 silenced). makemigrations --check: No changes detected
-Committed: yes (the TASK-52 change commit holds this file)
+Branch: feat/fr08-survey-list
+Task: TASK-53 — FR-08 survey list ranked by shared interests, with expected time, search and filters (#22)
+Done: services/expected_time (median of >= 20 valid active_ms, else per-type estimate, ceil, min 1);
+  eligible items ranked by shared interests (stable), plus expected_minutes and published_on (+1 query);
+  app card "N questions · About M min", search field and All / Under 5 min / New this week chips, no-result state.
+Changes: 10 modified, 5 new, 0 deleted (plus this file) — backend/services/expected_time.py, backend/services/survey_service.py, backend/repositories/survey_repository.py, backend/repositories/quality_repository.py, frontend/lib/features/surveys/eligible_surveys_screen.dart
+Tests: backend task files 77 passed (16 new); whole backend suite 1263 passed (1247 before); Flutter task files 97 passed (10 new); flutter test 235 passed (225 before); flutter analyze no issues
+Check: System check identified no issues (0 silenced).
+Committed: yes (the TASK-53 change commit holds this file)
 Open questions: none
-Next: the advisor reviews the PR; after the merge, back up the laptop database and run migrate with the worker stopped
+Next: Yaman or Hasan reviews and approves the PR; the user checks the list, minutes, search and chips against the laptop server
