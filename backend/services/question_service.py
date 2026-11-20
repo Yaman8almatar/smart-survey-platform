@@ -200,6 +200,16 @@ class QuestionService:
     def get_survey_question_rows(self, provider_user, survey_id):
         """Return ordered survey questions and options for the management page."""
         self._get_owned_survey(provider_user, survey_id)
+        return self._question_rows(survey_id)
+
+    def get_review_question_rows(self, admin_user, survey_id):
+        """Return the management page's question rows for an admin reviewing the survey."""
+        if admin_user.user_type != UserType.ADMIN:
+            raise UnauthorizedAction("Only admins can perform this action.")
+        return self._question_rows(survey_id)
+
+    def _question_rows(self, survey_id):
+        """Return ordered question rows with their options, in the stored order."""
         questions = sorted(
             self.question_repository.find_by_survey_id_with_options(survey_id),
             key=lambda question: (question.order_index, question.question_id),

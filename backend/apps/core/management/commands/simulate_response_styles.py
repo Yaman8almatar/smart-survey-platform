@@ -30,11 +30,13 @@ from services.quality_rules import (
 from services.quality_service import QualityService
 from services.question_service import QuestionService
 from services.response_service import ResponseService
+from services.survey_review_service import SurveyReviewService
 from services.survey_service import SurveyService
 from services.targeting_service import TargetingService
 
 DOMAIN = "simulation.smartsurvey.test"
 PROVIDER_EMAIL = f"simulation-provider@{DOMAIN}"
+ADMIN_EMAIL = f"simulation-admin@{DOMAIN}"
 MIN_PASSWORD_LENGTH = 8
 PREFER_NOT_TO_SAY = "PREFER_NOT_TO_SAY"
 
@@ -162,8 +164,21 @@ class Command(BaseCommand):
             account_status=AccountStatus.ACTIVE,
         )
 
+    def _create_admin(self):
+        """Create the labelled simulation admin that approves the survey; it cannot sign in."""
+        admin = User(
+            email=ADMIN_EMAIL,
+            name="Simulation admin",
+            user_type=UserType.ADMIN,
+            account_status=AccountStatus.ACTIVE,
+            is_active=True,
+        )
+        admin.set_unusable_password()
+        admin.save()
+        return admin
+
     def _build_survey(self, provider):
-        """Create, target and publish the survey through the services as the provider.
+        """Create, target, submit and approve the survey through the services.
 
         Returns the survey id and the questions in order as
         (question_id, question_type, {option text: option id}).
@@ -190,7 +205,9 @@ class Command(BaseCommand):
             )
 
         TargetingService().save_criteria(provider, survey_id)
-        SurveyService().publish_survey(provider, survey_id)
+        # FR-12: a survey is published only through an admin's approval.
+        SurveyService().submit_for_review(provider, survey_id)
+        SurveyReviewService().approve(self._create_admin(), survey_id)
 
         questions = [
             (

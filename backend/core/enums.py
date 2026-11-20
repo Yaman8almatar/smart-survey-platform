@@ -31,6 +31,7 @@ class SurveyStatus(models.TextChoices):
     """Defines survey lifecycle states for editing, publishing, and closing."""
 
     DRAFT = "DRAFT", "Draft"
+    PENDING_REVIEW = "PENDING_REVIEW", "Pending review"
     PUBLISHED = "PUBLISHED", "Published"
     CLOSED = "CLOSED", "Closed"
 

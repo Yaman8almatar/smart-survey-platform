@@ -21,7 +21,7 @@ REACH_COPY = [
     "Try again",
     "No count yet",
     "Fix the highlighted field to see the reach.",
-    "You can still publish. People who match later will see the survey.",
+    "You can still submit it for review. People who match later will see the survey.",
 ]
 
 

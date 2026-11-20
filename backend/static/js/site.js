@@ -567,9 +567,14 @@
             jsonId: "surveys-by-status-data",
             type: "bar",
             label: "Surveys",
-            keys: ["DRAFT", "PUBLISHED", "CLOSED"],
-            labels: ["Draft", "Published", "Closed"],
-            colors: [ssToken("--ss-chart-other"), ssToken("--ss-chart-1"), ssToken("--ss-chart-5")],
+            keys: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "CLOSED"],
+            labels: ["Draft", "Pending review", "Published", "Closed"],
+            colors: [
+                ssToken("--ss-chart-other"),
+                ssToken("--ss-chart-2"),
+                ssToken("--ss-chart-1"),
+                ssToken("--ss-chart-5"),
+            ],
             emptyMessage: "No survey data is available.",
         });
 

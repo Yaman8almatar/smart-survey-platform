@@ -1,50 +1,21 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% with any_label="Any" %}
 <section class="page-shell">
     <div class="container">
         <div class="publish-shell">
             <div class="page-header">
                 <div>
-                    <div class="page-kicker">Publish survey</div>
+                    <div class="page-kicker">Submit for review</div>
                     <h1>{{ survey.title }}</h1>
-                    <p class="section-subtitle mb-0">Check who will see the survey before you publish it.</p>
+                    <p class="section-subtitle mb-0">Check who will see the survey before you submit it for review.</p>
                 </div>
             </div>
 
-            <!-- Publish confirmation (W-03, P-19): the reach and the targeting before the POST -->
+            <!-- Submit confirmation (W-03, P-19, FR-12): the reach and the targeting before the POST -->
             <div class="card targeting-card">
                 <div class="card-body">
-                    <div class="publish-reach">
-                        {% if reach.state == "few" %}
-                            {% include "partials/signal_ring.html" with value=0 size=96 text="&lt;5" decorative=True %}
-                        {% elif reach.state == "none" %}
-                            {% include "partials/signal_ring.html" with value=0 size=96 text="0" decorative=True %}
-                        {% else %}
-                            {% include "partials/signal_ring.html" with value=reach.percent size=96 decorative=True %}
-                        {% endif %}
-                        <div>
-                            <p class="reach-card__big">{% if reach.state == "few" %}Fewer than 5 respondents{% elif reach.state == "none" %}No respondent{% else %}{{ reach.count }} of {{ reach.total }} respondents{% endif %}</p>
-                            <p class="reach-card__line">{% if reach.state == "none" %}matches the targeting yet.{% else %}match the targeting now and will see the survey once it is published.{% endif %}</p>
-                        </div>
-                    </div>
-
-                    <section class="publish-section" aria-labelledby="who-title">
-                        <div class="targeting-section__head">
-                            <h2 id="who-title" class="publish-title">Who can answer</h2>
-                            <a class="publish-link" href="{% url 'surveys:targeting_criteria' survey.id %}">Edit targeting</a>
-                        </div>
-                        <dl class="publish-rows">
-                            <div class="publish-row"><dt>Gender</dt><dd>{{ who.gender|default:any_label }}</dd></div>
-                            <div class="publish-row"><dt>Age</dt><dd>{{ who.age|default:any_label }}</dd></div>
-                            <div class="publish-row"><dt>Governorates</dt><dd>{{ who.regions|join:", "|default:any_label }}</dd></div>
-                            <div class="publish-row"><dt>Education level</dt><dd>{{ who.education_levels|join:", "|default:any_label }}</dd></div>
-                            <div class="publish-row"><dt>Occupation</dt><dd>{{ who.occupations|join:", "|default:any_label }}</dd></div>
-                            <div class="publish-row"><dt>Marital status</dt><dd>{{ who.marital_statuses|join:", "|default:any_label }}</dd></div>
-                            <div class="publish-row"><dt>Interests</dt><dd>{% if who.interests %}At least one of: {{ who.interests|join:", " }}{% else %}{{ any_label }}{% endif %}</dd></div>
-                        </dl>
-                    </section>
+                    {% include "surveys/_publish_summary.html" with show_edit_link=True survey_id=survey.id %}
 
                     <section class="publish-section publish-section--row" aria-labelledby="questions-title">
                         <h2 id="questions-title" class="publish-title">Questions</h2>
@@ -53,7 +24,7 @@
 
                     <div class="publish-note">
                         <i class="bi bi-info-circle" aria-hidden="true"></i>
-                        <p class="mb-0">After publishing, the questions and the targeting can no longer be changed.</p>
+                        <p class="mb-0">After you submit it, the questions and the targeting can no longer be changed. An admin then publishes the survey or returns it to you with a reason.</p>
                     </div>
 
                     {% if reach.state == "few" or reach.state == "none" %}
@@ -61,7 +32,7 @@
                             <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                             <div>
                                 <p><strong>{% if reach.state == "few" %}Fewer than 5 respondents match now.{% else %}No respondent matches these criteria yet.{% endif %}</strong></p>
-                                <p>You can publish. People who match later will see the survey.</p>
+                                <p>You can still submit it. People who match later will see the survey.</p>
                             </div>
                         </div>
                     {% endif %}
@@ -74,7 +45,7 @@
                         </a>
                         <button class="btn btn-primary" type="submit">
                             <i class="bi bi-send me-1" aria-hidden="true"></i>
-                            Publish survey
+                            Submit for review
                         </button>
                     </form>
                 </div>
@@ -82,5 +53,4 @@
         </div>
     </div>
 </section>
-{% endwith %}
 {% endblock %}
