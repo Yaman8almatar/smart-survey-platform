@@ -152,7 +152,8 @@ def test_metric_captions_read_rate_of_analysed(client):
 
     assert "<small>60% of 5 analysed</small>" in content
     assert "<small>20% of 5 analysed</small>" in content
-    assert "Analytics summary" in content
+    # W-05b (TASK-48) replaced the "Analytics summary" card with the group breakdown card.
+    assert "Group breakdown" in content
 
 
 # State 2: waiting, worker running

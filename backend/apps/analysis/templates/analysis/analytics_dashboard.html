@@ -225,31 +225,22 @@
             </div>
 
             <div class="col-lg-5">
+                <!-- W-05b: the GET form only reloads the page with group_by -->
                 <div class="card table-card h-100">
                     <div class="card-body">
-                        <h2 class="section-title">Analytics summary</h2>
-                        <p class="item-subtitle">
-                            Rates reflect completed sentiment analysis for submitted
-                            open-text answers.
-                        </p>
-                        <div class="analytics-list">
-                            <div>
-                                <span>Positive rate</span>
-                                <strong>{{ results.positive_rate_label }}</strong>
+                        <h2 class="section-title">Group breakdown</h2>
+                        <p class="item-subtitle">Groups come from each respondent's profile when they answered. Groups with fewer than 5 answers are combined.</p>
+                        <form method="get" action="{% url 'analysis:analytics_dashboard' results.survey_id %}" class="group-breakdown-form">
+                            <label class="form-label" for="group-by-select">Compare groups by</label>
+                            <div class="group-breakdown-form__row">
+                                <select class="form-select" id="group-by-select" name="group_by">
+                                    {% for value, label in group_by_options %}
+                                        <option value="{{ value }}"{% if value == group_by %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-outline-secondary">Show</button>
                             </div>
-                            <div>
-                                <span>Neutral rate</span>
-                                <strong>{{ results.neutral_rate_label }}</strong>
-                            </div>
-                            <div>
-                                <span>Negative rate</span>
-                                <strong>{{ results.negative_rate_label }}</strong>
-                            </div>
-                            <div>
-                                <span>Total responses</span>
-                                <strong>{{ results.response_count }}</strong>
-                            </div>
-                        </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -288,6 +279,46 @@
                                     </div>
 
                                     {% if question.chart_type == "text" %}
+                                        <!-- W-05b: sentiment of this question, then the optional group table -->
+                                        <div class="question-sentiment">
+                                            {% if question.sentiment.analysed == 0 %}
+                                                <p class="question-sentiment__line">No answers to this question have been analysed yet.</p>
+                                            {% else %}
+                                                <p class="question-sentiment__line">Analysed {{ question.sentiment.analysed }} of {{ question.sentiment.total }} answers.</p>
+                                                <div class="sentiment-bar" role="img" aria-label="{{ question.sentiment.analysed }} analysed answers: {{ question.sentiment.positive }} positive, {{ question.sentiment.neutral }} neutral, {{ question.sentiment.negative }} negative">
+                                                    {% for share in question.sentiment_shares %}<span class="sentiment-bar__segment sentiment-swatch-{{ share.key }}" style="width: {{ share.width }}%"></span>{% endfor %}
+                                                </div>
+                                                <ul class="sentiment-legend">
+                                                    {% for share in question.sentiment_shares %}
+                                                        <li><span class="sentiment-swatch sentiment-swatch-{{ share.key }}" aria-hidden="true"></span>{{ share.name }} {{ share.count }} · {{ share.label }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                                {% if question.breakdown_view %}
+                                                    <h4 class="answer-section-label group-breakdown__heading">{{ question.breakdown_view.heading }}</h4>
+                                                    {% if question.breakdown_view.enough %}
+                                                        <div class="table-responsive group-breakdown__scroll">
+                                                            <table class="table group-breakdown-table">
+                                                                <thead>
+                                                                    <tr><th scope="col">Group</th><th scope="col">Analysed</th><th scope="col">Positive</th><th scope="col">Neutral</th><th scope="col">Negative</th></tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {% for row in question.breakdown_view.rows %}
+                                                                        <tr{% if row.pooled %} class="group-breakdown-table__pooled"{% endif %}>
+                                                                            <th scope="row">{{ row.label }}</th>
+                                                                            <td>{{ row.analysed }}</td>
+                                                                            {% for share in row.shares %}<td>{{ share.count }} <span class="group-breakdown-table__share">{{ share.label }}</span></td>{% endfor %}
+                                                                        </tr>
+                                                                    {% endfor %}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                        <p class="sentiment-caption group-breakdown__caption">Shares of the analysed answers in each group.</p>
+                                                    {% else %}
+                                                        <p class="question-sentiment__line">Not enough responses to show this breakdown.</p>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
                                         {% if question.text_answers %}
                                             <h4 class="answer-section-label">
                                                 Submitted text answers

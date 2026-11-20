@@ -1,11 +1,12 @@
 # STATUS — 2026-11-20
-Branch: fix/question-options-type
-Task: TASK-47 — question form: options left over from another type no longer block the save (D-194 (5))
-Done: QuestionForm.clean blanks cleaned options for a non-multiple-choice type, before the early return;
-  the bound field and option_lines keep the posted value; the service rule is unchanged. 6 new tests (3 form, 3 page).
-Changes: 3 modified, 0 new, 0 deleted (plus this file) — backend/apps/surveys/forms.py, backend/tests/views/test_question_form.py, backend/tests/views/test_attention_question_form_view.py
-Tests: task files 21 passed (5 of the 6 new failed before the fix); whole backend suite 1096 passed; full suites run in CI
+Branch: feat/fr05-group-summary
+Task: TASK-48 — FR-05 sentiment per open question and per group, small groups pooled (board W-05b, D-213)
+Done: disclosure.pool_groups (P-15, DESIGN-INC2 3.6); get_survey_results(group_by) adds sentiment and an optional
+  snapshot breakdown to every open-text summary; the "Group breakdown" GET card replaces "Analytics summary";
+  each open question shows its bar, legend and group table. 28 new tests (10 helper, 11 service, 7 page).
+Changes: 8 modified, 1 new, 0 deleted (plus this file) — backend/services/disclosure.py, backend/services/analysis_service.py, backend/apps/analysis/views.py, backend/apps/analysis/templates/analysis/analytics_dashboard.html, backend/tests/views/test_analytics_group_summary_view.py
+Tests: task files 90 passed (62 before); whole backend suite 1124 passed (1096 before); full suites run in CI
 Check: System check identified no issues (0 silenced).
-Committed: yes (the TASK-47 change commit holds this file)
+Committed: yes (the TASK-48 change commit holds this file)
 Open questions: none
-Next: Yaman or Yousef reviews and approves the PR; Yaman merges with a squash
+Next: the advisor reviews the page on a local server; Hasan or Yousef approves; Yaman squash-merges
