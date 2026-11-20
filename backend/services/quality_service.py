@@ -260,6 +260,26 @@ class QualityService:
         excluded = set(self.response_repository.find_excluded_ids_by_survey_id(survey_id))
         return self._apply_inclusion(survey_id, excluded, False)
 
+    def set_response_inclusion(self, provider_user, survey_id, number, excluded):
+        """Exclude or include the response at a number (board W-07); return 1 when it changed, else 0.
+
+        A response collected before quality checks has no score and cannot be excluded here.
+        Nothing changes on any refusal.
+        """
+        ensure_survey_owner(self.survey_repository, provider_user, survey_id)
+        self._ensure_results_open(survey_id)
+        if not isinstance(excluded, bool):
+            raise ValidationError("Excluded must be true or false.")
+        found = self.response_repository.find_by_number(survey_id, number)
+        if found is None:
+            raise ResponseNotFound("Response does not belong to this survey.")
+        if excluded and not found["has_evidence"]:
+            raise ValidationError(
+                "This response was collected before quality checks. "
+                "It has no score and stays included."
+            )
+        return self._apply_inclusion(survey_id, {found["response_id"]}, excluded)
+
     def _apply_inclusion(self, survey_id, response_ids, excluded):
         """Set the inclusion of the given responses in one bulk update; return how many changed."""
         if not response_ids:

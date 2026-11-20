@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Responses</div>
+                <h1>{{ survey.title }}</h1>
+                <p class="section-subtitle mb-0">Each response is shown under a number. The platform never shows who answered.</p>
+            </div>
+            <a class="btn btn-outline-secondary" href="{% url 'analysis:analytics_dashboard' survey.id %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to analytics</a>
+        </div>
+
+        {% if locked %}
+{% include "analysis/_locked_card.html" %}
+        {% else %}
+        <!-- W-07: the GET form only reloads the list with show and order -->
+        <div class="card table-card mb-4">
+            <div class="card-body">
+                <form method="get" action="{% url 'analysis:response_list' survey.id %}" class="response-filter">
+                    <div class="response-filter__field">
+                        <label class="form-label" for="response-show">Show</label>
+                        <select class="form-select" id="response-show" name="show">
+                            {% for value, label in show_options %}
+                                <option value="{{ value }}"{% if value == show %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="response-filter__field">
+                        <label class="form-label" for="response-order">Order</label>
+                        <select class="form-select" id="response-order" name="order">
+                            {% for value, label in order_options %}
+                                <option value="{{ value }}"{% if value == order %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-outline-secondary">Apply</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="card-body">
+                <p class="quality-count-line"><strong>{{ included }} of {{ total }}</strong> responses included.{% if excluded > 0 %} {{ excluded }} excluded.{% endif %}</p>
+                {% if rows %}
+                    <div class="table-responsive response-table-scroll">
+                        <table class="table response-table">
+                            <thead>
+                                <tr><th scope="col">Response</th><th scope="col">Submitted</th><th scope="col">Score</th><th scope="col">Flags</th><th scope="col">Open answers</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Open</span></th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rows %}
+                                    <tr{% if row.is_excluded %} class="response-table__excluded"{% endif %}>
+                                        <th scope="row">Response {{ row.number }}</th>
+                                        <td>{{ row.submitted_at|date:"j M Y" }}</td>
+                                        <td>{{ row.score }}</td>
+                                        <td>{{ row.flags }}</td>
+                                        <td>{{ row.open_answers }}</td>
+                                        <td>{% if row.is_excluded %}Excluded{% else %}Included{% endif %}</td>
+                                        <td><a href="{% url 'analysis:response_detail' survey.id row.number %}">Open</a></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="response-pagination">
+                        <p class="quality-caption mb-0">Showing {{ page.start_index }} to {{ page.end_index }} of {{ page.paginator.count }} responses.</p>
+                        {% if previous_url or next_url %}
+                            <nav class="response-pagination__links" aria-label="Response pages">
+                                {% if previous_url %}<a class="btn btn-outline-secondary btn-sm" href="{{ previous_url }}">Previous</a>{% endif %}
+                                {% if next_url %}<a class="btn btn-outline-secondary btn-sm" href="{{ next_url }}">Next</a>{% endif %}
+                            </nav>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>No responses match this filter.</p>
+                        <a href="{% url 'analysis:response_list' survey.id %}">Show all responses</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

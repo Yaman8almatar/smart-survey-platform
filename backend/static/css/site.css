@@ -2227,3 +2227,134 @@ textarea.form-control {
         grid-template-columns: 1fr;
     }
 }
+
+/* W-07: the responses list and one response, each under a number. */
+.response-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ss-space-12);
+}
+
+.response-filter__field {
+    flex: 1 1 12rem;
+}
+
+.response-table-scroll {
+    overflow-x: auto;
+}
+
+.response-table {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+.response-table th[scope="row"] {
+    font-weight: 600;
+}
+
+.response-table__excluded th,
+.response-table__excluded td {
+    color: var(--ss-ink-muted);
+}
+
+.response-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--ss-space-8);
+    margin-top: var(--ss-space-12);
+}
+
+.response-pagination__links,
+.response-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ss-space-8);
+}
+
+.response-nav {
+    justify-content: space-between;
+    margin-top: var(--ss-space-16);
+}
+
+.response-nav__next {
+    margin-left: auto;
+}
+
+.response-answers {
+    display: grid;
+    gap: var(--ss-space-12);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.response-answer {
+    padding: var(--ss-space-12) var(--ss-space-16);
+    background: var(--ss-surface);
+    border: 1px solid var(--ss-line);
+    border-radius: var(--ss-radius-md);
+}
+
+.response-answer__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--ss-space-8);
+}
+
+.response-answer__question {
+    margin: 0 0 var(--ss-space-4);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.response-answer__value,
+.response-attention {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.response-answer__value--empty,
+.response-answer__sentiment {
+    color: var(--ss-ink-muted);
+}
+
+.response-answer__sentiment {
+    margin: var(--ss-space-4) 0 0;
+    font-size: var(--ss-label-size);
+}
+
+.response-score {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ss-space-12);
+}
+
+.response-score strong {
+    font-family: var(--ss-font-display);
+    font-size: var(--ss-stat-size);
+    line-height: var(--ss-stat-line);
+}
+
+.response-flags {
+    display: grid;
+    gap: var(--ss-space-8);
+    margin: 0 0 var(--ss-space-16);
+    padding: 0;
+    list-style: none;
+}
+
+.response-flags li {
+    display: grid;
+    gap: var(--ss-space-4);
+}
+
+.response-status {
+    margin: var(--ss-space-16) 0 var(--ss-space-8);
+    font-weight: 600;
+}

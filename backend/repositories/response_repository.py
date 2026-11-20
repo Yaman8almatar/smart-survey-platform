@@ -4,6 +4,9 @@ from django.db.models.functions import TruncDate
 from apps.core.models import Answer, Response
 from repositories.date_ranges import aware_day_range
 
+# FR-09: a response's number is its position in this order; "Response 1" came first.
+RESPONSE_NUMBER_ORDER = ("submitted_at", "response_id")
+
 
 class ResponseRepository:
     """Provides database access for responses, answers, and response metrics."""
@@ -35,6 +38,26 @@ class ResponseRepository:
             .order_by("response_id")
             .values_list("response_id", flat=True)
         )
+
+    def find_by_number(self, survey_id, number):
+        """Return {"response_id", "has_evidence"} of the response at a number, in one query.
+
+        The number counts from 1 in RESPONSE_NUMBER_ORDER; None when no response has it.
+        """
+        if number < 1:
+            return None
+        rows = list(
+            Response.objects.filter(survey_id=survey_id)
+            .order_by(*RESPONSE_NUMBER_ORDER)
+            .values("response_id", "quality__quality_id")[number - 1 : number]
+        )
+        row = rows[0] if rows else None
+        if row is None:
+            return None
+        return {
+            "response_id": row["response_id"],
+            "has_evidence": row["quality__quality_id"] is not None,
+        }
 
     def lock_exclusion_states(self, survey_id, response_ids):
         """Lock the given responses of a survey and return {response_id: is_excluded}.
@@ -82,6 +105,12 @@ class ResponseRepository:
     def find_answers_by_response_id(self, response_id):
         """Return answers belonging to one response."""
         return Answer.objects.filter(response_id=response_id)
+
+    def find_answers_with_options_by_response_id(self, response_id):
+        """Return the answers of one response with their selected option, in one query."""
+        return list(
+            Answer.objects.filter(response_id=response_id).select_related("selected_option")
+        )
 
     def find_answers_by_survey_id(self, survey_id):
         """Return answers submitted for a survey."""

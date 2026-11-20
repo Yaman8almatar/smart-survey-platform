@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        {% if locked %}
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Responses</div>
+                <h1>{{ survey.title }}</h1>
+            </div>
+            <a class="btn btn-outline-secondary" href="{% url 'analysis:analytics_dashboard' survey.id %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to analytics</a>
+        </div>
+{% include "analysis/_locked_card.html" %}
+        {% else %}
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">{{ survey.title }} · Response {{ number }} of {{ total }}</div>
+                <h1>Response {{ number }}</h1>
+                <p class="section-subtitle mb-0">Submitted {{ submitted_at|date:"j M Y" }}{% if active_time %} · Active time {{ active_time }}{% endif %}</p>
+            </div>
+            <a class="btn btn-outline-secondary" href="{% url 'analysis:response_list' survey.id %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to responses</a>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <h2 class="section-title">Answers</h2>
+                        <ol class="response-answers">
+                            {% for answer in answers %}
+                                <li class="response-answer">
+                                    <div class="response-answer__head">
+                                        <h3 class="response-answer__question">{{ answer.position }}. {{ answer.question_text }}</h3>
+                                        {% if answer.is_attention_check %}<span class="badge text-bg-light">Attention check</span>{% endif %}
+                                    </div>
+                                    {% if answer.is_attention_check %}
+                                        {% if answer.answered %}
+                                            <p class="response-attention">Answered: <strong>{{ answer.display }}</strong> · Expected: {{ answer.expected }}</p>
+                                        {% else %}
+                                            <p class="response-attention">Not answered · Expected: {{ answer.expected }}</p>
+                                        {% endif %}
+                                    {% elif answer.answered %}
+                                        <p class="response-answer__value" dir="auto">{{ answer.display }}</p>
+                                        {% if answer.sentiment %}<p class="response-answer__sentiment">{{ answer.sentiment }}</p>{% endif %}
+                                    {% else %}
+                                        <p class="response-answer__value response-answer__value--empty">Not answered</p>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <h2 class="section-title">Response quality</h2>
+                        {% if before_checks %}
+                            <p>{{ before_checks_note }}</p>
+                        {% else %}
+                            <p class="response-score"><strong>Score {{ score }}</strong> <span class="quality-band__name"><span class="quality-dot quality-dot--{{ band_key }}" aria-hidden="true"></span>{{ band_name }}</span></p>
+                            {% if flags %}
+                                <ul class="response-flags">
+                                    {% for flag in flags %}
+                                        <li><strong>{{ flag.name }}</strong><span>{{ flag.meaning }}</span></li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p>No flag.</p>
+                            {% endif %}
+                            {% for line in not_checked_lines %}
+                                <p class="quality-caption">{{ line }}</p>
+                            {% endfor %}
+                        {% endif %}
+
+                        <p class="response-status">{% if is_excluded %}Excluded from the results.{% else %}Included in the results.{% endif %}</p>
+                        {% if can_change_inclusion %}
+                            <form method="post" action="{% url 'analysis:response_inclusion' survey.id number %}">
+                                {% csrf_token %}
+                                {% if is_excluded %}
+                                    <input type="hidden" name="action" value="include">
+                                    <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Include this response</button>
+                                {% else %}
+                                    <input type="hidden" name="action" value="exclude">
+                                    <button type="submit" class="btn btn-outline-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Exclude this response</button>
+                                {% endif %}
+                            </form>
+                            <p class="quality-caption mt-2 mb-0">Excluded responses are kept and can be included again at any time.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if previous_number or next_number %}
+            <nav class="response-nav" aria-label="Other responses">
+                {% if previous_number %}<a class="btn btn-outline-secondary" href="{% url 'analysis:response_detail' survey.id previous_number %}"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Previous response</a>{% endif %}
+                {% if next_number %}<a class="btn btn-outline-secondary response-nav__next" href="{% url 'analysis:response_detail' survey.id next_number %}">Next response<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>{% endif %}
+            </nav>
+        {% endif %}
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
