@@ -6,16 +6,19 @@ Each source file starts with a Basis block and ends with a legend table.
 
 | Diagram | Source | Exports | Tool |
 |---|---|---|---|
-| Class diagram: 10 domain classes and their enumerations (Increment 1) | `class-diagram.md` | `exports/class-diagram.png` | Mermaid `classDiagram` |
-| ER diagram: 10 tables, columns, keys and constraints table (Increment 1) | `erd.md` | `exports/erd.png` | Mermaid `erDiagram` |
+| Class diagram: 11 domain classes and their enumerations (Increment 2) | `class-diagram.md` | `exports/class-diagram.png` (Increment 1) | Mermaid `classDiagram` |
+| ER diagram: 11 tables, columns, keys and constraints table (Increment 2) | `erd.md` | `exports/erd.png` (Increment 1) | Mermaid `erDiagram` |
 | Sequence diagram UC-02 Manage demographic profile (FR-02) | `sequence-uc02-profile.md` | `exports/sequence-uc02-profile.png` | Mermaid `sequenceDiagram` |
-| Sequence diagram UC-04 Answer a survey, draft and resume (FR-06) | `sequence-uc04-answer.md` | `exports/sequence-uc04-answer.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-04 Answer a survey, draft and resume, quality evidence (FR-06, FR-04) (Increment 2) | `sequence-uc04-answer.md` | `exports/sequence-uc04-answer.png` (Increment 1) | Mermaid `sequenceDiagram` |
+| Activity diagram: FR-04 quality rules, version 1 (Increment 2) | `activity-fr04-quality-rules.md` | not rendered yet | Mermaid `flowchart` |
 | Sequence diagram UC-06 View answered surveys (FR-01) | `sequence-uc06-answered.md` | `exports/sequence-uc06-answered.png` | Mermaid `sequenceDiagram` |
 | Initial class diagram: 9 domain classes (Iteration 0, 2026-10-30; kept as a record, superseded by `class-diagram.md`) | - | `class-diagram.png` | Mermaid |
 | Use case diagrams: Respondent, Provider, Admin | - | `use-case-respondent.png`, `use-case-provider.png`, `use-case-admin.png` | UML 2.5 notation (preliminary) |
 
 PNG exports of the Increment 1 diagrams for the report and the deck are in `exports/`, rendered from the sources at
 develop 337648a with mermaid-cli 12.2.0 (scale 2, white background). Export again when a source changes.
+The class, ER and UC-04 sequence exports in `exports/` are still the Increment 1 renders: they do not show the
+Increment 2 sources until the advisor renders the new ones; the activity diagram has no export yet.
 
 The architecture diagram is on slide 9 of the Seminar 1 deck in documentation/graduation-1/.
 
@@ -33,6 +36,14 @@ The architecture diagram is on slide 9 of the Seminar 1 deck in documentation/gr
 ## Done in Increment 1
 - ERD with relational schema and constraints: `erd.md`, Mermaid `erDiagram` (D-141).
 - Sequence diagrams for UC-02, UC-04 and UC-06.
+
+## Done in Increment 2
+Drawn from develop f3c96d4 (2026-11-20, TASK-46), after FR-03, T-9, FR-05 and FR-04:
+- `class-diagram.md`: redrawn, 11 classes with `ResponseQuality`.
+- `erd.md`: redrawn, 11 tables with `response_quality`.
+- `sequence-uc04-answer.md`: redrawn with the start mark, the timings, the install ID, the evidence capture and the
+  analysis worker.
+- `activity-fr04-quality-rules.md`: new, the FR-04 quality rules, version 1.
 
 ## Planned in later increments
 Drawn when the backlog item that needs them is pulled (Agile Modeling, model storming): the component diagram

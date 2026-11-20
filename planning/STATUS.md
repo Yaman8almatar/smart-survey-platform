@@ -1,11 +1,11 @@
 # STATUS — 2026-11-20
-Branch: feat/fr04-simulator
-Task: TASK-45 — FR-04 Part 5: labelled simulation of response styles (management command + tests)
-Done: `simulate_response_styles` builds a closed "[Simulation] Response styles" survey owned by simulation-provider@simulation.smartsurvey.test, answers it through ResponseService with 36 labelled sim-NNN respondents in 8 styles, prints style injected against flags raised (P-10 line), fails on any difference.
-  `--delete` (any database) removes every @simulation.smartsurvey.test user and cascades; a run needs DEBUG, a password of 8+ characters and no existing simulation data.
-Changes: 0 modified, 2 new, 0 deleted — backend/apps/core/management/commands/simulate_response_styles.py, backend/tests/commands/test_simulate_response_styles.py
-Tests: test_simulate_response_styles 9 passed (42.6 s); whole backend suite 1090 passed (143.7 s); full suites run in CI
-Check: System check identified no issues (0 silenced); makemigrations --check: No changes detected
-Committed: yes (the TASK-45 change commit holds this file)
-Open questions: none; the command was run only inside pytest's test database, never on the development database
-Next: advisor reads the diff; user runs the command once on the laptop's database and opens the analytics page as the simulation provider; Hasan or Yousef approves, Yaman merges
+Branch: docs/fr04-diagrams
+Task: TASK-46 — FR-04 Docs: class, ER and UC-04 sequence diagrams brought to f3c96d4; quality rules activity diagram
+Done: class-diagram.md and erd.md redrawn with 11 classes and tables (ResponseQuality, the FR-03, T-9 and FR-04 fields); sequence-uc04-answer.md redrawn (start mark, timings, device_id, capture inside the submit transaction, PENDING rows, worker; in-request analysis and Celery removed).
+  New activity-fr04-quality-rules.md follows quality_rules.evaluate; README rows and "Done in Increment 2" added.
+Changes: 4 modified, 1 new, 0 deleted (plus this file) — diagrams/class-diagram.md, diagrams/erd.md, diagrams/sequence-uc04-answer.md, diagrams/activity-fr04-quality-rules.md, diagrams/README.md
+Tests: skipped (no code changes); full suites run in CI
+Check: skipped (no code changes; the brief allows no backend command)
+Committed: yes (the TASK-46 change commit holds this file)
+Open questions: none; the Mermaid blocks were checked by eye against the syntax of the existing files, not rendered
+Next: advisor reads the diff against the code and renders the four PNG exports; Yaman or Hasan approves, Yaman merges
