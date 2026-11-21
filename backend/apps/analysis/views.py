@@ -48,7 +48,10 @@ def analytics_dashboard(request, survey_id):
     try:
         survey = SurveyService().get_provider_survey(request.user, survey_id)
         results = AnalysisService().get_survey_results(
-            request.user, survey_id, group_by=request.GET.get("group_by")
+            request.user,
+            survey_id,
+            group_by=request.GET.get("group_by"),
+            filter_key=request.GET.get("filter"),
         )
         # P-20: the quality evaluation is read only once the results are open.
         evaluation = (
@@ -83,6 +86,13 @@ def analytics_dashboard(request, survey_id):
             "sentiment": _sentiment_panel(results),
             "group_by": results["group_by"] or "",
             "group_by_options": GROUP_BY_OPTIONS,
+            "filter_options": results["filter_options"],
+            "filter": results["filter"],
+            "filter_unavailable": results["filter_unavailable"],
+            "responses_over_time": [
+                {"label": _day_label(row["date"]), "count": row["count"]}
+                for row in results["responses_over_time"]
+            ],
             "quality": None if evaluation["locked"] else _quality_panel(evaluation),
             "sentiment_chart_data": _sentiment_chart_data(results_view),
             "question_chart_data": _question_chart_data(
@@ -330,8 +340,34 @@ def _question_summaries_view(question_summaries):
         if "sentiment" in summary:
             view["sentiment_shares"] = _sentiment_shares(summary["sentiment"])
             view["breakdown_view"] = _breakdown_view(summary["breakdown"])
+        if "group_table" in summary:
+            view["group_table_view"] = _group_table_view(summary)
         summaries.append(view)
     return summaries
+
+
+def _group_table_view(summary):
+    """Build the FR-13 comparison table of one multiple-choice or rating question."""
+    table = summary["group_table"]
+    rows = []
+    for row in table["rows"]:
+        view_row = {**row}
+        if "shares" in row:
+            view_row["shares"] = [
+                {**share, "label": _rate_label(share["share"])} for share in row["shares"]
+            ]
+        rows.append(view_row)
+    return {
+        "heading": GROUP_BY_HEADINGS[table["dimension"]],
+        "enough": table["enough"],
+        "options": summary["labels"] if summary["chart_type"] == "bar" else [],
+        "rows": rows,
+    }
+
+
+def _day_label(day):
+    """Format a date as "21 Nov" for the responses over time chart."""
+    return f"{day.day} {day:%b}"
 
 
 def _sentiment_shares(counts):
@@ -391,5 +427,5 @@ def _question_chart_data(question_summaries):
             "values": summary["values"],
         }
         for summary in question_summaries
-        if summary["chart_type"] in {"bar", "rating"}
+        if summary["chart_type"] in {"bar", "rating"} and not summary["too_few"]
     ]

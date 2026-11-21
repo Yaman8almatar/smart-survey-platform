@@ -43,6 +43,13 @@ class AnalysisService:
     )
     UNDER_18_LABEL = "Under 18"
 
+    # FR-13: the stable key of each group, the twin of its label; "other" keys the pool.
+    NOT_STATED_KEY = "not-stated"
+    UNDER_18_KEY = "under-18"
+    OTHER_GROUPS_KEY = "other"
+    AGE_GROUP_KEYS = {55: "55-plus", 45: "45-54", 35: "35-44", 25: "25-34", 18: "18-24"}
+    FILTER_DIMENSION_NAMES = {"gender": "Gender", "age": "Age group", "governorate": "Governorate"}
+
     # Worker rules (T-9). A full batch ends well before LOCK_TIMEOUT, so a row that is
     # still being analysed is never reclaimed. Worst case per adapter: huggingface 8 calls
     # x 15 s client timeout = 2 min; local (float32) the manifest hashing and model load, about
@@ -163,7 +170,7 @@ class AnalysisService:
             model_id=self.analyzer.model_id,
         )
 
-    def get_survey_results(self, provider_user, survey_id, group_by=None):
+    def get_survey_results(self, provider_user, survey_id, group_by=None, filter_key=None):
         """Build survey analytics; below the P-20 threshold return only the locked state.
 
         The lock and response_count count every submitted response, so an exclusion never
@@ -171,8 +178,14 @@ class AnalysisService:
         the provider has not excluded, and leave attention questions out.
 
         group_by (FR-05) is "gender", "age" or "governorate"; any other value means no
-        breakdown. Each open-text question then gets its sentiment by group, with every
-        group under MIN_GROUP_SIZE analysed answers pooled (P-15).
+        breakdown. Each open-text question then gets its sentiment by group, and each
+        multiple-choice and rating question a comparison table (FR-13), with every group
+        under MIN_GROUP_SIZE pooled (P-15).
+
+        filter_key (FR-13) is one of filter_options, "<dimension>:<group key>". The question
+        summaries then cover that group only and group_by is ignored; every other figure
+        stays whole-survey. A question whose group figures could be subtracted from the
+        whole to give 1 to 4 answers is too_few, and open answers are never listed.
         """
         if group_by not in self.GROUP_BY_DIMENSIONS:
             group_by = None
@@ -196,6 +209,29 @@ class AnalysisService:
             if not question.is_attention_check
         ]
         answers = self.response_repository.find_included_answers_by_survey_id(survey_id)
+        included_responses = [
+            response
+            for response in self.response_repository.find_by_survey_id(survey_id)
+            if not response.is_excluded
+        ]
+        filter_groups = self._filter_groups(included_responses)
+        selected = filter_groups.get(filter_key) if filter_key else None
+        group_filter = None
+        if selected is not None:
+            group_by = None
+            group_filter = {
+                "keys": selected["keys"],
+                "key_by_response_id": self._keys_by_response_id(
+                    included_responses, selected["dimension"]
+                ),
+            }
+        grouping = None
+        if group_by:
+            grouping = {
+                "dimension": group_by,
+                "key_by_response_id": self._keys_by_response_id(included_responses, group_by),
+                "labels": self._labels_by_key(included_responses, group_by),
+            }
 
         positive_count = 0
         neutral_count = 0
@@ -254,10 +290,105 @@ class AnalysisService:
             "neutral_rate": self._rate(neutral_count, completed_count),
             "negative_rate": self._rate(negative_count, completed_count),
             "group_by": group_by,
+            "filter_options": [
+                {"key": key, "label": group["label"]} for key, group in filter_groups.items()
+            ],
+            "filter": (
+                None
+                if selected is None
+                else {"key": filter_key, "label": selected["label"], "count": selected["count"]}
+            ),
+            "filter_unavailable": bool(filter_key) and selected is None,
+            "responses_over_time": self._responses_over_time(survey_id),
             "question_summaries": self._build_question_summaries(
-                questions, answers, results_by_question_id, group_by
+                questions,
+                answers,
+                results_by_question_id,
+                group_by,
+                group_filter=group_filter,
+                grouping=grouping,
             ),
         }
+
+    def _keys_by_response_id(self, responses, dimension):
+        """Map each response id to its group key for a dimension."""
+        return {
+            response.response_id: self._group_key(response, dimension) for response in responses
+        }
+
+    def _labels_by_key(self, responses, dimension):
+        """Map each group key of a dimension to its label, read from the responses."""
+        return {
+            self._group_key(response, dimension): self._group_label(response, dimension)
+            for response in responses
+        }
+
+    def _filter_groups(self, included_responses):
+        """Return the offered filters, {"<dimension>:<key>": {label, dimension, keys, count}}.
+
+        Each dimension's groups are pooled on the included responses (P-15); a dimension
+        with fewer than two rows offers nothing, so its only group would be the whole survey.
+        """
+        groups = {}
+        for dimension in self.GROUP_BY_DIMENSIONS:
+            counts = Counter(
+                self._group_key(response, dimension) for response in included_responses
+            )
+            pooling = disclosure.pool_groups(counts)
+            if not pooling["enough"]:
+                continue
+            labels = self._labels_by_key(included_responses, dimension)
+            name = self.FILTER_DIMENSION_NAMES[dimension]
+            for key in pooling["shown"]:
+                groups[f"{dimension}:{key}"] = {
+                    "label": f"{name}: {labels[key]}",
+                    "dimension": dimension,
+                    "keys": {key},
+                    "count": counts[key],
+                }
+            if pooling["pooled"]:
+                groups[f"{dimension}:{self.OTHER_GROUPS_KEY}"] = {
+                    "label": f"{name}: {self.OTHER_GROUPS_LABEL}",
+                    "dimension": dimension,
+                    "keys": set(pooling["pooled"]),
+                    "count": sum(counts[key] for key in pooling["pooled"]),
+                }
+        return groups
+
+    def _responses_over_time(self, survey_id):
+        """Return {"date", "count"} per UTC day from the first to the last response, zeros filled.
+
+        Every submitted response counts, excluded ones too, like response_count: a day's
+        arrivals say nothing about what anyone answered.
+        """
+        counts = {
+            row["submitted_date"]: row["count"]
+            for row in self.response_repository.count_submitted_by_date_for_survey(survey_id)
+        }
+        if not counts:
+            return []
+        day, last = min(counts), max(counts)
+        days = []
+        while day <= last:
+            days.append({"date": day, "count": counts.get(day, 0)})
+            day += timedelta(days=1)
+        return days
+
+    def _filter_can_show(self, counts, group_keys):
+        """Return whether a question's figures may be shown for a filtered group (P-15).
+
+        counts maps each group key to the question's answers in it. The question's rows
+        are pooled as in a comparison table; the group shows only with at least
+        MIN_GROUP_SIZE answers and when every row lies wholly inside or outside it, so
+        the whole-survey figures minus the group's give only whole rows, never 1 to 4.
+        """
+        if sum(counts.get(key, 0) for key in group_keys) < disclosure.MIN_GROUP_SIZE:
+            return False
+        pooling = disclosure.pool_groups(counts)
+        rows = [{key} for key in pooling["shown"]]
+        if pooling["pooled"]:
+            rows.append(set(pooling["pooled"]))
+        return all(row <= group_keys or not (row & group_keys) for row in rows)
 
     def _map_external_label(self, label):
         """Map an external sentiment label to an internal enum value."""
@@ -274,8 +405,20 @@ class AnalysisService:
         """Return whether a sentiment result is completed."""
         return self._normalized_value(status) == AnalysisStatus.COMPLETED.value
 
-    def _build_question_summaries(self, questions, answers, results_by_question_id, group_by):
-        """Build question-level analytics summaries from submitted answers."""
+    def _build_question_summaries(
+        self,
+        questions,
+        answers,
+        results_by_question_id,
+        group_by,
+        group_filter=None,
+        grouping=None,
+    ):
+        """Build question-level analytics summaries from submitted answers.
+
+        group_filter is None or {"keys", "key_by_response_id"} of the filtered group;
+        grouping is None or {"dimension", "key_by_response_id", "labels"} for group_by.
+        """
         answers_by_question_id = defaultdict(list)
         for answer in answers:
             answers_by_question_id[answer.question_id].append(answer)
@@ -286,19 +429,39 @@ class AnalysisService:
                 answers_by_question_id.get(question.question_id, []),
                 results_by_question_id.get(question.question_id, []),
                 group_by,
+                group_filter,
+                grouping,
             )
             for question in questions
         ]
 
-    def _question_summary(self, question, answers, sentiment_results, group_by):
+    def _question_summary(
+        self, question, answers, sentiment_results, group_by, group_filter, grouping
+    ):
         """Choose the correct analytics summary type for a question."""
         question_type = self._normalized_value(question.question_type)
 
         if question_type == QuestionType.MULTIPLE_CHOICE.value:
-            return self._multiple_choice_summary(question, answers)
-        if question_type == QuestionType.RATING_SCALE.value:
-            return self._rating_summary(question, answers)
-        return self._open_text_summary(question, answers, sentiment_results, group_by)
+            chart_type, build = "bar", self._multiple_choice_summary
+            answers = [answer for answer in answers if answer.selected_option_id is not None]
+        elif question_type == QuestionType.RATING_SCALE.value:
+            chart_type, build = "rating", self._rating_summary
+            answers = [answer for answer in answers if answer.rating_value is not None]
+        else:
+            return self._open_text_summary(
+                question, answers, sentiment_results, group_by, group_filter
+            )
+
+        if group_filter is None:
+            return build(question, answers, grouping)
+        key_of = group_filter["key_by_response_id"]
+        keys = group_filter["keys"]
+        counts = Counter(key_of[answer.response_id] for answer in answers)
+        if not self._filter_can_show(counts, keys):
+            return {**self._base_question_summary(question, chart_type), "too_few": True}
+        return build(
+            question, [answer for answer in answers if key_of[answer.response_id] in keys]
+        )
 
     def _base_question_summary(self, question, chart_type):
         """Build the shared structure for a question analytics summary."""
@@ -311,56 +474,137 @@ class AnalysisService:
             "values": [],
             "text_answers": [],
             "text_answer_total": 0,
+            "too_few": False,
         }
 
-    def _multiple_choice_summary(self, question, answers):
-        """Build option selection counts for a multiple-choice question."""
+    def _multiple_choice_summary(self, question, answers, grouping=None):
+        """Build option selection counts, and with grouping its comparison table.
+
+        answers holds the question's answers that selected an option.
+        """
         summary = self._base_question_summary(question, "bar")
         options = self.question_repository.find_options_by_question_id(
             question.question_id,
         )
-        selection_counts = Counter(
-            answer.selected_option_id
-            for answer in answers
-            if answer.selected_option_id is not None
-        )
+        selection_counts = Counter(answer.selected_option_id for answer in answers)
 
         summary["labels"] = [option.option_text for option in options]
         summary["values"] = [
             selection_counts.get(option.option_id, 0)
             for option in options
         ]
+        if grouping is not None:
+
+            def row_figures(row_answers):
+                counts = Counter(answer.selected_option_id for answer in row_answers)
+                return {
+                    "shares": [
+                        {
+                            "option": option.option_text,
+                            "count": counts.get(option.option_id, 0),
+                            "share": counts.get(option.option_id, 0) / len(row_answers),
+                        }
+                        for option in options
+                    ]
+                }
+
+            summary["group_table"] = self._group_table(answers, grouping, row_figures)
         return summary
 
-    def _rating_summary(self, question, answers):
-        """Build rating counts for a rating-scale question."""
+    def _rating_summary(self, question, answers, grouping=None):
+        """Build rating counts, and with grouping its comparison table.
+
+        answers holds the question's answers that gave a rating.
+        """
         summary = self._base_question_summary(question, "rating")
-        rating_counts = Counter(
-            answer.rating_value
-            for answer in answers
-            if answer.rating_value is not None
-        )
+        rating_counts = Counter(answer.rating_value for answer in answers)
 
         summary["labels"] = self.RATING_LABELS
         summary["values"] = [
             rating_counts.get(rating, 0)
             for rating in self.RATING_LABELS
         ]
+        if grouping is not None:
+
+            def row_figures(row_answers):
+                total = sum(answer.rating_value for answer in row_answers)
+                return {"average": round(total / len(row_answers), 2)}
+
+            summary["group_table"] = self._group_table(answers, grouping, row_figures)
         return summary
 
-    def _open_text_summary(self, question, answers, sentiment_results, group_by):
-        """Build the text answers, the sentiment and the optional breakdown of a question."""
-        summary = self._base_question_summary(question, "text")
-        text_answers = [
-            answer.answer_value.strip()
-            for answer in answers
-            if isinstance(answer.answer_value, str) and answer.answer_value.strip()
-        ]
-        summary["text_answer_total"] = len(text_answers)
-        summary["text_answers"] = text_answers[: self.MAX_TEXT_ANSWERS_SHOWN]
+    def _group_table(self, answers, grouping, row_figures):
+        """Build a closed question's comparison table, pooled on its own answerers (P-15).
 
+        Each row is {"label", "answers", **row_figures(its answers), "pooled"}; rows follow
+        the pooling's order, the pool last. Fewer than two rows give no row.
+        """
+        by_key = defaultdict(list)
+        for answer in answers:
+            by_key[grouping["key_by_response_id"][answer.response_id]].append(answer)
+        pooling = disclosure.pool_groups({key: len(group) for key, group in by_key.items()})
+        table = {"dimension": grouping["dimension"], "enough": pooling["enough"], "rows": []}
+        if not pooling["enough"]:
+            return table
+
+        def row(label, row_answers, pooled):
+            return {
+                "label": label,
+                "answers": len(row_answers),
+                **row_figures(row_answers),
+                "pooled": pooled,
+            }
+
+        table["rows"] = [
+            row(grouping["labels"][key], by_key[key], False) for key in pooling["shown"]
+        ]
+        if pooling["pooled"]:
+            pooled_answers = [answer for key in pooling["pooled"] for answer in by_key[key]]
+            table["rows"].append(row(self.OTHER_GROUPS_LABEL, pooled_answers, True))
+        return table
+
+    def _open_text_summary(self, question, answers, sentiment_results, group_by, group_filter=None):
+        """Build the text answers, the sentiment and the optional breakdown of a question.
+
+        Under a filter no text is listed, and the sentiment is the group's only when its
+        analysed answers pass _filter_can_show; else the question is too_few.
+        """
+        summary = self._base_question_summary(question, "text")
+        summary["text_hidden"] = group_filter is not None
+        if group_filter is None:
+            text_answers = [
+                answer.answer_value.strip()
+                for answer in answers
+                if isinstance(answer.answer_value, str) and answer.answer_value.strip()
+            ]
+            summary["text_answer_total"] = len(text_answers)
+            summary["text_answers"] = text_answers[: self.MAX_TEXT_ANSWERS_SHOWN]
+
+        completed, not_analysed = self._split_results(sentiment_results)
+        if group_filter is not None:
+            key_of = group_filter["key_by_response_id"]
+            keys = group_filter["keys"]
+            counts = Counter(key_of[result.answer.response_id] for result in completed)
+            if not self._filter_can_show(counts, keys):
+                summary["too_few"] = True
+                summary["sentiment"] = {"total": 0, **self._sentiment_counts([])}
+                summary["breakdown"] = None
+                return summary
+            completed = [r for r in completed if key_of[r.answer.response_id] in keys]
+            not_analysed = [r for r in not_analysed if key_of[r.answer.response_id] in keys]
+
+        # The same counts as the survey panel: SKIPPED answers are left out of the total.
+        counts = self._sentiment_counts(completed)
+        summary["sentiment"] = {"total": counts["analysed"] + len(not_analysed), **counts}
+        summary["breakdown"] = (
+            self._sentiment_breakdown(completed, group_by) if group_by else None
+        )
+        return summary
+
+    def _split_results(self, sentiment_results):
+        """Return (completed results with a label, results still waiting or failed)."""
         completed = []
-        not_analysed = 0
+        not_analysed = []
         for result in sentiment_results:
             status = self._normalized_value(result.status)
             if status in (
@@ -368,16 +612,10 @@ class AnalysisService:
                 AnalysisStatus.RUNNING.value,
                 AnalysisStatus.FAILED.value,
             ):
-                not_analysed += 1
+                not_analysed.append(result)
             elif status == AnalysisStatus.COMPLETED.value and self._sentiment_key(result):
                 completed.append(result)
-        # The same counts as the survey panel: SKIPPED answers are left out of the total.
-        counts = self._sentiment_counts(completed)
-        summary["sentiment"] = {"total": counts["analysed"] + not_analysed, **counts}
-        summary["breakdown"] = (
-            self._sentiment_breakdown(completed, group_by) if group_by else None
-        )
-        return summary
+        return completed, not_analysed
 
     def _sentiment_key(self, result):
         """Return "positive", "neutral" or "negative" for a result's label, or None."""
@@ -439,6 +677,22 @@ class AnalysisService:
             if age >= lowest:
                 return label
         return self.UNDER_18_LABEL
+
+    def _group_key(self, response, dimension):
+        """Return the stable key of a response's group, the twin of _group_label (FR-13)."""
+        if dimension == "gender":
+            code = response.snap_gender
+            return code if code in self.GENDER_LABELS else self.NOT_STATED_KEY
+        if dimension == "governorate":
+            code = response.snap_region
+            return code if code in self.GOVERNORATE_LABELS else self.NOT_STATED_KEY
+        age = response.snap_age
+        if age is None:
+            return self.NOT_STATED_KEY
+        for lowest, _label in self.AGE_GROUPS:
+            if age >= lowest:
+                return self.AGE_GROUP_KEYS[lowest]
+        return self.UNDER_18_KEY
 
     def _normalized_value(self, value):
         """Normalize enum-like values for comparison and reporting."""

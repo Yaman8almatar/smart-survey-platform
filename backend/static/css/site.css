@@ -1483,6 +1483,23 @@ textarea.form-control {
     margin-top: 0.5rem;
 }
 
+/* FR-13: the filter notes and the responses over time chart. */
+.filter-note,
+.filter-results-line {
+    color: var(--ss-ink-muted);
+    margin-bottom: 0.75rem;
+}
+
+.filter-results-line {
+    font-weight: 600;
+}
+
+.responses-over-time-chart {
+    min-height: 0;
+    height: 16rem;
+    margin-bottom: 0.5rem;
+}
+
 /* Signal ring (partials/signal_ring.html). Sizes are in the 88-unit viewBox. */
 .signal-ring {
     display: inline-block;

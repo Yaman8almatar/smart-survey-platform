@@ -1,12 +1,12 @@
 # STATUS — 2026-11-21
-Branch: feat/fr11-survey-lifecycle
-Task: TASK-55 — FR-11 opening and closing dates, a response limit, pause and resume (#25)
-Done: PAUSED state + opens_on/closes_on/target_responses (migration 0016, not applied); date and limit checks; close_past_end;
-  locked submit that closes the survey at its limit; pause/resume; schedule rows, list lines, buttons, dashboard card, report value;
-  app card shows " · Closes D Mon". Session 1: A-D and service/API tests; session 2: view tests, Flutter, runs, PR.
-Changes: 29 modified, 6 new, 0 deleted (this file included) — backend/services/response_service.py, backend/services/survey_service.py, backend/repositories/survey_repository.py, backend/apps/core/migrations/0016_fr11_survey_lifecycle.py, frontend/lib/features/surveys/eligible_surveys_screen.dart
-Tests: FR-11 task files 89 passed; whole backend suite 1419 passed (1330 before); flutter analyze no issues; flutter test 238 passed (235 before)
+Branch: feat/fr13-advanced-analytics
+Task: TASK-56 — FR-13 one filter by gender, age group or governorate, comparison tables, responses over time (#27)
+Done: service filter options (pooled per dimension), filtered question summaries with _filter_can_show, group_table for choice
+  and rating questions, responses_over_time; one repository method; "Filter results" card, notes, comparison tables and the
+  "Responses over time" bar chart (site.js). No migration, no API or app change.
+Changes: 7 modified, 3 new, 0 deleted (plus this file) — backend/services/analysis_service.py, backend/repositories/response_repository.py, backend/apps/analysis/views.py, backend/apps/analysis/templates/analysis/analytics_dashboard.html, backend/static/js/site.js
+Tests: task files 81 passed (35 new); whole backend suite 1454 passed (1419 before); full suites run in CI
 Check: System check identified no issues (0 silenced). makemigrations --check: No changes detected
-Committed: yes (the TASK-55 change commit holds this file)
-Open questions: none (two tests outside Constraint G changed under D-236)
-Next: Yaman or Yousef reviews and approves the PR; after merge, back up the laptop database and migrate 0016 with the worker stopped
+Committed: yes (the TASK-56 change commit holds this file)
+Open questions: none (only Constraint E's test changed)
+Next: Yaman or Hasan reviews and approves the PR from his own account; then Yousef merges into develop

@@ -10,6 +10,7 @@
         initAttentionCheck();
         initSystemReportChart();
         initReachCard();
+        initSurveyResponsesOverTimeChart();
     });
 
     function runWhenReady(callback) {
@@ -749,6 +750,49 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: horizontalCountScales(),
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                },
+            },
+        });
+    }
+
+    /* FR-13: the analytics page's submitted responses per day, from #responses-over-time-data
+       ([{label: "21 Nov", count}]). Without Chart.js the page script shows the notice. */
+    function initSurveyResponsesOverTimeChart() {
+        var canvas = document.getElementById("surveyResponsesOverTimeChart");
+        if (!canvas || typeof Chart === "undefined") {
+            return;
+        }
+
+        var rows = readJsonScript("responses-over-time-data", []);
+        if (!Array.isArray(rows) || rows.length === 0) {
+            return;
+        }
+
+        new Chart(canvas.getContext("2d"), {
+            type: "bar",
+            data: {
+                labels: rows.map(function (row) {
+                    return row.label;
+                }),
+                datasets: [
+                    {
+                        label: "Responses",
+                        data: rows.map(function (row) {
+                            return readNumber(row.count);
+                        }),
+                        backgroundColor: ssToken("--ss-chart-1"),
+                        borderRadius: 6,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: verticalCountScales(),
                 plugins: {
                     legend: {
                         display: false,
