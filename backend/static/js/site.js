@@ -780,7 +780,7 @@
                 }),
                 datasets: [
                     {
-                        label: "Responses",
+                        label: "Submitted responses per day",
                         data: rows.map(function (row) {
                             return readNumber(row.count);
                         }),

@@ -408,6 +408,115 @@ def test_locked_result_is_unchanged_with_a_filter(django_assert_max_num_queries)
     }
 
 
+# TASK-56B: the labels "Al-Hasakah" < "Aleppo" sort the other way round from the keys
+# "AL_HASAKAH" > "ALEPPO", so a tie of 5 shows which group the pool pulls in.
+TIE_LAYOUT = (("ALEPPO", 5), ("AL_HASAKAH", 5), ("HOMS", 3))
+
+
+def build_tie_survey(question_type):
+    """Six responses in each of Aleppo, Al-Hasakah and Homs; 5, 5 and 3 of them answer."""
+    provider, survey = create_survey()
+    choices = ("Yes",) if question_type == QuestionType.MULTIPLE_CHOICE else ()
+    question, options = add_question(survey, question_type, choices, 0)
+    for region, answering in TIE_LAYOUT:
+        for index in range(6):
+            response = add_response(survey, snap_region=region)
+            if index >= answering:
+                continue
+            if question_type == QuestionType.OPEN_TEXT:
+                row = answer(response, question, answer_value=f"{region} answer {index}")
+                label = SentimentLabel.NEGATIVE if region == "HOMS" else SentimentLabel.POSITIVE
+                analysed(row, label)
+            else:
+                answer(response, question, selected_option=options[0])
+    return provider, survey, question
+
+
+@pytest.mark.django_db
+def test_breakdown_and_filter_pool_the_same_groups_on_a_tie():
+    provider, survey, question = build_tie_survey(QuestionType.OPEN_TEXT)
+
+    breakdown = summary_of(results(provider, survey, group_by="governorate"), question)[
+        "breakdown"
+    ]
+    aleppo = summary_of(results(provider, survey, filter_key="governorate:ALEPPO"), question)
+    hasakah = summary_of(
+        results(provider, survey, filter_key="governorate:AL_HASAKAH"), question
+    )
+
+    assert [(row["label"], row["positive"], row["negative"]) for row in breakdown["rows"]] == [
+        ("Al-Hasakah", 5, 0),
+        ("Other groups (combined)", 5, 3),
+    ]
+    assert aleppo["too_few"] is True
+    assert hasakah["too_few"] is False
+    assert hasakah["sentiment"] == {
+        "total": 5,
+        "analysed": 5,
+        "positive": 5,
+        "neutral": 0,
+        "negative": 0,
+    }
+
+
+@pytest.mark.django_db
+def test_comparison_table_and_filter_pool_the_same_groups_on_a_tie():
+    provider, survey, question = build_tie_survey(QuestionType.MULTIPLE_CHOICE)
+
+    table = summary_of(results(provider, survey, group_by="governorate"), question)[
+        "group_table"
+    ]
+    aleppo = summary_of(results(provider, survey, filter_key="governorate:ALEPPO"), question)
+    hasakah = summary_of(
+        results(provider, survey, filter_key="governorate:AL_HASAKAH"), question
+    )
+
+    assert [(row["label"], row["answers"]) for row in table["rows"]] == [
+        ("Al-Hasakah", 5),
+        ("Other groups (combined)", 8),
+    ]
+    assert aleppo["too_few"] is True
+    assert hasakah["too_few"] is False
+    assert hasakah["values"] == [5]
+
+
+@pytest.mark.django_db
+def test_filter_options_follow_the_label_order():
+    provider, survey = create_survey()
+    for region, total in (("DAMASCUS", 6), ("QUNEITRA", 5), ("", 5), ("HOMS", 2)):
+        for _ in range(total):
+            add_response(survey, snap_region=region)
+
+    whole = results(provider, survey)
+    other = results(provider, survey, filter_key="governorate:other")
+
+    assert [
+        option["label"]
+        for option in whole["filter_options"]
+        if option["key"].startswith("governorate:")
+    ] == [
+        "Governorate: Damascus",
+        "Governorate: Not stated",
+        "Governorate: Other groups (combined)",
+    ]
+    assert other["filter"]["count"] == 7
+
+
+def test_key_label_is_the_label_of_each_key():
+    service = AnalysisService(analyzer=FakeClient())
+    cases = {
+        "gender": [Response(snap_gender=code) for code in ("MALE", "FEMALE", "", "ANY")],
+        "governorate": [
+            Response(snap_region=code) for code in [*service.GOVERNORATE_LABELS, "", "Nowhere"]
+        ],
+        "age": [Response(snap_age=age) for age in (None, 17, 18, 24, 25, 34, 35, 44, 45, 54, 55)],
+    }
+    for dimension, responses in cases.items():
+        for response in responses:
+            key = service._group_key(response, dimension)
+            assert service._key_label(dimension, key) == service._group_label(response, dimension)
+
+
 def count_queries(provider, survey, **kwargs):
     with CaptureQueriesContext(connection) as captured:
         results(provider, survey, **kwargs)

@@ -220,6 +220,7 @@ class AnalysisService:
         if selected is not None:
             group_by = None
             group_filter = {
+                "dimension": selected["dimension"],
                 "keys": selected["keys"],
                 "key_by_response_id": self._keys_by_response_id(
                     included_responses, selected["dimension"]
@@ -334,7 +335,7 @@ class AnalysisService:
             counts = Counter(
                 self._group_key(response, dimension) for response in included_responses
             )
-            pooling = disclosure.pool_groups(counts)
+            pooling = self._pool_by_label(counts, dimension)
             if not pooling["enough"]:
                 continue
             labels = self._labels_by_key(included_responses, dimension)
@@ -374,17 +375,17 @@ class AnalysisService:
             day += timedelta(days=1)
         return days
 
-    def _filter_can_show(self, counts, group_keys):
+    def _filter_can_show(self, counts, group_keys, dimension):
         """Return whether a question's figures may be shown for a filtered group (P-15).
 
-        counts maps each group key to the question's answers in it. The question's rows
-        are pooled as in a comparison table; the group shows only with at least
-        MIN_GROUP_SIZE answers and when every row lies wholly inside or outside it, so
-        the whole-survey figures minus the group's give only whole rows, never 1 to 4.
+        counts maps each group key of dimension to the question's answers in it. The
+        question's rows are pooled as in a comparison table; the group shows only with at
+        least MIN_GROUP_SIZE answers and when every row lies wholly inside or outside it,
+        so the whole-survey figures minus the group's give only whole rows, never 1 to 4.
         """
         if sum(counts.get(key, 0) for key in group_keys) < disclosure.MIN_GROUP_SIZE:
             return False
-        pooling = disclosure.pool_groups(counts)
+        pooling = self._pool_by_label(counts, dimension)
         rows = [{key} for key in pooling["shown"]]
         if pooling["pooled"]:
             rows.append(set(pooling["pooled"]))
@@ -416,7 +417,7 @@ class AnalysisService:
     ):
         """Build question-level analytics summaries from submitted answers.
 
-        group_filter is None or {"keys", "key_by_response_id"} of the filtered group;
+        group_filter is None or {"dimension", "keys", "key_by_response_id"} of the filtered group;
         grouping is None or {"dimension", "key_by_response_id", "labels"} for group_by.
         """
         answers_by_question_id = defaultdict(list)
@@ -457,7 +458,7 @@ class AnalysisService:
         key_of = group_filter["key_by_response_id"]
         keys = group_filter["keys"]
         counts = Counter(key_of[answer.response_id] for answer in answers)
-        if not self._filter_can_show(counts, keys):
+        if not self._filter_can_show(counts, keys, group_filter["dimension"]):
             return {**self._base_question_summary(question, chart_type), "too_few": True}
         return build(
             question, [answer for answer in answers if key_of[answer.response_id] in keys]
@@ -542,7 +543,9 @@ class AnalysisService:
         by_key = defaultdict(list)
         for answer in answers:
             by_key[grouping["key_by_response_id"][answer.response_id]].append(answer)
-        pooling = disclosure.pool_groups({key: len(group) for key, group in by_key.items()})
+        pooling = self._pool_by_label(
+            {key: len(group) for key, group in by_key.items()}, grouping["dimension"]
+        )
         table = {"dimension": grouping["dimension"], "enough": pooling["enough"], "rows": []}
         if not pooling["enough"]:
             return table
@@ -585,7 +588,7 @@ class AnalysisService:
             key_of = group_filter["key_by_response_id"]
             keys = group_filter["keys"]
             counts = Counter(key_of[result.answer.response_id] for result in completed)
-            if not self._filter_can_show(counts, keys):
+            if not self._filter_can_show(counts, keys, group_filter["dimension"]):
                 summary["too_few"] = True
                 summary["sentiment"] = {"total": 0, **self._sentiment_counts([])}
                 summary["breakdown"] = None
@@ -693,6 +696,38 @@ class AnalysisService:
             if age >= lowest:
                 return self.AGE_GROUP_KEYS[lowest]
         return self.UNDER_18_KEY
+
+    def _key_label(self, dimension, key):
+        """Return the label of a group key, the text _group_label gives for that group."""
+        if key == self.NOT_STATED_KEY:
+            return self.NOT_STATED_LABEL
+        if dimension == "gender":
+            return self.GENDER_LABELS[key]
+        if dimension == "governorate":
+            return self.GOVERNORATE_LABELS[key]
+        if key == self.UNDER_18_KEY:
+            return self.UNDER_18_LABEL
+        return next(
+            label for lowest, label in self.AGE_GROUPS if self.AGE_GROUP_KEYS[lowest] == key
+        )
+
+    def _pool_by_label(self, counts, dimension):
+        """Pool groups keyed by group key in the label order FR-05 uses (P-15, TASK-56B).
+
+        pool_groups breaks ties by name, and keys sort unlike labels ("AL_HASAKAH" after
+        "ALEPPO", "Al-Hasakah" before "Aleppo"), so pooling on keys could pool other groups
+        than the FR-05 breakdown and the difference of two views would give 1 to 4 answers.
+        The counts are pooled under their labels and shown and pooled mapped back to keys.
+        """
+        key_by_label = {self._key_label(dimension, key): key for key in counts}
+        pooling = disclosure.pool_groups(
+            {label: counts[key] for label, key in key_by_label.items()}
+        )
+        return {
+            **pooling,
+            "shown": [key_by_label[label] for label in pooling["shown"]],
+            "pooled": [key_by_label[label] for label in pooling["pooled"]],
+        }
 
     def _normalized_value(self, value):
         """Normalize enum-like values for comparison and reporting."""
