@@ -33,6 +33,7 @@ class SurveyStatus(models.TextChoices):
     DRAFT = "DRAFT", "Draft"
     PENDING_REVIEW = "PENDING_REVIEW", "Pending review"
     PUBLISHED = "PUBLISHED", "Published"
+    PAUSED = "PAUSED", "Paused"
     CLOSED = "CLOSED", "Closed"
 
 

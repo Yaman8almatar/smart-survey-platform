@@ -1,3 +1,5 @@
+from django.utils import timezone
+
 from core.enums import AccountStatus, SurveyStatus, UserType
 from core.exceptions import AccountNotFound, UnauthorizedAction, ValidationError
 from repositories.response_repository import ResponseRepository
@@ -62,6 +64,8 @@ class AdminService:
         """Build administrator-level platform metrics and chart-ready report data."""
         self._ensure_admin(admin_user)
         self._validate_date_range(date_from, date_to)
+        # FR-11: a survey past its closing date counts as closed.
+        self.survey_repository.close_past_end(timezone.localdate())
 
         # System reports are assembled from repository-provided aggregates.
         users_by_type = self._counts_by_category(

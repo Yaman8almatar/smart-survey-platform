@@ -72,6 +72,50 @@
                                 </div>
                             </fieldset>
 
+                            <!-- FR-11: when the survey opens and closes, and its response limit -->
+                            <fieldset class="mb-4">
+                                <legend class="form-label">Schedule and limit</legend>
+                                <div class="mb-3">
+                                    <label class="form-label" for="{{ form.opens_on.id_for_label }}">
+                                        Opens on
+                                    </label>
+                                    {{ form.opens_on }}
+                                    <div class="form-text">
+                                        Leave empty to open as soon as an admin approves the survey.
+                                    </div>
+                                    {% for error in form.opens_on.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="{{ form.closes_on.id_for_label }}">
+                                        Closes on
+                                    </label>
+                                    {{ form.closes_on }}
+                                    <div class="form-text">
+                                        The last day respondents can answer. Leave empty to close it yourself.
+                                    </div>
+                                    {% for error in form.closes_on.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div>
+                                    <label
+                                        class="form-label"
+                                        for="{{ form.target_responses.id_for_label }}"
+                                    >
+                                        Close after this many responses
+                                    </label>
+                                    {{ form.target_responses }}
+                                    <div class="form-text">
+                                        At least 5, because results open at 5 responses. Leave empty for no limit.
+                                    </div>
+                                    {% for error in form.target_responses.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            </fieldset>
+
                             <div class="form-actions">
                                 <a
                                     class="btn btn-outline-secondary"

@@ -57,7 +57,7 @@ def review_survey(request, survey_id):
         "provider_email": review["provider_email"],
         "submitted_at": review["submitted_at"],
         "questions": review["questions"],
-        **publish_summary_context(review["criteria"], review["reach"]),
+        **publish_summary_context(review["criteria"], review["reach"], review["survey"]),
     }
     return render(request, "admin_panel/review_survey.html", context)
 

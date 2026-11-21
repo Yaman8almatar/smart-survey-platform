@@ -248,7 +248,7 @@ def test_the_system_report_shows_pending_review(admin_client, provider):
 
     html = admin_client.get(reverse("admin_panel:system_reports")).content.decode()
 
-    assert "Draft, pending, published, and closed survey inventory." in html
+    assert "Draft, pending, published, paused, and closed survey inventory." in html
     assert "<span>Pending review</span>" in html
     assert html.index("<span>Draft</span>") < html.index("<span>Pending review</span>")
     assert html.index("<span>Pending review</span>") < html.index("<span>Published</span>")

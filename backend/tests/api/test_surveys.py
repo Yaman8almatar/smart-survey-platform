@@ -30,6 +30,7 @@ def test_eligible_lists_matching_survey_with_question_count(
             "expected_minutes": 1,
             # The fixture survey is created published, without a publish time.
             "published_on": None,
+            "closes_on": None,
         }
     ]
 

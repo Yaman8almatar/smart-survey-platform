@@ -27,6 +27,10 @@ class ResponseRepository:
         """Return responses linked to the selected survey."""
         return Response.objects.filter(survey_id=survey_id)
 
+    def count_submitted_for_survey(self, survey_id):
+        """Return how many responses were submitted for a survey, excluded ones too (P-08)."""
+        return Response.objects.filter(survey_id=survey_id).count()
+
     def count_included_by_survey_id(self, survey_id):
         """Return how many responses of a survey the provider has not excluded."""
         return Response.objects.filter(survey_id=survey_id, is_excluded=False).count()

@@ -24,6 +24,7 @@ def test_eligible_row_has_the_fr08_keys_and_types(client, authenticate, responde
         "question_count",
         "expected_minutes",
         "published_on",
+        "closes_on",
     }
     assert isinstance(row["expected_minutes"], int)
     assert row["published_on"] == timezone.localdate(published_at).isoformat()

@@ -44,6 +44,10 @@ class Survey(models.Model):
     rejection_reason = models.CharField(
         max_length=1000, blank=True, default="", db_default=""
     )
+    # FR-11: an optional schedule and response limit; empty means none.
+    opens_on = models.DateField(null=True, blank=True)
+    closes_on = models.DateField(null=True, blank=True)
+    target_responses = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "surveys"
@@ -97,6 +101,26 @@ class Survey(models.Model):
         """Move the survey to the closed state."""
         self.status = SurveyStatus.CLOSED
         self.closed_at = timezone.now()
+
+    def pause(self):
+        """Stop taking responses until the provider resumes the survey."""
+        self.status = SurveyStatus.PAUSED
+
+    def resume(self):
+        """Take responses again after a pause."""
+        self.status = SurveyStatus.PUBLISHED
+
+    def is_open_on(self, day):
+        """Return whether the survey is published and inside its schedule on day."""
+        return (
+            self.status == SurveyStatus.PUBLISHED
+            and (self.opens_on is None or self.opens_on <= day)
+            and (self.closes_on is None or self.closes_on >= day)
+        )
+
+    def has_passed_closing(self, day):
+        """Return whether the survey's closing date is before day."""
+        return self.closes_on is not None and self.closes_on < day
 
     def can_edit(self):
         """Return whether the survey can still be edited."""

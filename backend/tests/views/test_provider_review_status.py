@@ -111,7 +111,7 @@ def test_the_dashboard_counts_pending_surveys(provider_client, provider):
     html = response.content.decode()
     assert "<span>Pending review</span>" in html
     assert "<strong>2</strong>" in html
-    assert html.count('class="col-sm-6 col-lg"') == 5
+    assert html.count('class="col-sm-6 col-lg-4"') == 6
 
 
 def test_post_to_the_submit_address_moves_the_survey_to_pending(provider_client, provider):

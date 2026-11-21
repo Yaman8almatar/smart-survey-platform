@@ -1,7 +1,8 @@
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from apps.core.models import Answer, Response, ResponseDraft
-from core.enums import QuestionType, UserType
+from core.enums import QuestionType, SurveyStatus, UserType
 from core.exceptions import (
     DraftNotFound,
     DuplicateResponse,
@@ -57,8 +58,7 @@ class ResponseService:
         if survey is None:
             raise SurveyNotFound("Survey not found.")
 
-        if not survey.can_accept_responses():
-            raise NotEditable("Responses are allowed only for published surveys.")
+        self._ensure_open(survey)
 
         if not self.targeting_service.match_respondent_to_survey(
             respondent_user,
@@ -71,6 +71,21 @@ class ResponseService:
             raise DuplicateResponse("Respondent already submitted this survey.")
 
         return survey
+
+    def _ensure_open(self, survey):
+        """Raise the reason a survey takes no response today: its state or its schedule (FR-11)."""
+        if survey.status == SurveyStatus.PAUSED:
+            raise NotEditable("This survey is paused.")
+        if survey.status == SurveyStatus.CLOSED:
+            raise NotEditable("This survey has closed.")
+        if not survey.can_accept_responses():
+            raise NotEditable("Responses are allowed only for published surveys.")
+
+        today = timezone.localdate()
+        if survey.opens_on is not None and survey.opens_on > today:
+            raise NotEditable("This survey is not open yet.")
+        if survey.has_passed_closing(today):
+            raise NotEditable("This survey has closed.")
 
     def submit_response(self, respondent_user, survey_id, answers, timings=None, device_id=None):
         """Validate and store a respondent survey submission with its answers and evidence.
@@ -92,6 +107,21 @@ class ResponseService:
 
         try:
             with transaction.atomic():
+                # D-046 rule 6: the lock makes the state check and the limit count hold until
+                # commit, so two parallel submits cannot both take the last place.
+                survey = self.survey_repository.find_by_id_for_update(survey_id)
+                if survey is None:
+                    raise SurveyNotFound("Survey not found.")
+                self._ensure_open(survey)
+                submitted_count = None
+                if survey.target_responses is not None:
+                    # P-08: every submitted response counts, excluded ones too.
+                    submitted_count = self.response_repository.count_submitted_for_survey(
+                        survey_id
+                    )
+                    if submitted_count >= survey.target_responses:
+                        raise NotEditable("This survey has closed.")
+
                 # Response, answers, evidence and snapshot are stored together or not at all.
                 draft = self.draft_repository.find(survey_id, respondent_user.user_id)
                 response = Response(
@@ -128,6 +158,14 @@ class ResponseService:
                 # PENDING rows commit with the answers; the analysis worker reads them later.
                 self.analysis_service.queue_open_text_answers(saved_answers)
                 self.draft_repository.delete(survey_id, respondent_user.user_id)
+
+                # FR-11: the response that reaches the limit closes the survey.
+                if (
+                    submitted_count is not None
+                    and submitted_count + 1 >= survey.target_responses
+                ):
+                    survey.close()
+                    self.survey_repository.update(survey)
         except IntegrityError as exc:
             # A parallel submit can pass the pre-check; only this constraint means a duplicate.
             if "unique_response_per_survey_respondent" in str(exc):
