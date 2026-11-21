@@ -19,7 +19,8 @@ Android emulator notes:
 
 ## Auth flow
 1. `POST /auth/register/` creates the respondent and the profile. It returns 201 and **no tokens**.
-2. `POST /auth/token/` with `email` and `password` returns `access` (30 minutes) and `refresh` (7 days). Suspended or deleted accounts get 401 `invalid_credentials`.
+2. `POST /auth/token/` with `email` and `password` returns `access` (30 minutes) and `refresh` (7 days). Suspended or deleted accounts get 401 `invalid_credentials`. An account whose email is not confirmed yet gets 403 `email_not_confirmed` (FR-15).
+   Registration sends a confirmation email, and the account can log in only after its owner opens that link; password recovery is on the website (`/users/password-reset/`), not in the API.
 3. Send `Authorization: Bearer <access>` on every other call.
 4. On 401, call `POST /auth/token/refresh/` with `{"refresh": "..."}`. It returns a new `access` and a new `refresh`
    (rotation): store both, because the old refresh token is blacklisted and refused from then on. If refresh fails, log in again.
@@ -35,7 +36,7 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | Method | Path | Auth | Success | Errors |
 |---|---|---|---|---|
 | POST | `/auth/register/` | none | 201 `{id,email,name,role}` | 400, 429 |
-| POST | `/auth/token/` | none | 200 `{access,refresh}` | 400, 401, 429 |
+| POST | `/auth/token/` | none | 200 `{access,refresh}` | 400, 401, 403, 429 |
 | POST | `/auth/token/refresh/` | none | 200 `{access,refresh}` | 400, 401, 429 |
 | POST | `/auth/logout/` | none | 204 | 400, 429 |
 | GET | `/me/` | respondent | 200 `{id,email,name,role}` | 401, 403 |
@@ -176,7 +177,7 @@ Every error, including 401 and 403, has one shape. `fields` appears only for inp
 |---|---|
 | 400 | `validation_error`, `parse_error`, `invalid_token` (logout) |
 | 401 | `not_authenticated`, `authentication_failed`, `invalid_credentials` |
-| 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible) |
+| 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible), `email_not_confirmed` (log-in before the email is confirmed) |
 | 404 | `survey_not_found`, `question_not_found`, `draft_not_found`, `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `duplicate_response`, `not_editable` (survey is not published) |

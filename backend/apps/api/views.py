@@ -8,6 +8,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from services.account_email_service import AccountEmailService
 from services.authentication_service import AuthenticationService
 from services.profile_service import ProfileService
 from services.question_service import QuestionService
@@ -69,6 +70,7 @@ class RegisterView(PublicAPIView):
             data["region"],
             data["interests"],
         )
+        AccountEmailService().send_confirmation(user, request.build_absolute_uri("/"))
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -78,7 +80,7 @@ class TokenView(PublicAPIView):
     @extend_schema(
         tags=AUTH_TAG,
         request=LoginSerializer,
-        responses={200: TokenPairSerializer},
+        responses={200: TokenPairSerializer, 403: ErrorSerializer},
         summary="Exchange email and password for access and refresh tokens",
     )
     def post(self, request):

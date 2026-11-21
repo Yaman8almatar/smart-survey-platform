@@ -4,10 +4,14 @@ from django.db import IntegrityError, transaction
 
 from apps.core.models import RespondentProfile, User
 from core.enums import AccountStatus, UserType
-from core.exceptions import InvalidCredentials, ValidationError
+from core.exceptions import EmailNotConfirmed, InvalidCredentials, ValidationError
 from repositories.profile_repository import ProfileRepository
 from repositories.user_repository import UserRepository
 from services.profile_service import ProfileService
+
+EMAIL_NOT_CONFIRMED_MESSAGE = (
+    "Confirm your email address first. Open the link we sent you, or send a new one."
+)
 
 
 class AuthenticationService:
@@ -28,6 +32,7 @@ class AuthenticationService:
             email=normalized_email,
             user_type=UserType.SERVICE_PROVIDER,
             account_status=AccountStatus.ACTIVE,
+            email_verified=False,
         )
         self._validate_user_password(password, user=user)
         user.set_password(password)
@@ -54,6 +59,7 @@ class AuthenticationService:
             email=normalized_email,
             user_type=UserType.RESPONDENT,
             account_status=AccountStatus.ACTIVE,
+            email_verified=False,
         )
         self._validate_user_password(password, user=user)
         user.set_password(password)
@@ -88,6 +94,9 @@ class AuthenticationService:
 
         if user.account_status in {AccountStatus.SUSPENDED, AccountStatus.DELETED}:
             raise InvalidCredentials("Account is suspended or deleted.")
+
+        if not user.email_verified:
+            raise EmailNotConfirmed(EMAIL_NOT_CONFIRMED_MESSAGE)
 
         return user
 

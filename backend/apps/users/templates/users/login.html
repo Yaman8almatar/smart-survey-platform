@@ -61,11 +61,22 @@
                                 <div class="alert alert-danger">{{ error }}</div>
                             {% endfor %}
 
+                            {% if email_not_confirmed %}
+                                <div class="alert alert-danger mb-2">{{ email_not_confirmed }}</div>
+                                <p class="mb-3">
+                                    <a href="{% url 'users:resend_confirmation' %}">Send the link again</a>
+                                </p>
+                            {% endif %}
+
                             <button type="submit" class="btn btn-primary btn-lg w-100">
                                 <i class="bi bi-box-arrow-in-right me-1"></i>
                                 Login
                             </button>
                         </form>
+
+                        <p class="text-center mt-3 mb-0">
+                            <a href="{% url 'users:password_reset' %}">Forgot your password?</a>
+                        </p>
 
                         <div class="auth-links">
                             <span>New to the platform?</span>

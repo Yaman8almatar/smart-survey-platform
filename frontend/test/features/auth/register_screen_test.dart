@@ -184,8 +184,8 @@ void main() {
     );
   });
 
-  testWidgets('success sends codes, logs in with the same credentials and '
-      'opens the list', (tester) async {
+  testWidgets('success sends codes, makes no log-in request and returns to '
+      'the log-in screen with the confirmation message', (tester) async {
     final registerBodies = <Map<String, dynamic>>[];
     final loginBodies = <Map<String, dynamic>>[];
     final test = registerApi((request) async {
@@ -215,12 +215,16 @@ void main() {
       'region': 'DAMASCUS',
       'interests': ['SPORTS'],
     });
-    expect(loginBodies.single, {
-      'email': 'sara@example.com',
-      'password': 'secret-pass',
-    });
-    expect(find.byType(EligibleSurveysScreen), findsOneWidget);
-    expect(test.tokens.refresh, 'r');
+    expect(loginBodies, isEmpty);
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(EligibleSurveysScreen), findsNothing);
+    expect(
+      find.text(
+        'Account created. We sent a confirmation link to sara@example.com. '
+        'Open it, then log in.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the login screen links to Create account', (tester) async {

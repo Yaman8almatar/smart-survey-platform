@@ -10,6 +10,10 @@ class InvalidCredentials(SmartSurveyException):
     """Raised when login credentials are invalid."""
 
 
+class EmailNotConfirmed(SmartSurveyException):
+    """Raised when a self-registered account logs in before confirming its email address."""
+
+
 class UnauthorizedAction(SmartSurveyException):
     """Raised when a user is not allowed to perform an action."""
 

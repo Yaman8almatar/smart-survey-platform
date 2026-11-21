@@ -155,6 +155,16 @@ SENTIMENT_MODEL_ID = os.getenv(
     "SENTIMENT_MODEL_ID", "clapAI/roberta-base-multilingual-sentiment"
 ).strip()
 
+# FR-15 email confirmation and password reset. The console backend prints each email in the
+# server window; set the SMTP values in .env to send real emails.
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Smart Survey <no-reply@smartsurvey.local>")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "") or 25)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "").lower() in {"1", "true", "yes", "on"}
+
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 if REDIS_URL:
     CACHES = {

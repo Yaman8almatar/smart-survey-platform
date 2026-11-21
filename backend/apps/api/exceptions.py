@@ -17,6 +17,7 @@ CORE_ERRORS = {
     core_exceptions.DraftNotFound: (404, "draft_not_found"),
     core_exceptions.TargetingCriteriaNotFound: (404, "targeting_criteria_not_found"),
     core_exceptions.UnauthorizedAction: (403, "unauthorized_action"),
+    core_exceptions.EmailNotConfirmed: (403, "email_not_confirmed"),
     core_exceptions.DuplicateResponse: (409, "duplicate_response"),
     core_exceptions.NotEditable: (409, "not_editable"),
     core_exceptions.ValidationError: (400, "validation_error"),
