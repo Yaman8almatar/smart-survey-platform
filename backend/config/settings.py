@@ -137,6 +137,7 @@ REST_FRAMEWORK = {
         "auth_refresh": "30/min",
         "auth_register": "5/min",
         "auth_logout": "30/min",
+        "survey_submit": "10/min",
     },
     "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0")),
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],

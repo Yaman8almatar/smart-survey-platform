@@ -259,6 +259,9 @@ SUBMIT_ERROR_EXAMPLE = OpenApiExample(
 
 
 class SubmitResponseView(APIView):
+    # ScopedRateThrottle keys a signed-in request by user id: the limit is per respondent.
+    throttle_scope = "survey_submit"
+
     @extend_schema(
         tags=SURVEY_TAG,
         request=SubmitResponseSerializer,
@@ -268,6 +271,7 @@ class SubmitResponseView(APIView):
             403: ErrorSerializer,
             404: ErrorSerializer,
             409: ErrorSerializer,
+            429: ErrorSerializer,
         },
         examples=[SUBMIT_REQUEST_EXAMPLE, SUBMIT_RESPONSE_EXAMPLE, SUBMIT_ERROR_EXAMPLE],
         summary="Submit answers to a survey",
