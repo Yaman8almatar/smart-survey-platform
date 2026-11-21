@@ -1,12 +1,12 @@
 # STATUS — 2026-11-21
-Branch: feat/fr13-advanced-analytics
-Task: TASK-56 — FR-13 one filter by gender, age group or governorate, comparison tables, responses over time (#27)
-Done: service filter options (pooled per dimension), filtered question summaries with _filter_can_show, group_table for choice
-  and rating questions, responses_over_time; one repository method; "Filter results" card, notes, comparison tables and the
-  "Responses over time" bar chart (site.js). No migration, no API or app change.
-Changes: 7 modified, 3 new, 0 deleted (plus this file) — backend/services/analysis_service.py, backend/repositories/response_repository.py, backend/apps/analysis/views.py, backend/apps/analysis/templates/analysis/analytics_dashboard.html, backend/static/js/site.js
-Tests: task files 81 passed (35 new); whole backend suite 1454 passed (1419 before); full suites run in CI
+Branch: feat/fr15-permissions-throttle
+Task: TASK-57 — FR-15 Part A, role permissions proven in the service layer and the submit endpoint throttled (#29)
+Done: scope survey_submit 10/min on POST /surveys/{id}/responses/ (per respondent, 429 throttled); role matrix test,
+  53 rows x 2 wrong roles = 106 refused calls with row counts unchanged, 2 listed exceptions, ast guard test. No service
+  method needed a new role check. API.md: submit 429, Throttling row. No migration, no app change.
+Changes: 3 modified, 2 new, 0 deleted (plus this file) — backend/config/settings.py, backend/apps/api/views.py, planning/API.md, backend/tests/services/test_role_permissions.py, backend/tests/api/test_submit_throttling.py
+Tests: task files 147 passed (113 new); whole backend suite 1571 passed (1458 before); full suites run in CI
 Check: System check identified no issues (0 silenced). makemigrations --check: No changes detected
-Committed: yes (the TASK-56 change commit holds this file)
-Open questions: none (only Constraint E's test changed)
-Next: Yaman or Hasan reviews and approves the PR from his own account; then Yousef merges into develop
+Committed: yes (the TASK-57 change commit holds this file)
+Open questions: none
+Next: the advisor reviews the diff and reruns the tests; Yaman approves and squash-merges the PR into develop

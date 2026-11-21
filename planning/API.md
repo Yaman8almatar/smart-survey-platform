@@ -44,7 +44,7 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | GET | `/profile/options/` | none | 200 `{governorates,education,occupation,marital_status,interests}` | — |
 | GET | `/surveys/eligible/` | respondent | 200 `[{id,title,description,question_count}]` | 401, 403 |
 | GET | `/surveys/{id}/` | respondent | 200 `{id,title,description,questions[]}` | 401, 403, 404, 409 |
-| POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409 |
+| POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409, 429 |
 | GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,timings,started_at,updated_at}` | 401, 403, 404, 409 |
 | PUT | `/surveys/{id}/draft/` | respondent | 200 draft | 400, 401, 403, 404, 409 |
 | DELETE | `/surveys/{id}/draft/` | respondent | 204 | 401, 403, 404, 409 |
@@ -180,7 +180,7 @@ Every error, including 401 and 403, has one shape. `fields` appears only for inp
 | 404 | `survey_not_found`, `question_not_found`, `draft_not_found`, `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `duplicate_response`, `not_editable` (survey is not published) |
-| 429 | `throttled` (too many auth requests; see Throttling) |
+| 429 | `throttled` (too many auth or submit requests; see Throttling) |
 | 500 | `internal_error` |
 
 Mapping lives in one place: `backend/apps/api/exceptions.py`.
@@ -195,6 +195,9 @@ The four auth endpoints are rate limited per client IP with DRF `ScopedRateThrot
 | `POST /auth/token/refresh/` | `auth_refresh` | 30/min |
 | `POST /auth/register/` | `auth_register` | 5/min |
 | `POST /auth/logout/` | `auth_logout` | 30/min |
+| `POST /surveys/{id}/responses/` | `survey_submit` | 10/min |
+
+The `survey_submit` scope counts per signed-in respondent (by user id), not per address.
 
 A request over the limit gets 429 `throttled` and a `Retry-After` header (seconds to wait). Scopes are independent: using up
 login does not block token refresh. Endpoints without a scope, including `/healthz/live/` and `/healthz/ready/`, are not
