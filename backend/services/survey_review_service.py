@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 
 from core.enums import UserType
 from core.exceptions import NotEditable, SurveyNotFound, UnauthorizedAction, ValidationError
@@ -73,6 +74,11 @@ class SurveyReviewService:
             survey = self._ensure_pending(
                 self.survey_repository.find_by_id_for_update(survey_id)
             )
+            # FR-11: publishing a survey already past its closing date would close it at once.
+            if survey.has_passed_closing(timezone.localdate()):
+                raise ValidationError(
+                    "The closing date has passed. Reject the survey so the provider can change it."
+                )
             criteria = self.targeting_repository.find_by_survey_id(survey.survey_id)
             # Unbanded on purpose: every display of reach_at_publish goes through disclosure.band.
             survey.reach_at_publish = self.profile_repository.count_matching(criteria)

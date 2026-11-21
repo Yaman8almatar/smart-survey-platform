@@ -1,4 +1,5 @@
 from django.db.models import Count, Exists, OuterRef, Q
+from django.utils import timezone
 
 from apps.core.models import Response, Survey, TargetingCriteria
 from core.enums import Gender, QuestionType, SurveyStatus
@@ -32,6 +33,16 @@ class SurveyRepository:
     def count_pending_review(self):
         """Return how many surveys are waiting for review."""
         return Survey.objects.filter(status=SurveyStatus.PENDING_REVIEW).count()
+
+    def close_past_end(self, today):
+        """Close every published or paused survey whose closing date is before today (FR-11).
+
+        One UPDATE; returns how many surveys it closed.
+        """
+        return Survey.objects.filter(
+            status__in=[SurveyStatus.PUBLISHED, SurveyStatus.PAUSED],
+            closes_on__lt=today,
+        ).update(status=SurveyStatus.CLOSED, closed_at=timezone.now())
 
     def find_by_provider_id(self, provider_id):
         """Return surveys owned by the selected service provider."""
@@ -73,6 +84,10 @@ class SurveyRepository:
             Q(criteria__interests=[])
             | Q(criteria__interests__overlap=list(profile.interests))
         )
+        # FR-11: open now, by the schedule; an empty date means no bound.
+        today = timezone.localdate()
+        opened_filter = Q(opens_on__isnull=True) | Q(opens_on__lte=today)
+        not_past_closing_filter = Q(closes_on__isnull=True) | Q(closes_on__gte=today)
 
         return (
             Survey.objects.filter(
@@ -85,6 +100,8 @@ class SurveyRepository:
                 age_max_filter,
                 *list_filters,
                 interests_filter,
+                opened_filter,
+                not_past_closing_filter,
             )
             .filter(~Exists(has_responded))
             .annotate(

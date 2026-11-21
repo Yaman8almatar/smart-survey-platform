@@ -409,6 +409,7 @@ def test_generated_report_includes_surveys_by_status(admin_service):
         SurveyStatus.DRAFT.value: 1,
         SurveyStatus.PENDING_REVIEW.value: 0,
         SurveyStatus.PUBLISHED.value: 1,
+        SurveyStatus.PAUSED.value: 0,
         SurveyStatus.CLOSED.value: 1,
     }
 

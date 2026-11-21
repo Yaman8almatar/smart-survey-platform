@@ -122,6 +122,7 @@ class EligibleSurveySerializer(serializers.Serializer):
     question_count = serializers.IntegerField()
     expected_minutes = serializers.IntegerField()
     published_on = serializers.DateField(allow_null=True)
+    closes_on = serializers.DateField(allow_null=True)
 
 
 class OptionSerializer(serializers.Serializer):

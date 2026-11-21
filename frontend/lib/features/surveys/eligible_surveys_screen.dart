@@ -361,8 +361,18 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
 class _SurveyCard extends StatelessWidget {
   const _SurveyCard({required this.survey, required this.onTap});
 
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
   final EligibleSurvey survey;
   final VoidCallback onTap;
+
+  /// " · Closes 30 Nov" when the survey has a closing date (FR-11), else ''.
+  static String _closesSuffix(DateTime? closesOn) => closesOn == null
+      ? ''
+      : ' · Closes ${closesOn.day} ${_months[closesOn.month - 1]}';
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +408,8 @@ class _SurveyCard extends StatelessWidget {
                       const SizedBox(height: SsSpace.s2),
                       Text(
                         '${count == 1 ? '1 question' : '$count questions'}'
-                        ' · About ${survey.expectedMinutes} min',
+                        ' · About ${survey.expectedMinutes} min'
+                        '${_closesSuffix(survey.closesOn)}',
                         style: textTheme.bodySmall?.copyWith(
                           color: SsColors.inkMuted,
                         ),

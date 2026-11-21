@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.api.exceptions import CORE_ERRORS
@@ -59,8 +60,7 @@ def create_survey(request):
                     request.user,
                     form.cleaned_data["title"],
                     form.cleaned_data["description"],
-                    shuffle_questions=form.cleaned_data["shuffle_questions"],
-                    shuffle_options=form.cleaned_data["shuffle_options"],
+                    **_survey_settings(form.cleaned_data),
                 )
             except SmartSurveyException as error:
                 _show_service_error(request, error)
@@ -93,8 +93,7 @@ def edit_survey(request, survey_id):
                     survey_id,
                     form.cleaned_data["title"],
                     form.cleaned_data["description"],
-                    shuffle_questions=form.cleaned_data["shuffle_questions"],
-                    shuffle_options=form.cleaned_data["shuffle_options"],
+                    **_survey_settings(form.cleaned_data),
                 )
             except SmartSurveyException as error:
                 _show_service_error(request, error)
@@ -108,6 +107,9 @@ def edit_survey(request, survey_id):
                 "description": survey.description,
                 "shuffle_questions": survey.shuffle_questions,
                 "shuffle_options": survey.shuffle_options,
+                "opens_on": survey.opens_on,
+                "closes_on": survey.closes_on,
+                "target_responses": survey.target_responses,
             }
         )
 
@@ -325,15 +327,23 @@ def submit_for_review(request, survey_id):
     context = {
         "survey": _survey_row(survey),
         "question_count": preview["question_count"],
-        **publish_summary_context(preview["criteria"], preview["reach"]),
+        **publish_summary_context(preview["criteria"], preview["reach"], survey),
     }
     return render(request, "surveys/publish_confirm.html", context)
 
 
-def publish_summary_context(criteria, reach):
-    """Return the "Who can answer" rows and the reach card of W-03 (also the admin review page)."""
+def publish_summary_context(criteria, reach, survey):
+    """Return the reach card, the "Who can answer" rows and the FR-11 schedule rows of W-03.
+
+    Also the admin review page.
+    """
     return {
         "reach": _reach_card(reach),
+        "schedule": {
+            "opens_on": survey.opens_on,
+            "closes_on": survey.closes_on,
+            "target_responses": survey.target_responses,
+        },
         "who": {
             "gender": Gender(criteria["gender"]).label if criteria["gender"] else "",
             "age": _age_phrase(criteria["age_min"], criteria["age_max"]),
@@ -360,6 +370,52 @@ def close_survey(request, survey_id):
     else:
         messages.success(request, "Survey closed successfully.")
     return redirect("surveys:survey_list")
+
+
+@require_POST
+def pause_survey(request, survey_id):
+    """Pause a published survey through SurveyService (FR-11)."""
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return response
+
+    try:
+        SurveyService().pause_survey(request.user, survey_id)
+    except SmartSurveyException as error:
+        _show_service_error(request, error)
+    else:
+        messages.success(request, "Survey paused.")
+    return redirect("surveys:survey_list")
+
+
+@require_POST
+def resume_survey(request, survey_id):
+    """Resume a paused survey through SurveyService (FR-11)."""
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return response
+
+    try:
+        SurveyService().resume_survey(request.user, survey_id)
+    except SmartSurveyException as error:
+        _show_service_error(request, error)
+    else:
+        messages.success(request, "Survey resumed.")
+    return redirect("surveys:survey_list")
+
+
+def _survey_settings(cleaned_data):
+    """Return the order (FR-16), schedule and limit (FR-11) keyword arguments of SurveyForm."""
+    return {
+        name: cleaned_data[name]
+        for name in (
+            "shuffle_questions",
+            "shuffle_options",
+            "opens_on",
+            "closes_on",
+            "target_responses",
+        )
+    }
 
 
 def _load_provider_surveys_or_redirect(request):
@@ -416,6 +472,7 @@ def _dashboard_metrics(surveys):
         "draft": _status_count(surveys, SurveyStatus.DRAFT),
         "pending": _status_count(surveys, SurveyStatus.PENDING_REVIEW),
         "published": _status_count(surveys, SurveyStatus.PUBLISHED),
+        "paused": _status_count(surveys, SurveyStatus.PAUSED),
         "closed": _status_count(surveys, SurveyStatus.CLOSED),
     }
 
@@ -443,6 +500,15 @@ def _survey_row(survey):
         # FR-12: the admin's reason stays on the draft until the next submit clears it.
         "rejection_reason": survey.rejection_reason,
         "reviewed_at": survey.reviewed_at,
+        # FR-11: "Opens on" shows only while a published survey waits for its opening date.
+        "opens_on": survey.opens_on,
+        "opens_later": (
+            survey.status == SurveyStatus.PUBLISHED
+            and survey.opens_on is not None
+            and survey.opens_on > timezone.localdate()
+        ),
+        "closes_on": survey.closes_on,
+        "target_responses": survey.target_responses,
     }
 
 
@@ -456,6 +522,8 @@ def _survey_item_row(item):
             "can_submit": item["can_submit"],
             "is_pending_review": item["is_pending_review"],
             "can_close": item["can_close"],
+            "can_pause": item["can_pause"],
+            "can_resume": item["can_resume"],
             "can_manage_questions": item["can_manage_questions"],
             "can_manage_targeting": item["can_manage_targeting"],
             "can_view_analytics": item["can_view_analytics"],
@@ -470,6 +538,7 @@ def _status_badge(status):
         SurveyStatus.DRAFT: "text-bg-secondary",
         SurveyStatus.PENDING_REVIEW: "text-bg-warning",
         SurveyStatus.PUBLISHED: "text-bg-success",
+        SurveyStatus.PAUSED: "text-bg-info",
         SurveyStatus.CLOSED: "text-bg-dark",
     }.get(status, "text-bg-secondary")
 

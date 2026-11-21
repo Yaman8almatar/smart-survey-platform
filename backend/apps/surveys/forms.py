@@ -38,6 +38,10 @@ class SurveyForm(BootstrapFormMixin, forms.Form):
     # FR-16: the respondent's own order of questions and of multiple-choice options.
     shuffle_questions = forms.BooleanField(required=False)
     shuffle_options = forms.BooleanField(required=False)
+    # FR-11: the limit has no min or max here, so the service's messages are the ones shown.
+    opens_on = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    closes_on = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    target_responses = forms.IntegerField(required=False)
 
 
 class QuestionForm(BootstrapFormMixin, forms.Form):

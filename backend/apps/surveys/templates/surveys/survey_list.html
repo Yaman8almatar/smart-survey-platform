@@ -46,6 +46,17 @@
                                             <div class="item-subtitle">
                                                 {{ survey.description|default:"No description" }}
                                             </div>
+                                            {% if survey.status != "CLOSED" %}
+                                                {% if survey.opens_later %}
+                                                    <div class="item-subtitle">Opens on {{ survey.opens_on|date:"j M Y" }}</div>
+                                                {% endif %}
+                                                {% if survey.closes_on %}
+                                                    <div class="item-subtitle">Closes on {{ survey.closes_on|date:"j M Y" }}</div>
+                                                {% endif %}
+                                                {% if survey.target_responses %}
+                                                    <div class="item-subtitle">Closes after {{ survey.target_responses }} responses</div>
+                                                {% endif %}
+                                            {% endif %}
                                             {% if survey.status == "DRAFT" and survey.rejection_reason %}
                                                 <div class="item-subtitle text-danger">
                                                     Returned by the admin on {{ survey.reviewed_at|date:"j M Y" }}: {{ survey.rejection_reason }}
@@ -107,6 +118,36 @@
                                                         <i class="bi bi-send-check me-1"></i>
                                                         Submit for review
                                                     </a>
+                                                {% endif %}
+                                                {% if survey.can_pause %}
+                                                    <form
+                                                        method="post"
+                                                        action="{% url 'surveys:pause_survey' survey.id %}"
+                                                    >
+                                                        {% csrf_token %}
+                                                        <button
+                                                            class="btn btn-sm btn-outline-primary"
+                                                            type="submit"
+                                                        >
+                                                            <i class="bi bi-pause-circle me-1"></i>
+                                                            Pause
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                {% if survey.can_resume %}
+                                                    <form
+                                                        method="post"
+                                                        action="{% url 'surveys:resume_survey' survey.id %}"
+                                                    >
+                                                        {% csrf_token %}
+                                                        <button
+                                                            class="btn btn-sm btn-outline-primary"
+                                                            type="submit"
+                                                        >
+                                                            <i class="bi bi-play-circle me-1"></i>
+                                                            Resume
+                                                        </button>
+                                                    </form>
                                                 {% endif %}
                                                 {% if survey.can_close %}
                                                     <form

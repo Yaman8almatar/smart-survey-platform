@@ -1,6 +1,6 @@
 {% comment %}
 W-03 reach line and "Who can answer" rows; shared by the submit page and the admin review page.
-Context: reach, who, and show_edit_link with survey_id for the "Edit targeting" link.
+Context: reach, who, schedule (FR-11), and show_edit_link with survey_id for the "Edit targeting" link.
 {% endcomment %}
 {% with any_label="Any" %}
 <div class="publish-reach">
@@ -32,6 +32,15 @@ Context: reach, who, and show_edit_link with survey_id for the "Edit targeting" 
         <div class="publish-row"><dt>Occupation</dt><dd>{{ who.occupations|join:", "|default:any_label }}</dd></div>
         <div class="publish-row"><dt>Marital status</dt><dd>{{ who.marital_statuses|join:", "|default:any_label }}</dd></div>
         <div class="publish-row"><dt>Interests</dt><dd>{% if who.interests %}At least one of: {{ who.interests|join:", " }}{% else %}{{ any_label }}{% endif %}</dd></div>
+    </dl>
+</section>
+
+<!-- FR-11: the schedule and the response limit -->
+<section class="publish-section" aria-label="Schedule and limit">
+    <dl class="publish-rows">
+        <div class="publish-row"><dt>Opens</dt><dd>{% if schedule.opens_on %}{{ schedule.opens_on|date:"j M Y" }}{% else %}On approval{% endif %}</dd></div>
+        <div class="publish-row"><dt>Closes</dt><dd>{% if schedule.closes_on %}{{ schedule.closes_on|date:"j M Y" }}{% else %}No closing date{% endif %}</dd></div>
+        <div class="publish-row"><dt>Response limit</dt><dd>{% if schedule.target_responses %}{{ schedule.target_responses }} responses{% else %}No limit{% endif %}</dd></div>
     </dl>
 </section>
 {% endwith %}

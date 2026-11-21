@@ -23,6 +23,9 @@ class SurveyService:
     """Handles Survey management workflows and eligibility decisions."""
 
     MIN_CHOICE_OPTIONS = 2
+    # FR-11: results open at 5 responses, so a smaller limit would never show any.
+    MIN_TARGET_RESPONSES = 5
+    MAX_TARGET_RESPONSES = 10000
 
     def __init__(
         self,
@@ -50,10 +53,15 @@ class SurveyService:
         description,
         shuffle_questions=False,
         shuffle_options=False,
+        opens_on=None,
+        closes_on=None,
+        target_responses=None,
     ):
         """Create a draft survey for a service provider."""
         self._ensure_service_provider(provider_user)
-        self._validate_survey_data(title, shuffle_questions, shuffle_options)
+        self._validate_survey_data(
+            title, shuffle_questions, shuffle_options, opens_on, closes_on, target_responses
+        )
 
         survey = Survey(
             provider=provider_user,
@@ -61,6 +69,9 @@ class SurveyService:
             description=description,
             shuffle_questions=shuffle_questions,
             shuffle_options=shuffle_options,
+            opens_on=opens_on,
+            closes_on=closes_on,
+            target_responses=target_responses,
         )
         return self.survey_repository.save(survey)
 
@@ -72,10 +83,15 @@ class SurveyService:
         description,
         shuffle_questions=False,
         shuffle_options=False,
+        opens_on=None,
+        closes_on=None,
+        target_responses=None,
     ):
-        """Update the title, description and order settings of an owned draft survey."""
+        """Update the title, description, order, schedule and limit of an owned draft survey."""
         survey = self._get_owned_survey(provider_user, survey_id)
-        self._validate_survey_data(title, shuffle_questions, shuffle_options)
+        self._validate_survey_data(
+            title, shuffle_questions, shuffle_options, opens_on, closes_on, target_responses
+        )
 
         # FR-16: a published survey's order settings never change, like the rest of it.
         if not survey.can_edit():
@@ -85,14 +101,42 @@ class SurveyService:
         survey.description = description
         survey.shuffle_questions = shuffle_questions
         survey.shuffle_options = shuffle_options
+        survey.opens_on = opens_on
+        survey.closes_on = closes_on
+        survey.target_responses = target_responses
         return self.survey_repository.update(survey)
 
-    def _validate_survey_data(self, title, shuffle_questions=False, shuffle_options=False):
-        """Validate required survey fields and the FR-16 order settings."""
+    def _validate_survey_data(
+        self,
+        title,
+        shuffle_questions=False,
+        shuffle_options=False,
+        opens_on=None,
+        closes_on=None,
+        target_responses=None,
+    ):
+        """Validate required survey fields, the FR-16 order settings and the FR-11 settings."""
         if not isinstance(title, str) or not title.strip():
             raise ValidationError("Survey title must be a non-empty string.")
         if not isinstance(shuffle_questions, bool) or not isinstance(shuffle_options, bool):
             raise ValidationError("Shuffle settings must be true or false.")
+        self._validate_schedule(opens_on, closes_on)
+        if target_responses is not None:
+            if (
+                isinstance(target_responses, bool)
+                or not isinstance(target_responses, int)
+                or target_responses < self.MIN_TARGET_RESPONSES
+            ):
+                raise ValidationError("The response limit must be at least 5.")
+            if target_responses > self.MAX_TARGET_RESPONSES:
+                raise ValidationError("The response limit must be 10,000 or fewer.")
+
+    def _validate_schedule(self, opens_on, closes_on):
+        """Validate the FR-11 dates; an empty date means no bound."""
+        if opens_on is not None and closes_on is not None and opens_on > closes_on:
+            raise ValidationError("The opening date must be on or before the closing date.")
+        if closes_on is not None and closes_on < timezone.localdate():
+            raise ValidationError("The closing date cannot be in the past.")
 
     def delete_survey(self, provider_user, survey_id):
         """Delete an owned draft or closed survey."""
@@ -132,6 +176,9 @@ class SurveyService:
         if not survey.can_edit():
             raise NotEditable("Only draft surveys can be submitted for review.")
 
+        # FR-11: a closing date may have passed since the draft was saved.
+        self._validate_schedule(survey.opens_on, survey.closes_on)
+
         # Published surveys must have at least one question.
         questions = list(self.question_repository.find_by_survey_id(survey.survey_id))
         if not questions:
@@ -162,19 +209,37 @@ class SurveyService:
         return survey, len(questions), criteria
 
     def close_survey(self, provider_user, survey_id):
-        """Close a published survey and prevent future respondent submissions."""
+        """Close a published or paused survey and prevent future respondent submissions."""
         survey = self._get_owned_survey(provider_user, survey_id)
 
-        # Only published surveys can move to CLOSED.
-        if survey.status != SurveyStatus.PUBLISHED:
-            raise NotEditable("Only published surveys can be closed.")
+        # Only published or paused surveys can move to CLOSED.
+        if survey.status not in {SurveyStatus.PUBLISHED, SurveyStatus.PAUSED}:
+            raise NotEditable("Only published or paused surveys can be closed.")
 
         survey.close()
+        return self.survey_repository.update(survey)
+
+    def pause_survey(self, provider_user, survey_id):
+        """Stop a published survey from taking responses until it is resumed (FR-11)."""
+        survey = self._get_owned_survey(provider_user, survey_id)
+        if survey.status != SurveyStatus.PUBLISHED:
+            raise NotEditable("Only published surveys can be paused.")
+        survey.pause()
+        return self.survey_repository.update(survey)
+
+    def resume_survey(self, provider_user, survey_id):
+        """Let a paused survey take responses again (FR-11)."""
+        survey = self._get_owned_survey(provider_user, survey_id)
+        if survey.status != SurveyStatus.PAUSED:
+            raise NotEditable("Only paused surveys can be resumed.")
+        survey.resume()
         return self.survey_repository.update(survey)
 
     def list_provider_surveys(self, provider_user):
         """List surveys owned by a service provider."""
         self._ensure_service_provider(provider_user)
+        # FR-11: a survey past its closing date is closed when it is next read.
+        self.survey_repository.close_past_end(timezone.localdate())
         return self.survey_repository.find_by_provider_id(provider_user.user_id)
 
     def get_provider_survey(self, provider_user, survey_id):
@@ -184,6 +249,7 @@ class SurveyService:
     def list_provider_survey_items(self, provider_user):
         """Return provider surveys with allowed action flags based on survey status."""
         self._ensure_service_provider(provider_user)
+        self.survey_repository.close_past_end(timezone.localdate())
         return [
             {
                 "survey": survey,
@@ -230,12 +296,19 @@ class SurveyService:
                     },
                     valid_active_ms.get(survey.survey_id, []),
                 ),
-                "published_on": (
-                    timezone.localdate(survey.published_at) if survey.published_at else None
-                ),
+                "published_on": self._published_on(survey),
+                "closes_on": survey.closes_on,
             }
             for survey in surveys
         ]
+
+    def _published_on(self, survey):
+        """Return the later of the publish day and the opening date (FR-11); either may be empty."""
+        days = [survey.opens_on]
+        if survey.published_at:
+            days.append(timezone.localdate(survey.published_at))
+        days = [day for day in days if day is not None]
+        return max(days) if days else None
 
     def _get_owned_survey(self, provider_user, survey_id):
         """Return a survey after validating provider ownership."""
@@ -265,6 +338,7 @@ class SurveyService:
         # Build Survey status action flags for provider pages.
         is_draft = survey.status == SurveyStatus.DRAFT
         is_published = survey.status == SurveyStatus.PUBLISHED
+        is_paused = survey.status == SurveyStatus.PAUSED
         is_closed = survey.status == SurveyStatus.CLOSED
 
         return {
@@ -272,8 +346,10 @@ class SurveyService:
             "can_delete": survey.can_delete(),
             "can_submit": is_draft,
             "is_pending_review": survey.is_pending_review(),
-            "can_close": is_published,
+            "can_close": is_published or is_paused,
+            "can_pause": is_published,
+            "can_resume": is_paused,
             "can_manage_questions": is_draft,
             "can_manage_targeting": is_draft,
-            "can_view_analytics": is_published or is_closed,
+            "can_view_analytics": is_published or is_paused or is_closed,
         }
