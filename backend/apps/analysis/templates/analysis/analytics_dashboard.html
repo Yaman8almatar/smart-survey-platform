@@ -221,6 +221,9 @@
                     <div class="card-body">
                         <h2 class="section-title">Group breakdown</h2>
                         <p class="item-subtitle">Groups come from each respondent's profile when they answered. Groups with fewer than 5 answers are combined.</p>
+                        {% if filter %}
+                            <p class="filter-note">Comparison is off while a filter is on.</p>
+                        {% endif %}
                         <form method="get" action="{% url 'analysis:analytics_dashboard' results.survey_id %}" class="group-breakdown-form">
                             <label class="form-label" for="group-by-select">Compare groups by</label>
                             <div class="group-breakdown-form__row">
@@ -237,7 +240,41 @@
             </div>
         </div>
 
+        {% if responses_over_time %}
+            <!-- FR-13: every submitted response by UTC day; exact counts of arrivals, no answer -->
+            <div class="card table-card mt-4">
+                <div class="card-body">
+                    <h2 class="section-title mb-3">Responses over time</h2>
+                    {{ responses_over_time|json_script:"responses-over-time-data" }}
+                    <div class="chart-panel responses-over-time-chart">
+                        <canvas id="surveyResponsesOverTimeChart" aria-label="Submitted responses per day" role="img"></canvas>
+                    </div>
+                    <p class="sentiment-caption mb-0">All submitted responses, by day (UTC).</p>
+                </div>
+            </div>
+        {% endif %}
+
         {% if has_responses %}
+            <!-- FR-13: the GET form only reloads the page with filter -->
+            <div class="card table-card mt-4">
+                <div class="card-body">
+                    <h2 class="section-title">Filter results</h2>
+                    <p class="item-subtitle">Show the question results for one group. Groups come from each respondent's profile when they answered; groups with fewer than 5 responses are combined.</p>
+                    <form method="get" action="{% url 'analysis:analytics_dashboard' results.survey_id %}" class="group-breakdown-form">
+                        <label class="form-label" for="filter-select">Show results for</label>
+                        <div class="group-breakdown-form__row">
+                            <select class="form-select" id="filter-select" name="filter">
+                                <option label="All respondents" value="">All respondents</option>
+                                {% for option in filter_options %}
+                                    <option label="{{ option.label }}" value="{{ option.key }}"{% if option.key == filter.key %} selected{% endif %}>{{ option.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-outline-secondary">Show</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- Question analytics -->
             <div class="mt-4">
                 <div class="page-header mb-3">
@@ -246,6 +283,12 @@
                         <h2 class="section-title mb-0">Question results</h2>
                     </div>
                 </div>
+
+                {% if filter %}
+                    <p class="filter-results-line">Showing {{ filter.count }} of {{ results.included_count }} included responses: {{ filter.label }}.</p>
+                {% elif filter_unavailable %}
+                    <div class="alert alert-info" role="status">This filter is not available. Showing all respondents.</div>
+                {% endif %}
 
                 {% if results.question_summaries %}
                     <div class="answer-insights-list">
@@ -272,7 +315,9 @@
                                     {% if question.chart_type == "text" %}
                                         <!-- W-05b: sentiment of this question, then the optional group table -->
                                         <div class="question-sentiment">
-                                            {% if question.sentiment.analysed == 0 %}
+                                            {% if question.too_few %}
+                                                <p class="question-sentiment__message">Not enough answers to show this question for this group.</p>
+                                            {% elif question.sentiment.analysed == 0 %}
                                                 {% if question.sentiment.total > 0 %}
                                                     <p class="question-sentiment__line">Analysed 0 of {{ question.sentiment.total }} answers.</p>
                                                 {% endif %}
@@ -313,7 +358,9 @@
                                                 {% endif %}
                                             {% endif %}
                                         </div>
-                                        {% if question.text_answers %}
+                                        {% if question.text_hidden %}
+                                            <p class="filter-note">Open answers are not listed while a filter is on.</p>
+                                        {% elif question.text_answers %}
                                             <h4 class="answer-section-label">
                                                 Submitted text answers
                                             </h4>
@@ -335,6 +382,8 @@
                                                 No text answers submitted yet.
                                             </div>
                                         {% endif %}
+                                    {% elif question.too_few %}
+                                        <p class="question-sentiment__message">Not enough answers to show this question for this group.</p>
                                     {% else %}
                                         <div class="row g-3 align-items-stretch">
                                             <div class="col-lg-8">
@@ -365,6 +414,33 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        {% if question.group_table_view %}
+                                            <!-- FR-13: this question by group, pooled on its own answers -->
+                                            <h4 class="answer-section-label group-breakdown__heading">{{ question.group_table_view.heading }}</h4>
+                                            {% if question.group_table_view.enough %}
+                                                <div class="table-responsive group-breakdown__scroll">
+                                                    <table class="table group-breakdown-table">
+                                                        <thead>
+                                                            <tr><th scope="col">Group</th><th scope="col">Answers</th>{% if question.chart_type == "bar" %}{% for option in question.group_table_view.options %}<th scope="col">{{ option }}</th>{% endfor %}{% else %}<th scope="col">Average</th>{% endif %}</tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for row in question.group_table_view.rows %}
+                                                                <tr{% if row.pooled %} class="group-breakdown-table__pooled"{% endif %}>
+                                                                    <th scope="row">{{ row.label }}</th>
+                                                                    <td>{{ row.answers }}</td>
+                                                                    {% if question.chart_type == "bar" %}{% for share in row.shares %}<td>{{ share.count }} <span class="group-breakdown-table__share">{{ share.label }}</span></td>{% endfor %}{% else %}<td>{{ row.average }}</td>{% endif %}
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                {% if question.chart_type == "bar" %}
+                                                    <p class="sentiment-caption group-breakdown__caption">Shares of the answers in each group.</p>
+                                                {% endif %}
+                                            {% else %}
+                                                <p class="question-sentiment__message">Not enough responses to show this breakdown.</p>
+                                            {% endif %}
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </div>

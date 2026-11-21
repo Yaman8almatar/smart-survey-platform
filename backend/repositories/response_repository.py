@@ -139,6 +139,19 @@ class ResponseRepository:
             .order_by("submitted_date")
         )
 
+    def count_submitted_by_date_for_survey(self, survey_id):
+        """Return a survey's response counts per submission date, excluded ones too (FR-13).
+
+        One row per day that has responses; days without any are not returned.
+        """
+        return (
+            Response.objects.filter(survey_id=survey_id)
+            .annotate(submitted_date=TruncDate("submitted_at"))
+            .values("submitted_date")
+            .annotate(count=Count("response_id"))
+            .order_by("submitted_date")
+        )
+
     def total_responses(self):
         """Return total number of submitted responses across all surveys."""
         return Response.objects.count()

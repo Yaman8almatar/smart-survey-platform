@@ -308,6 +308,10 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
         "neutral_rate": 0,
         "negative_rate": 0,
         "group_by": None,
+        "filter_options": [],
+        "filter": None,
+        "filter_unavailable": False,
+        "responses_over_time": [],
         "question_summaries": [],
     }
 
