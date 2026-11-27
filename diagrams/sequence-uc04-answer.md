@@ -1,4 +1,4 @@
-# Sequence diagram: UC-04 Answer a survey, with draft, resume and quality evidence (FR-06, FR-04) (Increment 2)
+# Sequence diagram: UC-04 Answer a survey, with draft, resume, quality evidence, fixed order and lifecycle checks (FR-06, FR-04, FR-16, FR-11) (Increment 2)
 
 ```
 Basis: team convention; diagrams/README.md (layers Presentation / Business / Data Source)
@@ -6,18 +6,23 @@ Source of truth: frontend/lib/features/answer/survey_start_screen.dart, frontend
   frontend/lib/features/answer/answer_repository.dart, frontend/lib/features/answer/active_time.dart,
   frontend/lib/features/answer/answer_models.dart (SurveyDraft.keptFor), frontend/lib/core/device_id_store.dart,
   backend/apps/api/views.py (SurveyDetailView, DraftView, SubmitResponseView), backend/services/question_service.py
-  (get_response_form), backend/services/response_service.py, backend/services/quality_service.py (clean_timings,
+  (get_response_form), backend/services/presentation_order.py (respondent_order), backend/services/response_service.py
+  (ensure_can_answer, _ensure_open, submit_response), backend/repositories/survey_repository.py
+  (find_by_id_for_update), backend/services/quality_service.py (clean_timings,
   clean_device_id, capture), backend/services/analysis_service.py (queue_open_text_answers, process_pending_batch),
   backend/repositories/analysis_repository.py (create_pending, claim_batch),
   backend/apps/core/management/commands/run_analysis_worker.py
-Date / version: 2026-11-20, develop commit f3c96d4
+Date / version: 2026-11-27, develop commit 59f1957
 ```
 
 The start screen loads the survey and the draft. When no draft exists, the answer screen saves an empty draft first:
 the start mark, which makes the server set `started_at`. The app counts active time per question and sends it with
 every draft save and with the submit, together with its install ID. Send stores the response, the answers, the
 quality evidence and the PENDING sentiment rows in one transaction. The analysis worker reads the PENDING rows later,
-outside the request (T-9).
+outside the request (T-9). Since the FR-04 version (develop f3c96d4): the questions and choice options come in the
+respondent's own fixed order when the provider switched shuffling on (FR-16), and every request checks that the
+survey is open; the submit checks it again under a row lock and closes the survey when it reaches its response limit
+(FR-11).
 
 ```mermaid
 sequenceDiagram
@@ -43,12 +48,15 @@ sequenceDiagram
         QS->>RS: ensure_can_answer(user, id)
         RS->>DR: SurveyRepository.find_by_id, ResponseRepository.has_response_for_survey
         DR->>DB: SELECT FROM surveys, responses
-        RS->>RS: respondent, survey exists, can_accept_responses, targeting match, not answered yet
+        RS->>RS: respondent, survey exists, open (not paused or closed, opening date reached, closing date not passed), targeting match, not answered yet
         RS-->>QS: survey
         QS->>DR: QuestionRepository.find_by_survey_id_with_options(id)
         DR->>DB: SELECT questions, question_options
         DR-->>QS: questions with options
-        QS-->>V: survey and questions in order_index order
+        opt shuffle_questions or shuffle_options set (FR-16)
+            QS->>QS: respondent_order: sort by SHA-256 of scope, survey, respondent and item, so the order is fixed for this respondent and never stored
+        end
+        QS-->>V: survey and questions in order_index order, or in the respondent's fixed order
         V-->>AR: 200 survey detail
         AR-->>SS: SurveyDetail
     and Draft
@@ -152,6 +160,14 @@ sequenceDiagram
             AS-->>R: Mark the questions that need an answer
         else All valid
             critical transaction.atomic
+                RS->>DR: SurveyRepository.find_by_id_for_update(id)
+                DR->>DB: SELECT FROM surveys FOR UPDATE
+                RS->>RS: _ensure_open again under the lock (paused, closed, not open yet, closing date passed)
+                opt target_responses set (FR-11)
+                    RS->>DR: ResponseRepository.count_submitted_for_survey(id)
+                    DR->>DB: SELECT COUNT FROM responses
+                    RS->>RS: refuse with This survey has closed. when the count has reached the limit
+                end
                 RS->>DR: DraftRepository.find(survey_id, respondent_id)
                 DR->>DB: SELECT FROM response_drafts
                 RS->>DR: ProfileRepository.find_by_user_id(respondent_id)
@@ -178,11 +194,18 @@ sequenceDiagram
                 DR->>DB: INSERT INTO sentiment_analysis_results, status PENDING
                 RS->>DR: DraftRepository.delete(survey_id, respondent_id)
                 DR->>DB: DELETE FROM response_drafts
+                opt this response reaches target_responses (FR-11)
+                    RS->>DR: SurveyRepository.update(survey after close())
+                    DR->>DB: UPDATE surveys SET status CLOSED, closed_at
+                end
                 DB-->>RS: COMMIT
             option Parallel submit hits unique_response_per_survey_respondent
                 DB-->>RS: IntegrityError, ROLLBACK
                 RS-->>V: raise DuplicateResponse
                 V-->>AR: 409 duplicate_response
+            option The survey was paused, closed or filled meanwhile
+                RS-->>V: raise NotEditable, ROLLBACK
+                V-->>AR: 409 not_editable with the reason
             end
             RS-->>V: response
             V-->>AR: 201 id, survey_id, submitted_at
@@ -205,8 +228,14 @@ sequenceDiagram
 Notes from the code:
 
 - `ensure_can_answer` checks, in order: respondent (403 `unauthorized_action`), survey exists (404 `survey_not_found`),
-  published (409 `not_editable`), targeting match (403 `unauthorized_action`), not answered yet (409
-  `duplicate_response`). The survey detail request and the three draft requests run all five checks.
+  open (409 `not_editable` with "This survey is paused.", "This survey has closed.", "Responses are allowed only for
+  published surveys." or "This survey is not open yet."), targeting match (403 `unauthorized_action`), not answered
+  yet (409 `duplicate_response`). The survey detail request and the three draft requests run all five checks.
+- The submit locks the survey row (`select_for_update`) before it checks the state again and counts the responses, so
+  two respondents sending at the same moment cannot both take the last place of the limit. Every submitted response
+  counts, excluded ones too (P-08).
+- The fixed order of FR-16 is computed on every request from the survey, the respondent and each item; nothing about
+  it is stored. Rating scales and open questions keep their options; only multiple-choice options are shuffled.
 - The answer screen sends at most one draft request at a time; newer answers and timings wait and follow it. It also
   saves when the app is hidden (best effort). A failed save that lost only timings is not an error: they go again
   with the next save.
