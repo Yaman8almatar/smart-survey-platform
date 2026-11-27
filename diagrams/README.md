@@ -13,7 +13,13 @@ Each source file starts with a Basis block and ends with a legend table.
 | Component diagram: tiers, layers, the analysis worker and the sentiment gateway (Increment 2) | `component-diagram.md` | `exports/component-diagram.png` | Mermaid `flowchart` |
 | Data-flow diagram: sentiment analysis pipeline (FR-05, D-055) (Increment 2) | `dfd-sentiment.md` | `exports/dfd-sentiment.png` | Mermaid `flowchart` |
 | Sequence diagram UC-02 Manage demographic profile (FR-02) | `sequence-uc02-profile.md` | `exports/sequence-uc02-profile.png` | Mermaid `sequenceDiagram` |
-| Sequence diagram UC-04 Answer a survey, draft and resume, quality evidence (FR-06, FR-04) (Increment 2) | `sequence-uc04-answer.md` | `exports/sequence-uc04-answer.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-04 Answer a survey, draft and resume, quality evidence, fixed order, lifecycle checks (FR-06, FR-04, FR-16, FR-11) (Increment 2) | `sequence-uc04-answer.md` | `exports/sequence-uc04-answer.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-01 Register as respondent, with email confirmation (FR-01, FR-15) (Increment 2) | `sequence-uc01-register.md` | `exports/sequence-uc01-register.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-03 Browse matching surveys (FR-01, FR-03, FR-08, FR-11) (Increment 2) | `sequence-uc03-browse.md` | `exports/sequence-uc03-browse.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-10 Define targeting and preview reach (FR-03) (Increment 2) | `sequence-uc10-targeting.md` | `exports/sequence-uc10-targeting.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-12 View analytics and one response (FR-05, FR-07, FR-09, FR-13) (Increment 2) | `sequence-uc12-analytics.md` | `exports/sequence-uc12-analytics.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-13 Export results (FR-14) (Increment 2) | `sequence-uc13-export.md` | `exports/sequence-uc13-export.png` | Mermaid `sequenceDiagram` |
+| Sequence diagram UC-14 Review survey, with the provider's submit (FR-12) (Increment 2) | `sequence-uc14-review.md` | `exports/sequence-uc14-review.png` | Mermaid `sequenceDiagram` |
 | Activity diagram: FR-04 quality rules, version 1 (Increment 2) | `activity-fr04-quality-rules.md` | `exports/activity-fr04-quality-rules.png` | Mermaid `flowchart` |
 | Sequence diagram UC-06 View answered surveys (FR-01) | `sequence-uc06-answered.md` | `exports/sequence-uc06-answered.png` | Mermaid `sequenceDiagram` |
 | Initial class diagram: 9 domain classes (Iteration 0, 2026-10-30; kept as a record, superseded by `class-diagram.md`) | - | `class-diagram.png` | Mermaid |
@@ -21,9 +27,10 @@ Each source file starts with a Basis block and ends with a legend table.
 
 PNG exports for the report and the deck are in `exports/`, rendered with mermaid-cli 12.2.0 (scale 2, white
 background, `useMaxWidth` false; the class diagram with `--size 3700`): the UC-02 and UC-06 sequence diagrams from the
-sources at develop 337648a, the UC-04 sequence and FR-04 activity diagrams from the sources at develop 9fd4097
-(D-205), and the class, ER, two state machine, component and data-flow diagrams from the sources at develop 59f1957
-(D-248). Export again when a source changes.
+sources at develop 337648a, the FR-04 activity diagram from the source at develop 9fd4097 (D-205), the class, ER,
+two state machine, component and data-flow diagrams from the sources at develop 59f1957 (D-248), and the UC-01,
+UC-03, UC-04, UC-10, UC-12, UC-13 and UC-14 sequence diagrams from the sources at develop 59f1957 (D-250). Export
+again when a source changes.
 
 The architecture diagram is on slide 9 of the Seminar 1 deck in documentation/graduation-1/ (Iteration 0: it shows
 Django 4.2 and the sentiment model as an external API; `component-diagram.md` is the current architecture).
@@ -59,8 +66,14 @@ Drawn from develop 59f1957 (2026-11-27, D-248), after FR-07, FR-09, FR-14, FR-16
 - `component-diagram.md`: new, the two processes (web and analysis worker), the layers and the sentiment gateway.
 - `dfd-sentiment.md`: new, the sentiment pipeline from the submit to the provider's summary (D-055).
 
+Sequence diagrams from develop 59f1957 (2026-11-27, D-250), one per main use case built in Increment 2:
+- `sequence-uc01-register.md` (FR-15 email confirmation), `sequence-uc03-browse.md` (FR-08 ranked list),
+  `sequence-uc10-targeting.md` (FR-03 reach), `sequence-uc12-analytics.md` (FR-05, FR-07, FR-09, FR-13),
+  `sequence-uc13-export.md` (FR-14), `sequence-uc14-review.md` (FR-12): new.
+- `sequence-uc04-answer.md`: redrawn with the fixed order of FR-16, the open checks of FR-11, the row lock at submit
+  and the closing at the response limit.
+
 ## Planned in later increments
-Drawn when the backlog item that needs them is pulled (Agile Modeling, model storming): one sequence diagram per
-main use case built in Increment 2 (UC-10 targeting and reach, UC-14 review survey, UC-12 view analytics), and the
-diagrams of FR-10 when it is built. The class and sequence diagrams do not show the service methods added from
-TASK-48 on; the class diagram shows domain classes only.
+Drawn when the backlog item that needs them is pulled (Agile Modeling, model storming): the diagrams of FR-10 when
+it is built, and UC-11's pause, resume and close, which the survey state machine already covers. The class diagram
+shows domain classes only; the service methods are in the sequence diagrams.
