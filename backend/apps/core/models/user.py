@@ -50,6 +50,8 @@ class User(AbstractUser):
         default=AccountStatus.ACTIVE,
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # FR-15: self-registered accounts start unconfirmed; every other account is confirmed.
+    email_verified = models.BooleanField(default=True, db_default=True)
 
     objects = UserManager()
 

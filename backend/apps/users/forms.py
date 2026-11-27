@@ -81,3 +81,16 @@ class RespondentRegistrationForm(BootstrapFormMixin, forms.Form):
 class LoginForm(BootstrapFormMixin, forms.Form):
     email = forms.EmailField()
     password = forms.CharField(widget=forms.PasswordInput)
+
+
+class EmailRequestForm(BootstrapFormMixin, forms.Form):
+    """One email field: the resend-confirmation and password-reset request pages."""
+
+    email = forms.EmailField()
+
+
+class NewPasswordForm(BootstrapFormMixin, forms.Form):
+    """New password twice; AccountEmailService checks they match and pass the validators."""
+
+    new_password1 = forms.CharField(widget=forms.PasswordInput, strip=False)
+    new_password2 = forms.CharField(widget=forms.PasswordInput, strip=False)

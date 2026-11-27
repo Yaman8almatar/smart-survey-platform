@@ -1,4 +1,7 @@
+import re
+
 import pytest
+from django.core import mail
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.core.models import RespondentProfile, User
@@ -101,12 +104,16 @@ def test_register_rejects_invalid_field(client, field, value):
 
 def test_register_then_token_flow(client):
     client.post(REGISTER_URL, registration_payload(), format="json")
+    credentials = {"email": "sara@example.com", "password": "a-strong-pass-1"}
 
-    response = client.post(
-        TOKEN_URL,
-        {"email": "sara@example.com", "password": "a-strong-pass-1"},
-        format="json",
-    )
+    before = client.post(TOKEN_URL, credentials, format="json")
+
+    assert before.status_code == 403
+    assert before.json()["error"]["code"] == "email_not_confirmed"
+
+    link = re.search(r"http://testserver(/\S+)", mail.outbox[0].body).group(1)
+    client.get(link)
+    response = client.post(TOKEN_URL, credentials, format="json")
 
     assert response.status_code == 200
 

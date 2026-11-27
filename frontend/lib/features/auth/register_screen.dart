@@ -9,17 +9,17 @@ import '../../widgets/state_message.dart';
 import '../profile/profile_models.dart';
 import '../answer/answer_repository.dart';
 import '../profile/profile_repository.dart';
-import '../surveys/eligible_surveys_screen.dart';
 import '../surveys/surveys_repository.dart';
 import 'auth_repository.dart';
 import 'form_message.dart';
+import 'login_screen.dart';
 
 final RegExp _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
 const int _minAge = 1;
 const int _maxAge = 120;
 
-/// Creates a respondent account, then logs in with the same credentials.
+/// Creates a respondent account, then returns to log-in until the email is confirmed.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({
     super.key,
@@ -115,17 +115,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
         region: _region!,
         interests: _interests.toList(),
       );
-      await auth.login(email, _password.text);
-      final user = await auth.currentUser();
       if (!mounted) return;
+      // FR-15: the account logs in only after its email is confirmed.
       await Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(
-          builder: (_) => EligibleSurveysScreen(
+          builder: (_) => LoginScreen(
             authRepository: auth,
             surveysRepository: widget.surveysRepository,
             profileRepository: widget.profileRepository,
             answerRepository: widget.answerRepository,
-            user: user,
+            notice:
+                'Account created. We sent a confirmation link to $email. '
+                'Open it, then log in.',
           ),
         ),
         (route) => false,

@@ -1,5 +1,6 @@
 from django.db.models import Count
 from django.db.models.functions import TruncDate
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from apps.core.models import User
 from repositories.date_ranges import aware_day_range
@@ -37,6 +38,13 @@ class UserRepository:
         """Persist changes to a user account."""
         user.save()
         return user
+
+    def blacklist_refresh_tokens(self, user):
+        """Blacklist every outstanding refresh token of the user (ends its app sessions)."""
+        BlacklistedToken.objects.bulk_create(
+            [BlacklistedToken(token=token) for token in OutstandingToken.objects.filter(user=user)],
+            ignore_conflicts=True,
+        )
 
     def list_all(self):
         """Return all user accounts for admin review."""
