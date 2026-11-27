@@ -2,10 +2,11 @@
 
 ```
 Basis: team convention (diagrams/README.md: ERD with relational schema and constraints; Mermaid erDiagram, D-141)
-Source of truth: backend/apps/core/models/ (eleven model files), backend/apps/core/migrations/0001-0013
+Source of truth: backend/apps/core/models/ (eleven model files), backend/apps/core/migrations/0001-0017
   (0007 sentiment worker fields, 0008-0010 targeting lists, 0011 reach at publish, 0012 FR-04 evidence fields,
-  0013 FR-04 snapshot fill)
-Date / version: 2026-11-20, develop commit f3c96d4
+  0013 FR-04 snapshot fill, 0014 FR-16 shuffle switches, 0015 FR-12 review fields, 0016 FR-11 schedule and response
+  limit, 0017 FR-15 email confirmation flag)
+Date / version: 2026-11-27, develop commit 59f1957
 ```
 
 The eleven tables of the domain model under their real `db_table` names, with PostgreSQL column types.
@@ -17,6 +18,7 @@ Django's own tables are left out: `auth_group`, `auth_permission`, `auth_group_p
 erDiagram
     users ||..o| respondent_profiles : "user_id"
     users ||..o{ surveys : "provider_id"
+    users |o..o{ surveys : "reviewed_by_id"
     users ||..o{ responses : "respondent_id"
     users ||..o{ response_drafts : "respondent_id"
     surveys ||..o| survey_targeting_criteria : "survey_id"
@@ -47,6 +49,7 @@ erDiagram
         varchar(32) user_type
         varchar(32) account_status
         timestamptz created_at
+        boolean email_verified "DEFAULT true"
     }
 
     respondent_profiles {
@@ -72,6 +75,15 @@ erDiagram
         timestamptz published_at "nullable"
         timestamptz closed_at "nullable"
         integer reach_at_publish "nullable, CHECK >= 0"
+        boolean shuffle_questions "DEFAULT false"
+        boolean shuffle_options "DEFAULT false"
+        timestamptz submitted_at "nullable, sent for review"
+        timestamptz reviewed_at "nullable"
+        bigint reviewed_by_id FK "nullable, the admin"
+        varchar(1000) rejection_reason "DEFAULT empty string"
+        date opens_on "nullable, no bound when empty"
+        date closes_on "nullable, no bound when empty"
+        integer target_responses "nullable, CHECK >= 0"
     }
 
     survey_targeting_criteria {
@@ -178,14 +190,16 @@ PostgreSQL arrays (`ArrayField` of `varchar(32)`, default empty list). One row h
 column is a multi-valued attribute and is not in first normal form. No join table exists for them. An empty
 targeting list means no restriction on that detail.
 
-**Note: database defaults.** A comment `DEFAULT ...` marks a column with `db_default` (migrations 0007 and 0012):
+**Note: database defaults.** A comment `DEFAULT ...` marks a column with `db_default` (migrations 0007, 0012, 0014,
+0015 and 0017):
 PostgreSQL itself fills the value when an insert does not name the column, so rows written before the column existed
-and inserts that leave it out stay valid. The other defaults (for example the empty targeting lists) are set by
+and inserts that leave it out stay valid. `users.email_verified` is true by default, so every account that existed
+before 0017 and every account made by a command stays confirmed; only the two self-registration flows write false. The other defaults (for example the empty targeting lists) are set by
 Django only.
 
 **Note: delete rule.** On PostgreSQL, Django 5.2 creates every foreign key as `DEFERRABLE INITIALLY DEFERRED` without
 an `ON DELETE` clause. The ORM performs the delete rules: `CASCADE` for every foreign key, except
-`answers.selected_option_id` and `questions.expected_option_id`, which are `SET_NULL`.
+`answers.selected_option_id`, `questions.expected_option_id` and `surveys.reviewed_by_id`, which are `SET_NULL`.
 
 **Note: no stored verdict.** `response_quality` (model `ResponseQuality`, one row per response) holds evidence only. No table stores a quality flag, score or band:
 they are derived on read (P-01). The include or exclude decision is `responses.is_excluded` and `excluded_at`.
@@ -204,6 +218,7 @@ they are derived on read (P-01). The include or exclude decision is `responses.i
 | response_quality | (Django name) | Unique (`OneToOneField`, migration 0012) | response_id | At most one evidence row per response. |
 | respondent_profiles | (Django name) | Check (`PositiveIntegerField`) | age | `age >= 0`; the range 1 to 120 is a service rule. |
 | surveys | (Django name) | Check (`PositiveIntegerField`, migration 0011) | reach_at_publish | `>= 0` when set. |
+| surveys | (Django name) | Check (`PositiveIntegerField`, migration 0016) | target_responses | `>= 0` when set; the range 5 to 10,000 is a service rule. |
 | survey_targeting_criteria | (Django name) | Check (`PositiveIntegerField`) | age_min, age_max | Each `>= 0` when set. |
 | questions | (Django name) | Check (`PositiveIntegerField`) | order_index | `order_index >= 0`. |
 | questions | (Django name) | Check (`PositiveSmallIntegerField`, migration 0012) | expected_rating | `>= 0` when set; the range 1 to 5 is a service rule. |
