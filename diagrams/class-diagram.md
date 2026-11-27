@@ -5,13 +5,16 @@ Basis: team convention (diagrams/README.md: requirement IDs and layer names)
 Source of truth: backend/apps/core/models/ (eleven model files: user.py, respondent_profile.py, survey.py,
   targeting_criteria.py, question.py, question_option.py, response.py, response_draft.py, response_quality.py,
   answer.py, sentiment_analysis_result.py), backend/core/enums.py
-Date / version: 2026-11-20, develop commit f3c96d4
+Date / version: 2026-11-27, develop commit 59f1957
 ```
 
 The eleven domain classes of `apps.core`, their key attributes, the methods that hold business rules, and the
 enumerations they use. Attribute types are the Python types of the Django fields. Changes since Increment 1
 (develop d3d2db2): the sentiment worker fields (T-9), the targeting lists and the reach at publish (FR-03), and the
-response quality evidence, attention questions, include or exclude decision and profile snapshot (FR-04).
+response quality evidence, attention questions, include or exclude decision and profile snapshot (FR-04). Changes
+since the FR-04 version (develop f3c96d4): the shuffle switches (FR-16, migration 0014), the admin review (FR-12,
+0015), the schedule and response limit with the PAUSED state (FR-11, 0016), and the email confirmation flag (FR-15,
+0017).
 
 ```mermaid
 classDiagram
@@ -24,6 +27,7 @@ classDiagram
         +UserType user_type
         +AccountStatus account_status
         +bool is_active
+        +bool email_verified
         +datetime created_at
         +activate()
         +suspend()
@@ -55,9 +59,25 @@ classDiagram
         +datetime? published_at
         +datetime? closed_at
         +int? reach_at_publish
+        +bool shuffle_questions
+        +bool shuffle_options
+        +datetime? submitted_at
+        +datetime? reviewed_at
+        +str rejection_reason
+        +date? opens_on
+        +date? closes_on
+        +int? target_responses
         +clean()
+        +submit_for_review()
+        +approve(admin_user)
+        +reject(admin_user, reason)
         +publish()
+        +pause()
+        +resume()
         +close()
+        +is_pending_review() bool
+        +is_open_on(day) bool
+        +has_passed_closing(day) bool
         +can_edit() bool
         +can_delete() bool
         +can_accept_responses() bool
@@ -176,7 +196,9 @@ classDiagram
     class SurveyStatus {
         <<enumeration>>
         DRAFT
+        PENDING_REVIEW
         PUBLISHED
+        PAUSED
         CLOSED
     }
 
@@ -244,6 +266,7 @@ classDiagram
     Response "1" *-- "0..*" Answer : answers
     Response "1" *-- "0..1" ResponseQuality : quality
     User "1" -- "0..*" Survey : provider
+    User "0..1" -- "0..*" Survey : reviewed_by
     User "1" -- "0..*" Response : respondent
     User "1" -- "0..*" ResponseDraft : respondent
     Survey "1" -- "0..*" ResponseQuality : survey
@@ -274,6 +297,7 @@ classDiagram
     note for Governorate "Long code lists: the values are in backend/core/enums.py"
     note for RespondentProfile "completion_percent: share of 7 details filled. is_complete: age, gender, region, interests set"
     note for ResponseQuality "FR-04 evidence stored at submit: facts only, no flag, score or band is stored"
+    note for Survey "Lifecycle in state-survey-lifecycle.md. Empty opens_on, closes_on or target_responses: no bound"
     note for Response "snap_ fields: the profile as it was at submit, plain text without choices"
 ```
 
@@ -286,6 +310,13 @@ classDiagram
 | RespondentProfile | `is_complete` | True when age, gender, a valid governorate and at least one interest are set. |
 | RespondentProfile | `completion_percent` | Filled share of the seven `COMPLETION_FIELDS`, rounded, in percent. |
 | Survey | `clean` | The provider must be a SERVICE_PROVIDER user. |
+| Survey | `submit_for_review` | DRAFT to PENDING_REVIEW; stamps `submitted_at` and clears the last review (reason, reviewer, time). The completeness checks run before it in `SurveyService`. |
+| Survey | `approve` | Records the admin and `reviewed_at`, then `publish`: PUBLISHED with `published_at`. |
+| Survey | `reject` | Back to DRAFT with the admin's reason, reviewer and `reviewed_at`. |
+| Survey | `pause`, `resume` | PUBLISHED to PAUSED and back; a paused survey takes no response and is not listed. |
+| Survey | `close` | CLOSED with `closed_at`. |
+| Survey | `is_open_on` | PUBLISHED and the day inside `opens_on` to `closes_on` (an empty date is no bound). |
+| Survey | `has_passed_closing` | True when `closes_on` is before the day. |
 | Survey | `can_edit` | Only a DRAFT survey can be edited. |
 | Survey | `can_delete` | Only a DRAFT or CLOSED survey can be deleted. |
 | Survey | `can_accept_responses` | Only a PUBLISHED survey accepts responses. |
