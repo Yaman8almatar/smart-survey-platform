@@ -1,11 +1,11 @@
 # STATUS — 2026-11-28
 Branch: docs/flow-metrics-increment2
-Task: TASK-64 — Increment 2 flow metrics, 16 to 28 Nov, for the delivery review (Refs #45)
-Done: tools/flow_metrics.py report committed unchanged as planning/flow-metrics-increment2.md, plus
-  "Reading the numbers" (33 PRs, 16 issues, 16 of 16 within 7 days, issue P85 2.0 days).
-Changes: 1 modified, 1 new, 0 deleted — planning/flow-metrics-increment2.md, planning/STATUS.md
+Task: TASK-64B — PR #110 review fix: first bullet of "Reading the numbers" says cycle time starts when coding starts
+Done: first bullet replaced with the advisor's wording (design, board and brief come before the branch and are
+  not in the numbers); every other line of planning/flow-metrics-increment2.md unchanged.
+Changes: 2 modified, 0 new, 0 deleted — planning/flow-metrics-increment2.md, planning/STATUS.md
 Tests: skipped (no code changes); full suites run in CI
-Check: skipped (the TASK-64 brief does not allow running Django)
-Committed: yes, in the TASK-64 work commit (start commit 4e7ca64)
+Check: skipped (the TASK-64B brief does not allow running Django)
+Committed: yes, in the TASK-64B commit on top of db68fca
 Open questions: none
-Next: advisor reads the file on the PR branch; Yaman approves and squash-merges into develop
+Next: advisor rereads PR #110; Yaman approves and squash-merges into develop

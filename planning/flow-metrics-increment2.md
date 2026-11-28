@@ -15,9 +15,10 @@
 
 ## Reading the numbers
 
-- Each task branch in this range starts with an empty start commit (planning/KANBAN.md), so a pull request's cycle
-  time runs from the start of the work to its merge. All 33 merged pull requests have a `chore: start TASK-` commit
-  as their first commit, so none of them measures review time only.
+- Each task branch in this range starts with an empty start commit (planning/KANBAN.md), made when the coding of the
+  task begins. A pull request's cycle time therefore runs from the start of coding to the merge. The design, its board
+  and the task brief come before the branch and are not in these numbers. All 33 merged pull requests have a
+  `chore: start TASK-` commit as their first commit, so none of them measures review time only.
 - Issue level: 16 issues have a merged pull request in the range; 16 of 16 (100.0%) have an issue cycle time within
   7 days; the 85th percentile of issue cycle time (nearest rank) is 2.0 days.
 - Pull requests 91, 103 and 104 reference no issue. They are not in the issue table.
