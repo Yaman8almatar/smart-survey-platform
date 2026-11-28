@@ -132,6 +132,8 @@ MATRIX = {
     "SurveyService.get_provider_survey": (PROVIDER, lambda w: (w.published,)),
     "SurveyService.list_provider_survey_items": (PROVIDER, lambda w: ()),
     "SurveyService.get_eligible_survey_items": (RESPONDENT, lambda w: ()),
+    "SurveyService.get_invitation": (PROVIDER, lambda w: (w.published,)),
+    "SurveyService.resolve_invitation": (RESPONDENT, lambda w: ("no-such-token",)),
     "TargetingService.save_criteria": (PROVIDER, lambda w: (w.draft,)),
     "TargetingService.reach": (PROVIDER, lambda w: (w.draft,)),
     "TargetingService.get_criteria_initial": (PROVIDER, lambda w: (w.draft,)),

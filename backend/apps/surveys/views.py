@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
@@ -14,12 +14,13 @@ from core.enums import (
     Occupation,
     SurveyStatus,
 )
-from core.exceptions import SmartSurveyException, ValidationError
+from core.exceptions import NotEditable, SmartSurveyException, ValidationError
 from services.question_service import QuestionService
 from services.survey_service import SurveyService
 from services.targeting_service import TargetingService
 
 from .forms import QuestionForm, SurveyForm, TargetingListsForm
+from .qr import qr_data_uri, qr_svg_bytes
 
 
 def provider_dashboard(request):
@@ -404,6 +405,53 @@ def resume_survey(request, survey_id):
     return redirect("surveys:survey_list")
 
 
+@require_http_methods(["GET"])
+def share_survey(request, survey_id):
+    """Show the invitation link, the copy button and the QR code of a survey (FR-10, W-10)."""
+    invitation, response = _load_invitation_or_redirect(request, survey_id)
+    if response:
+        return response
+
+    survey = invitation["survey"]
+    context = {
+        "survey_id": survey.survey_id,
+        "survey_title": survey.title,
+        "link": invitation["link"],
+        "qr_data_uri": qr_data_uri(invitation["link"]),
+        "is_published": survey.status == SurveyStatus.PUBLISHED,
+    }
+    return render(request, "surveys/share_survey.html", context)
+
+
+@require_http_methods(["GET"])
+def share_qr_svg(request, survey_id):
+    """Download the QR code of a survey's invitation link as an SVG file (FR-10)."""
+    invitation, response = _load_invitation_or_redirect(request, survey_id)
+    if response:
+        return response
+
+    svg = HttpResponse(qr_svg_bytes(invitation["link"]), content_type="image/svg+xml")
+    svg["Content-Disposition"] = (
+        f'attachment; filename="survey-{survey_id}-invitation-qr.svg"'
+    )
+    return svg
+
+
+def _load_invitation_or_redirect(request, survey_id):
+    """Return the invitation from SurveyService, or a redirect to the log-in or the list."""
+    response = _redirect_if_unauthenticated(request)
+    if response:
+        return None, response
+
+    try:
+        return SurveyService().get_invitation(request.user, survey_id), None
+    except NotEditable as error:
+        messages.info(request, str(error))
+    except SmartSurveyException as error:
+        _show_service_error(request, error)
+    return None, redirect("surveys:survey_list")
+
+
 def _survey_settings(cleaned_data):
     """Return the order (FR-16), schedule and limit (FR-11) keyword arguments of SurveyForm."""
     return {
@@ -527,6 +575,7 @@ def _survey_item_row(item):
             "can_manage_questions": item["can_manage_questions"],
             "can_manage_targeting": item["can_manage_targeting"],
             "can_view_analytics": item["can_view_analytics"],
+            "can_share": item["can_share"],
         }
     )
     return row

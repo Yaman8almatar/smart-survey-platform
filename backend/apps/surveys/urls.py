@@ -34,4 +34,6 @@ urlpatterns = [
     path("<int:survey_id>/close/", views.close_survey, name="close_survey"),
     path("<int:survey_id>/pause/", views.pause_survey, name="pause_survey"),
     path("<int:survey_id>/resume/", views.resume_survey, name="resume_survey"),
+    path("<int:survey_id>/share/", views.share_survey, name="share_survey"),
+    path("<int:survey_id>/share/qr.svg", views.share_qr_svg, name="share_qr_svg"),
 ]

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Single place that maps platform exceptions to HTTP status and error code.
 CORE_ERRORS = {
     core_exceptions.SurveyNotFound: (404, "survey_not_found"),
+    core_exceptions.InvitationNotFound: (404, "invitation_not_found"),
     core_exceptions.QuestionNotFound: (404, "question_not_found"),
     core_exceptions.AccountNotFound: (404, "account_not_found"),
     core_exceptions.ResponseNotFound: (404, "response_not_found"),

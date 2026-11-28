@@ -45,11 +45,14 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | GET | `/profile/options/` | none | 200 `{governorates,education,occupation,marital_status,interests}` | — |
 | GET | `/surveys/eligible/` | respondent | 200 `[{id,title,description,question_count}]` | 401, 403 |
 | GET | `/surveys/{id}/` | respondent | 200 `{id,title,description,questions[]}` | 401, 403, 404, 409 |
+| GET | `/invitations/{token}/` | respondent | 200 `{survey_id,profile_complete}` | 401, 403, 404 |
 | POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409, 429 |
 | GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,timings,started_at,updated_at}` | 401, 403, 404, 409 |
 | PUT | `/surveys/{id}/draft/` | respondent | 200 draft | 400, 401, 403, 404, 409 |
 | DELETE | `/surveys/{id}/draft/` | respondent | 204 | 401, 403, 404, 409 |
 | GET | `/me/responses/` | respondent | 200 `[{survey_id,title,description,submitted_at}]` | 401, 403 |
+
+An invitation link (FR-10) carries a token; the app turns it into a survey id with `GET /invitations/{token}/`, then opens `GET /surveys/{id}/`, which makes every eligibility check.
 
 Register and profile bodies (FR-02, D-108): `age` 1 to 120, `gender` `MALE` or `FEMALE`, `region` one governorate code,
 `interests` a list of 1 to 12 distinct interest codes. Register also takes `name`, `email`, `password`; it does not take
@@ -178,7 +181,7 @@ Every error, including 401 and 403, has one shape. `fields` appears only for inp
 | 400 | `validation_error`, `parse_error`, `invalid_token` (logout) |
 | 401 | `not_authenticated`, `authentication_failed`, `invalid_credentials` |
 | 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible), `email_not_confirmed` (log-in before the email is confirmed) |
-| 404 | `survey_not_found`, `question_not_found`, `draft_not_found`, `not_found` |
+| 404 | `survey_not_found`, `question_not_found`, `draft_not_found`, `invitation_not_found`, `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `duplicate_response`, `not_editable` (survey is not published) |
 | 429 | `throttled` (too many auth or submit requests; see Throttling) |

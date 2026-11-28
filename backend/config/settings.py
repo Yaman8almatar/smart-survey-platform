@@ -165,6 +165,9 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "").lower() in {"1", "true", "yes", "on"}
 
+# FR-10: address of the respondent app that the invitation link opens.
+APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL", "http://localhost:5000").strip().rstrip("/")
+
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 if REDIS_URL:
     CACHES = {

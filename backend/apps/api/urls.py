@@ -22,4 +22,5 @@ urlpatterns = [
     ),
     path("surveys/<int:survey_id>/draft/", views.DraftView.as_view(), name="survey-draft"),
     path("me/responses/", views.AnsweredSurveysView.as_view(), name="me-responses"),
+    path("invitations/<str:token>/", views.InvitationView.as_view(), name="invitation-resolve"),
 ]
