@@ -1,0 +1,39 @@
+@startuml
+!include style.iuml
+|Respondent|
+|App|
+|Server|
+|App|
+start
+:Show the first\nunanswered question;
+repeat
+  |Respondent|
+  :Answer or skip;
+  |App|
+  if (Required and empty?) then ([yes])
+    :Ask for an answer;
+  else ([no])
+    |Server|
+    :Save draft,\nanswers, timings;
+  endif
+  |Respondent|
+  if (Leave?) then ([yes])
+    stop
+  endif
+repeat while (More questions?) is ([yes]) not ([no])
+:Review and send;
+|Server|
+if (Open, under limit,\nvalid?) then ([yes])
+  :Store response, evidence,\nsnapshot; queue open\nanswers; delete draft;
+  if (Limit reached?) then ([yes])
+    :Close the survey;
+  endif
+  |App|
+  :Show the sent screen;
+  stop
+else ([no])
+  |App|
+  :Show the error;
+  stop
+endif
+@enduml

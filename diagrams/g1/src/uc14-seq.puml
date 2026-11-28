@@ -1,0 +1,83 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Admin as A
+participant "Browser" as B
+participant "admin_panel\nreview views\n(web)" as V
+participant "SurveyReview-\nService" as Svc
+database "Repositories\nPostgreSQL" as DB
+activate A
+A -> B : Open the queue
+activate B
+B -> V : GET /admin-panel/\nreviews/
+activate V
+V -> Svc : list_pending(admin)
+activate Svc
+Svc -> DB : find_pending_review()\n(oldest first)
+activate DB
+deactivate DB
+V --> B : 200 queue
+deactivate Svc
+deactivate V
+A -> B : Open a survey
+B -> V : GET .../reviews/{id}/
+activate V
+V -> Svc : get_review(admin, id)
+activate Svc
+V --> B : 200 survey, criteria,\nbanded reach, questions
+deactivate Svc
+deactivate V
+alt Approve
+  A -> B : Approve
+  B -> V : POST .../{id}/approve/
+  activate V
+  V -> Svc : approve(admin, id)
+  activate Svc
+  group transaction.atomic
+    Svc -> DB : find_by_id_for_update()\n(row lock)
+    activate DB
+    deactivate DB
+    Svc -> Svc : _ensure_pending();\nclosing date open;\nsecond admin fails
+    activate Svc
+    deactivate Svc
+    Svc -> DB : count_matching()
+    activate DB
+    deactivate DB
+    Svc -> DB : UPDATE surveys:\nPUBLISHED, reach,\nreviewed_*
+    activate DB
+    deactivate DB
+  end
+  V --> B : 302 queue "Survey\napproved and published."
+  deactivate Svc
+  deactivate V
+else Reject
+  A -> B : Reason, Reject
+  B -> V : POST .../{id}/reject/
+  activate V
+  V -> Svc : reject(admin, id, reason)
+  activate Svc
+  alt reason empty or\nover 1,000 characters
+    Svc --> V : ValidationError
+    V --> B : 302 review page with\nthe message
+  else reason valid
+    group transaction.atomic
+      Svc -> DB : find_by_id_for_update()
+      activate DB
+      deactivate DB
+      Svc -> Svc : _ensure_pending()
+      activate Svc
+      deactivate Svc
+      Svc -> DB : UPDATE surveys: DRAFT,\nreason, reviewed_*
+      activate DB
+      deactivate DB
+    end
+    V --> B : 302 queue "Survey\nreturned to the provider."
+    deactivate Svc
+    deactivate V
+  end
+end
+deactivate B
+deactivate A
+@enduml

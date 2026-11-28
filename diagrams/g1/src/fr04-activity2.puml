@@ -1,0 +1,28 @@
+@startuml
+!include style.iuml
+|Provider|
+|Website|
+|Server|
+start
+:Score = 100 minus 40 per failed\ncheck (at most 2), 30 SPEEDING,\n30 SIGNALS_MISSING, 20 DUPLICATE_\nDEVICE, 10 STRAIGHT_LINING; at least 0;
+:Band: CLEAN at 100,\nCHECK 60 to 99, LOW under 60;
+:Count flags, bands and\n"not checked" reasons;
+|Website|
+:Show the quality panel and\nthe list, lowest score first;
+|Provider|
+if (Change inclusion?) then ([yes])
+  :Exclude or include one response,\nexclude all flagged, or include all;
+  |Website|
+  :Confirm the bulk action\nwith its count;
+  |Server|
+  if (Exclude a response\nwithout a score?) then ([yes])
+    :Refuse: it stays\nincluded;
+  else ([no])
+    :Lock the rows; set or clear\nis_excluded and excluded_at;
+  endif
+  |Website|
+  :Charts and export use the included\nresponses; verdicts do not change;
+else ([no])
+endif
+stop
+@enduml

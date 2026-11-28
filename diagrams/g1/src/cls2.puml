@@ -1,0 +1,75 @@
+@startuml
+!include cls-head.iuml
+class Survey {
+  +survey_id : int
+  +title : str
+  +description : str
+  +status : SurveyStatus
+  +created_at, published_at,
+   closed_at, submitted_at,
+   reviewed_at : datetime
+  +reach_at_publish : int
+  +shuffle_questions : bool
+  +shuffle_options : bool
+  +rejection_reason : str
+  +opens_on, closes_on : date
+  +target_responses : int
+  --
+  +submit_for_review()
+  +approve(admin_user)
+  +reject(admin_user, reason)
+  +publish() / pause() / resume() / close()
+  +is_open_on(day) : bool
+  +has_passed_closing(day) : bool
+  +can_edit() / can_delete()
+  +can_accept_responses() : bool
+}
+class TargetingCriteria {
+  +criteria_id : int
+  +gender : Gender
+  +age_min, age_max : int
+  +regions, education_levels,
+   occupations, marital_statuses,
+   interests : list
+  --
+  +is_open_to_all() : bool
+}
+class Question {
+  +question_id : int
+  +question_text : str
+  +question_type : QuestionType
+  +is_required : bool
+  +order_index : int
+  +is_attention_check : bool
+  +expected_rating : int
+  --
+  +is_choice_based() : bool
+  +is_open_text() : bool
+}
+class QuestionOption {
+  +option_id : int
+  +option_text : str
+  +order_index : int
+}
+class User
+enum SurveyStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  PAUSED
+  CLOSED
+}
+enum QuestionType {
+  MULTIPLE_CHOICE
+  RATING_SCALE
+  OPEN_TEXT
+}
+User "1" -- "0..*" Survey : provider
+User "0..1" -- "0..*" Survey : reviewed_by
+Survey "1" *-- "0..1" TargetingCriteria : criteria
+Survey "1" *-- "0..*" Question : questions
+Question "1" *-- "0..*" QuestionOption : options
+Question "0..*" --> "0..1" QuestionOption : expected_option
+Survey ..> SurveyStatus
+Question ..> QuestionType
+@enduml

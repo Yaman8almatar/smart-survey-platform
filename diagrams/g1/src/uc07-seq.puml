@@ -1,0 +1,66 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Browser" as B
+participant "register_service_\nprovider, login_view\n(web views)" as V
+participant "Authentication-\nService, Account-\nEmailService" as Svc
+database "UserRepository\nPostgreSQL" as DB
+activate P
+P -> B : Name, email,\npassword twice
+activate B
+B -> V : POST /users/register/\nservice-provider/
+activate V
+V -> V : RegistrationForm:\npasswords match, valid
+activate V
+deactivate V
+alt form error
+  V --> B : 200 form with\nthe errors
+else form valid
+  V -> Svc : register_service_\nprovider()
+  activate Svc
+  Svc -> Svc : normalise the email,\n_reject_duplicate_email()
+  activate Svc
+  deactivate Svc
+  alt email registered
+    Svc --> V : ValidationError
+    V --> B : 200 "Email is\nalready registered."
+  else new email
+    Svc -> DB : INSERT users (provider,\nactive, not verified)
+    activate DB
+    deactivate DB
+    V -> Svc : send_confirmation()
+    Svc -> Svc : signed link (3 days);\nsend_mail()
+    activate Svc
+    deactivate Svc
+    V --> B : 302 /users/login/\n"Account created..."
+    deactivate Svc
+    deactivate V
+  end
+end
+P -> B : Open the link: confirmed\nas in UC-01 (2 of 4)
+P -> B : Email and password
+B -> V : POST /users/login/
+activate V
+V -> Svc : authenticate_user()
+activate Svc
+Svc -> DB : find_by_email()
+activate DB
+deactivate DB
+alt wrong password, suspended\nor deleted
+  V --> B : 200 log-in page\nwith the message
+else email not confirmed
+  V --> B : 200 "Confirm your email\nfirst" + resend link
+else all checks pass
+  V -> V : django_login()\n(session cookie)
+  deactivate Svc
+  activate V
+  deactivate V
+  V --> B : 302 provider dashboard\n"Logged in successfully."
+  deactivate V
+end
+deactivate B
+deactivate P
+@enduml

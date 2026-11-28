@@ -1,0 +1,73 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Targeting page\n(site.js)" as B
+participant "targeting_criteria,\ntargeting_reach\n(web views)" as V
+participant "TargetingService,\ndisclosure" as Svc
+database "Profile, Targeting\nrepositories\nPostgreSQL" as DB
+activate P
+P -> B : Open Targeting for\na draft survey
+activate B
+B -> V : GET /surveys/{id}/\ntargeting/
+activate V
+V -> Svc : get_criteria_initial()
+activate Svc
+Svc -> DB : find_by_survey_id()
+activate DB
+deactivate DB
+V -> Svc : reach(user, id,\ninitial values)
+Svc -> Svc : _get_owned_draft_\nsurvey()
+activate Svc
+deactivate Svc
+Svc -> DB : count_pool(): active,\ncomplete profiles
+activate DB
+deactivate DB
+alt open to everyone
+  Svc --> V : everyone, total, 100%
+else narrowed
+  Svc -> DB : count_matching(criteria)
+  activate DB
+  deactivate DB
+  Svc -> Svc : band(count): none (0),\nfew (1 to 4, no number),\nexact (5 and more)
+  activate Svc
+  deactivate Svc
+  Svc --> V : state, count, total,\npercent
+  deactivate Svc
+end
+V --> B : 200 form and reach card
+deactivate V
+loop each change, 400 ms after the last one
+  P -> B : Change a criterion
+  B -> V : POST .../targeting/\nreach/ (unsaved values)
+  activate V
+  alt form not valid
+    V --> B : 400 validation_error\nwith the field
+  else valid
+    V -> Svc : reach(): the same\nsteps, nothing saved
+    activate Svc
+    V --> B : 200 JSON state, count,\ntotal, percent
+    deactivate Svc
+    deactivate V
+  end
+  B --> P : Reach ring and\nsentence updated
+end
+P -> B : Save
+B -> V : POST /surveys/{id}/\ntargeting/
+activate V
+V -> Svc : save_criteria()
+activate Svc
+Svc -> Svc : _get_owned_draft_survey(),\nbuild_criteria(): minimum\nage not above maximum
+activate Svc
+deactivate Svc
+Svc -> DB : create_or_update()\nsurvey_targeting_criteria
+activate DB
+deactivate DB
+V --> B : 302 /surveys/ "Targeting\ncriteria saved successfully."
+deactivate Svc
+deactivate V
+deactivate B
+deactivate P
+@enduml

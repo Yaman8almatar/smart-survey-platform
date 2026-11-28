@@ -1,0 +1,58 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "EligibleSurveys-\nScreen (Flutter app)" as App
+participant "EligibleSurveys-\nView (API)" as API
+participant "SurveyService" as Svc
+database "Profile, Survey,\nQuality repositories\nPostgreSQL" as DB
+activate R
+R -> App : Open the app after\nlog-in, or pull to refresh
+activate App
+App -> API : GET /api/v1/surveys/\neligible/
+activate API
+API -> Svc : get_eligible_\nsurvey_items(user)
+activate Svc
+Svc -> Svc : _ensure_respondent()
+activate Svc
+deactivate Svc
+Svc -> DB : find_by_user_id()
+activate DB
+deactivate DB
+alt no profile, or not complete
+  Svc --> API : empty list
+else complete profile
+  Svc -> DB : find_eligible_for_\nrespondent(): PUBLISHED,\ncriteria match, open\ntoday, not answered,\nwith question counts
+  activate DB
+  deactivate DB
+  Svc -> DB : find_valid_active_ms_\nby_survey_ids()
+  activate DB
+  deactivate DB
+  Svc -> Svc : sort by shared\ninterests (stable:\nnewest first on ties)
+  activate Svc
+  deactivate Svc
+  Svc -> Svc : expected_minutes():\nmedian of 20 valid\nresponses, else seconds\nper question type
+  activate Svc
+  deactivate Svc
+  Svc --> API : survey, question_count,\nexpected_minutes,\npublished_on, closes_on
+  deactivate Svc
+end
+API --> App : 200 list in that order
+deactivate API
+alt list empty
+  App --> R : "No surveys match\nyour profile yet."
+else one or more
+  App --> R : Cards: title, N questions,\nAbout N min, Closes date
+end
+loop the respondent types or taps a chip
+  R -> App : Search text; All,\nUnder 5 min, New\nthis week
+  App -> App : filter the cards in\nthe server's order\n(no request)
+  activate App
+  deactivate App
+  App --> R : Filtered cards, or\n"No surveys match\nyour search."
+end
+deactivate App
+deactivate R
+@enduml

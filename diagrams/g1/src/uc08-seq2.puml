@@ -1,0 +1,76 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Browser" as B
+participant "manage_questions,\ndelete_question\n(web views)" as V
+participant "QuestionService" as Svc
+database "Question, Survey\nrepositories\nPostgreSQL" as DB
+activate P
+P -> B : Text, type, required,\nposition, options, attention\ncheck, expected answer
+activate B
+B -> V : POST /surveys/{id}/\nquestions/ (QuestionForm)
+activate V
+V -> Svc : add_question_with_\noptions()
+activate Svc
+Svc -> Svc : _normalize_options();\ncheck made required
+activate Svc
+deactivate Svc
+group transaction.atomic
+  Svc -> Svc : _get_owned_draft_survey(),\n_validate_question_data()
+  activate Svc
+  deactivate Svc
+  Svc -> DB : INSERT questions
+  activate DB
+  deactivate DB
+  Svc -> DB : count_attention_\nchecks(survey_id)
+  activate DB
+  deactivate DB
+  Svc -> Svc : _validate_attention_\ncheck(): choice or\nrating, at most 2,\nexpected answer valid
+  activate Svc
+  deactivate Svc
+  opt multiple choice
+    Svc -> DB : INSERT question_\noptions (order 0..n-1)
+    activate DB
+    deactivate DB
+  end
+  opt attention check
+    Svc -> DB : UPDATE questions SET\nis_attention_check,\nexpected answer
+    activate DB
+    deactivate DB
+  end
+end
+alt a rule is broken
+  Svc --> V : ValidationError: the\nquestion is rolled back
+  V --> B : 200 page with\nthe message
+else stored
+  V --> B : 302 "Question added\nsuccessfully."
+  deactivate Svc
+  deactivate V
+end
+B -> V : GET /surveys/{id}/\nquestions/
+activate V
+V -> Svc : get_survey_question_\nrows()
+activate Svc
+Svc -> DB : find_by_survey_id_\nwith_options()
+activate DB
+deactivate DB
+V --> B : Questions in order;\nattention checks n of 2
+deactivate Svc
+deactivate V
+opt delete a question (draft only)
+  B -> V : POST .../questions/\n{qid}/delete/
+  activate V
+  V -> Svc : delete_question()
+  activate Svc
+  Svc -> DB : DELETE questions
+  activate DB
+  deactivate DB
+  deactivate Svc
+  deactivate V
+end
+deactivate B
+deactivate P
+@enduml

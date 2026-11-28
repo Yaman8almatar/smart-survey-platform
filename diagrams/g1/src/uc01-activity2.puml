@@ -1,0 +1,38 @@
+@startuml
+!include style.iuml
+|Respondent|
+|App or browser|
+|Server|
+|Respondent|
+start
+:Enter email\nand password;
+|App or browser|
+:Send them (app);
+|Server|
+if (Password correct,\naccount active, email\nconfirmed?) then ([yes])
+  :Issue access (30 min) and\nrefresh (7 days) tokens;
+  |App or browser|
+  :Show the survey list;
+  stop
+else ([no])
+  |App or browser|
+  :Show the reason;
+endif
+|Respondent|
+if (Password forgotten?) then ([no])
+  stop
+endif
+:Open "reset password"\non the website,\nenter the email;
+|Server|
+:Email a reset link to an\nactive account, once in\n5 min; same answer for\nevery address;
+|Respondent|
+:Open the link, enter the\nnew password twice;
+|Server|
+if (Link valid, passwords\nmatch the rules?) then ([yes])
+  :Save the password, mark the\nemail confirmed, end every\napp session;
+else ([no])
+endif
+|App or browser|
+:Show "Your password has been\nchanged." or the message;
+stop
+@enduml

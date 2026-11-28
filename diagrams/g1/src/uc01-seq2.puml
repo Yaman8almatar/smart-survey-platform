@@ -1,0 +1,53 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "Browser" as B
+participant "confirm_email,\nresend_confirmation\n(web views)" as V
+participant "AccountEmail-\nService" as Svc
+database "UserRepository\nPostgreSQL" as DB
+activate R
+R -> B : Open the\nemailed link
+activate B
+B -> V : GET /users/confirm-\nemail/{uidb64}/{token}/
+activate V
+V -> Svc : confirm_email()
+activate Svc
+Svc -> DB : find_by_id()
+activate DB
+deactivate DB
+alt token valid: signed, under 3 days,\nemail_verified still false
+  Svc -> DB : UPDATE users SET\nemail_verified true
+  activate DB
+  deactivate DB
+  V --> B : 302 /users/login/
+  B --> R : "Email confirmed.\nYou can now log in."
+else used, expired or changed
+  Svc --> V : ValidationError
+  deactivate Svc
+  V --> B : 302 /users/confirm-\nemail/resend/
+  deactivate V
+  B --> R : "This link is not\nvalid or has expired.\nSend a new one."
+  opt ask for a new link
+    R -> B : Enter the email
+    B -> V : POST /users/confirm-\nemail/resend/
+    activate V
+    V -> Svc : resend_confirmation()
+    activate Svc
+    Svc -> DB : find_by_email()
+    activate DB
+    deactivate DB
+    Svc -> Svc : unconfirmed, active,\n_claim_slot() (once\nin 5 min)? then\nsend_mail()
+    activate Svc
+    deactivate Svc
+    V --> B : 302 /users/login/
+    deactivate Svc
+    deactivate V
+    B --> R : "If an unconfirmed\naccount uses this\nemail, we sent a\nnew link."
+  end
+end
+deactivate B
+deactivate R
+@enduml

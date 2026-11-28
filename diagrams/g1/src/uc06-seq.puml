@@ -1,0 +1,36 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "AnsweredSurveys-\nScreen (Flutter app)" as App
+participant "AnsweredSurveys-\nView (API)" as API
+participant "ResponseService" as Svc
+database "ResponseRepository\nPostgreSQL" as DB
+activate R
+R -> App : Open answered surveys,\nor pull to refresh
+activate App
+App -> API : GET /api/v1/me/\nresponses/
+activate API
+API -> Svc : get_answered_\nsurveys(user)
+activate Svc
+Svc -> Svc : _ensure_respondent_for_\nanswered_surveys()
+activate Svc
+deactivate Svc
+Svc -> DB : find_by_respondent_id():\nresponses JOIN surveys,\nnewest first
+activate DB
+deactivate DB
+Svc --> API : survey_id, title,\ndescription, submitted_at
+deactivate Svc
+API --> App : 200 list
+deactivate API
+alt list empty
+  App --> R : "No answered\nsurveys yet."
+else one or more
+  App --> R : One row per survey,\nnewest first, with\nthe day it was sent
+end
+note over Svc, DB : Index responses_resp_sub_idx\n(respondent_id, submitted_at)
+deactivate App
+deactivate R
+@enduml

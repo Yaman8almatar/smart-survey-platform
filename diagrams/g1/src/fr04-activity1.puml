@@ -1,0 +1,36 @@
+@startuml
+!include style.iuml
+|Provider|
+|Website|
+|Server|
+|Provider|
+start
+:Open the results\nor the response list;
+|Server|
+if (5 or more\nresponses?) then ([yes])
+  :Read every response's\nevidence and answered\nquestion types;
+  :Median time per question, when\n20 or more responses have\ntrusted signals;
+else ([no])
+  |Website|
+  :Show the locked card;
+  stop
+endif
+|Server|
+repeat
+  :Take the next response;
+  if (Evidence stored?) then ([yes])
+    :ATTENTION_FAILED if an\nattention check failed;
+    if (Signals trusted\n(signals_ok)?) then ([yes])
+      :SPEEDING if half of\n3+ timed closed answers\ntook under 2 s, or the\nmean speed factor\nis 2 or more;
+    else ([no])
+      :SIGNALS_MISSING;\nSPEEDING not\nchecked;
+    endif
+    :DUPLICATE_DEVICE if another\nrespondent has the same\ndevice hash;
+    :STRAIGHT_LINING if 5 or more\nratings are all the same;
+  else ([no])
+    :Before checks:\nno flag, no score,\nstays included;
+  endif
+repeat while (More responses?) is ([yes]) not ([no])
+:Go to part 2: score and band;
+stop
+@enduml

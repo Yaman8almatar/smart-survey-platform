@@ -1,0 +1,22 @@
+@startuml
+!include style.iuml
+left to right direction
+skinparam packageStyle rectangle
+actor "Service provider" as P
+actor "Email Service" as Mail <<secondary>>
+rectangle "Smart Survey Platform" {
+  usecase "UC-07 Register as provider\n(with email confirmation)" as UC07
+  usecase "UC-08 Create and edit survey\n(questions, attention checks,\nshuffled order)" as UC08
+  usecase "UC-10 Define targeting\nand preview reach" as UC10
+  usecase "UC-11 Manage survey lifecycle\n(submit, schedule, pause,\nresume, close)" as UC11
+  usecase "UC-12 View analytics\n(quality, sentiment, filters,\nresponses one by one)" as UC12
+  usecase "UC-13 Export results" as UC13
+}
+P -- UC07
+P -- UC08
+P -- UC10
+P -- UC11
+P -- UC12
+P -- UC13
+UC07 -- Mail
+@enduml

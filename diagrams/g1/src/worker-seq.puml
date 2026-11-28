@@ -1,0 +1,65 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+control "run_analysis_\nworker (command)" as W
+participant "AnalysisService" as Svc
+participant "Sentiment analyzer\n(local model or\nHugging Face)" as M
+database "AnalysisRepository\nPostgreSQL" as DB
+activate W
+W -> Svc : process_pending_batch(\nlimit=8)
+activate Svc
+Svc -> DB : claim_batch()
+activate DB
+deactivate DB
+group transaction.atomic
+  DB -> DB : SELECT due PENDING and\nstale RUNNING rows FOR\nUPDATE SKIP LOCKED
+  activate DB
+  deactivate DB
+  DB -> DB : stale with 3 attempts:\nFAILED; others RUNNING,\nlocked_at, attempts + 1
+  activate DB
+  deactivate DB
+end
+DB --> Svc : claimed, expired
+loop each claimed row, no transaction open
+  Svc -> Svc : detect_language(text)
+  activate Svc
+  deactivate Svc
+  alt no letter
+    Svc -> Svc : mark_skipped("no_text")
+    activate Svc
+    deactivate Svc
+  else ar, en or other
+    Svc -> M : analyze_sentiment(text)
+    activate M
+    alt a label and a score
+      M --> Svc : label, score
+      Svc -> Svc : mark_completed(label,\nscore, language, model_id)
+      activate Svc
+      deactivate Svc
+    else AnalysisUnavailable
+      M --> Svc : error
+      Svc -> Svc : attempts < 3:\nschedule_retry(+30 s,\nthen +120 s); else\nmark_failed()
+      activate Svc
+      deactivate Svc
+    else configuration, payment\nor bad output
+      M --> Svc : error
+      deactivate M
+      Svc -> Svc : mark_failed(error_code)
+      activate Svc
+      deactivate Svc
+    end
+  end
+  Svc -> DB : update(result), each\noutcome on its own
+  activate DB
+  deactivate DB
+end
+Svc --> W : expired + claimed
+deactivate Svc
+W -> W : print "Batch of n: completed,\nskipped, failed, retry later";\nsleep 2 s after an empty batch
+activate W
+note over W, M : --check labels three fixed sentences and touches no row\n(the demo rule runs it before every start of the worker)
+deactivate W
+deactivate W
+@enduml

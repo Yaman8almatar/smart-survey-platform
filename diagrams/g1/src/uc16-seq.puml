@@ -1,0 +1,62 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Admin as A
+participant "Browser" as B
+participant "system_reports\n(web view)" as V
+participant "AdminService" as Svc
+database "User, Survey,\nResponse repos.\nPostgreSQL" as DB
+activate A
+A -> B : Open System Reports
+activate B
+B -> V : GET /admin-panel/\nreports/
+activate V
+V -> V : _report_date_range():\nlast 30 days by default
+activate V
+deactivate V
+V -> Svc : generate_system_\nreport(admin, from, to)
+activate Svc
+Svc -> Svc : _ensure_admin(),\n_validate_date_range()
+activate Svc
+deactivate Svc
+Svc -> DB : close_past_end(today)
+activate DB
+deactivate DB
+Svc -> DB : count_by_user_type(),\ncount_by_status()
+activate DB
+deactivate DB
+Svc -> DB : count_submitted_by_\ndate(), count_created_\nby_date() in the range
+activate DB
+deactivate DB
+Svc -> DB : total_responses(),\nfind_most_active(limit=5)
+activate DB
+deactivate DB
+Svc -> Svc : missing categories as 0;\nchart rows; has_..._data\nflags
+activate Svc
+deactivate Svc
+Svc --> V : totals, counts, series,\ntop five surveys
+deactivate Svc
+V --> B : 200 totals and charts\n(empty states where\nno data)
+deactivate V
+opt another range
+  A -> B : From and To dates, Apply
+  B -> V : GET .../reports/\n?date_from=&date_to=
+  activate V
+  alt a date is malformed
+    V --> B : "Enter a valid date range."
+  else From after To
+    V -> Svc : generate_system_\nreport()
+    activate Svc
+    Svc --> V : ValidationError
+    deactivate Svc
+    V --> B : "date_from must be less\nthan or equal to date_to."
+  else valid
+    V --> B : 200 report for the range
+    deactivate V
+  end
+end
+deactivate B
+deactivate A
+@enduml

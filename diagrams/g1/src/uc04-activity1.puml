@@ -1,0 +1,30 @@
+@startuml
+!include style.iuml
+|Respondent|
+|App|
+|Server|
+|Respondent|
+start
+:Open a survey;
+|Server|
+if (Open, eligible,\nnot answered?) then ([yes])
+else ([no])
+  |App|
+  :Show the reason;
+  stop
+endif
+|Server|
+if (Draft saved?) then ([no])
+  :Save the start mark;
+else ([yes])
+  |Respondent|
+  if (Continue?) then ([start over])
+    |Server|
+    :Delete the draft and\nsave the start mark;
+  else ([yes])
+  endif
+endif
+|App|
+:Show the first\nunanswered question;
+stop
+@enduml
