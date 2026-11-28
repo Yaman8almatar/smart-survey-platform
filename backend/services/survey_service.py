@@ -1,8 +1,12 @@
+import secrets
+
+from django.conf import settings
 from django.utils import timezone
 
 from apps.core.models import Survey
 from core.enums import QuestionType, SurveyStatus, UserType
 from core.exceptions import (
+    InvitationNotFound,
     NotEditable,
     SurveyNotFound,
     TargetingCriteriaNotFound,
@@ -26,6 +30,10 @@ class SurveyService:
     # FR-11: results open at 5 responses, so a smaller limit would never show any.
     MIN_TARGET_RESPONSES = 5
     MAX_TARGET_RESPONSES = 10000
+    # FR-10: states in which a survey has an invitation link.
+    SHAREABLE_STATUSES = frozenset(
+        {SurveyStatus.PUBLISHED, SurveyStatus.PAUSED, SurveyStatus.CLOSED}
+    )
 
     def __init__(
         self,
@@ -235,6 +243,43 @@ class SurveyService:
         survey.resume()
         return self.survey_repository.update(survey)
 
+    def get_invitation(self, provider_user, survey_id):
+        """Return the owned survey and its stable invitation link (FR-10).
+
+        The token is made the first time the link is asked for, and only for a survey that
+        is published, paused or closed.
+        """
+        survey = self._get_owned_survey(provider_user, survey_id)
+        if survey.status not in self.SHAREABLE_STATUSES:
+            raise NotEditable("The invitation link is available once the survey is published.")
+
+        if not survey.invite_token:
+            survey.invite_token = self.survey_repository.set_invite_token_if_empty(
+                survey.survey_id, secrets.token_urlsafe(16)
+            )
+        return {
+            "survey": survey,
+            "link": f"{settings.APP_PUBLIC_URL}/?invite={survey.invite_token}",
+        }
+
+    def resolve_invitation(self, respondent_user, token):
+        """Turn an invitation token into a survey id (FR-10).
+
+        Checks only that the token names a shareable survey; every rule about who may answer
+        stays in ResponseService.ensure_can_answer.
+        """
+        self._ensure_respondent(respondent_user)
+
+        survey = self.survey_repository.find_by_invite_token(token)
+        if survey is None or survey.status not in self.SHAREABLE_STATUSES:
+            raise InvitationNotFound("This invitation link is not valid.")
+
+        profile = self.profile_repository.find_by_user_id(respondent_user.user_id)
+        return {
+            "survey_id": survey.survey_id,
+            "profile_complete": profile is not None and profile.is_complete(),
+        }
+
     def list_provider_surveys(self, provider_user):
         """List surveys owned by a service provider."""
         self._ensure_service_provider(provider_user)
@@ -352,4 +397,5 @@ class SurveyService:
             "can_manage_questions": is_draft,
             "can_manage_targeting": is_draft,
             "can_view_analytics": is_published or is_paused or is_closed,
+            "can_share": survey.status in self.SHAREABLE_STATUSES,
         }

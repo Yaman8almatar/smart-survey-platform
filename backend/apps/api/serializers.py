@@ -158,6 +158,13 @@ class SurveyDetailSerializer(serializers.Serializer):
     questions = QuestionSerializer(many=True)
 
 
+class InvitationSerializer(serializers.Serializer):
+    """The survey an invitation token names (FR-10); the app opens it next."""
+
+    survey_id = serializers.IntegerField()
+    profile_complete = serializers.BooleanField()
+
+
 class AnswerSerializer(serializers.Serializer):
     """One submitted answer; type rules per question are checked by ResponseService."""
 

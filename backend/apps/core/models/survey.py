@@ -48,6 +48,8 @@ class Survey(models.Model):
     opens_on = models.DateField(null=True, blank=True)
     closes_on = models.DateField(null=True, blank=True)
     target_responses = models.PositiveIntegerField(null=True, blank=True)
+    # FR-10: random token of the invitation link; set the first time the provider opens Share.
+    invite_token = models.CharField(max_length=32, unique=True, null=True, blank=True)
 
     class Meta:
         db_table = "surveys"

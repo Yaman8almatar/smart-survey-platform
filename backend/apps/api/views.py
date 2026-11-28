@@ -20,6 +20,7 @@ from .serializers import (
     DraftSerializer,
     EligibleSurveySerializer,
     ErrorSerializer,
+    InvitationSerializer,
     LogoutSerializer,
     ProfileOptionsSerializer,
     ProfileSerializer,
@@ -222,6 +223,25 @@ class SurveyDetailView(APIView):
         """Return the response form through QuestionService."""
         form = QuestionService().get_response_form(request.user, survey_id)
         return Response(SurveyDetailSerializer(form).data)
+
+
+class InvitationView(APIView):
+    # No throttle_scope: the token is 128 random bits.
+
+    @extend_schema(
+        tags=SURVEY_TAG,
+        responses={
+            200: InvitationSerializer,
+            401: ErrorSerializer,
+            403: ErrorSerializer,
+            404: ErrorSerializer,
+        },
+        summary="Turn an invitation token into a survey id",
+    )
+    def get(self, request, token):
+        """Resolve the invitation token through SurveyService (FR-10)."""
+        invitation = SurveyService().resolve_invitation(request.user, token)
+        return Response(InvitationSerializer(invitation).data)
 
 
 SUBMIT_REQUEST_EXAMPLE = OpenApiExample(

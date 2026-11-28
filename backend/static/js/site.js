@@ -11,6 +11,7 @@
         initSystemReportChart();
         initReachCard();
         initSurveyResponsesOverTimeChart();
+        initShareCopy();
     });
 
     function runWhenReady(callback) {
@@ -530,6 +531,47 @@
         function fieldValue(name) {
             var input = form.querySelector("input[name='" + name + "']");
             return input ? input.value.trim() : "";
+        }
+    }
+
+    /*
+     * FR-10 share page (W-10). The page holds both button labels (data attributes); the
+     * "copied" label shows only after the clipboard accepted the link.
+     */
+    function initShareCopy() {
+        var root = document.querySelector("[data-share-copy]");
+        if (!root) {
+            return;
+        }
+        var field = root.querySelector("[data-share-link]");
+        var button = root.querySelector("[data-share-copy-button]");
+        var label = root.querySelector("[data-share-copy-label]");
+        var failed = root.querySelector("[data-share-copy-failed]");
+        if (!field || !button || !label || !failed) {
+            return;
+        }
+        var RESET_MS = 3000;
+        var timer = null;
+
+        button.addEventListener("click", function () {
+            failed.hidden = true;
+            if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+                showFailed();
+                return;
+            }
+            navigator.clipboard.writeText(field.value).then(function () {
+                label.textContent = button.getAttribute("data-label-copied");
+                window.clearTimeout(timer);
+                timer = window.setTimeout(function () {
+                    label.textContent = button.getAttribute("data-label-copy");
+                }, RESET_MS);
+            }, showFailed);
+        });
+
+        function showFailed() {
+            field.focus();
+            field.select();
+            failed.hidden = false;
         }
     }
 

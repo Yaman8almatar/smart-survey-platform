@@ -22,6 +22,10 @@ class SurveyNotFound(SmartSurveyException):
     """Raised when a survey cannot be found."""
 
 
+class InvitationNotFound(SmartSurveyException):
+    """Raised when an invitation token matches no survey that can be shared."""
+
+
 class NotEditable(SmartSurveyException):
     """Raised when an entity cannot be edited in its current state."""
 

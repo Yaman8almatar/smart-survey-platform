@@ -21,6 +21,26 @@ class SurveyRepository:
         """Return a survey with its row locked; call only inside transaction.atomic()."""
         return Survey.objects.select_for_update().filter(survey_id=survey_id).first()
 
+    def find_by_invite_token(self, token):
+        """Return the survey whose invitation token is token (FR-10), or None."""
+        if not token or len(token) > 32:
+            return None
+        return Survey.objects.filter(invite_token=token).first()
+
+    def set_invite_token_if_empty(self, survey_id, token):
+        """Store token only when the survey has none; return the token stored on the row.
+
+        One conditional UPDATE, so two first opens at the same moment end with one token.
+        """
+        Survey.objects.filter(survey_id=survey_id, invite_token__isnull=True).update(
+            invite_token=token
+        )
+        return (
+            Survey.objects.filter(survey_id=survey_id)
+            .values_list("invite_token", flat=True)
+            .first()
+        )
+
     def find_pending_review(self):
         """Return surveys waiting for review, oldest submission first, with question counts."""
         return (
