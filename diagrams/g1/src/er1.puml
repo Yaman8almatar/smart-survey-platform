@@ -1,0 +1,46 @@
+@startuml
+!include er-head.iuml
+entity users {
+  * user_id : bigint <<PK>>
+  --
+  * email : varchar(254) <<UK>>
+  * name : varchar(255)
+  * password : varchar(128)
+  * user_type : varchar(32)
+  * account_status : varchar(32)
+  * is_active : boolean
+  * email_verified : boolean = true
+  * created_at : timestamptz
+  (Django auth columns: last_login,
+  is_superuser, is_staff, first_name,
+  last_name, date_joined)
+}
+entity respondent_profiles {
+  * profile_id : bigint <<PK>>
+  --
+  * user_id : bigint <<FK, UK>>
+  * age : integer (>= 0)
+  * gender : varchar(16)
+  * region : varchar(32)
+  * interests : varchar(32)[]
+  * education : varchar(32)
+  * occupation : varchar(32)
+  * marital_status : varchar(32)
+  * updated_at : timestamptz
+}
+entity surveys <<view 2>> {
+  * survey_id : bigint <<PK>>
+  --
+  * provider_id : bigint <<FK>>
+  reviewed_by_id : bigint <<FK>>
+}
+entity responses <<view 3>> {
+  * response_id : bigint <<PK>>
+  --
+  * respondent_id : bigint <<FK>>
+}
+users ||..o| respondent_profiles : user_id
+users ||..o{ surveys : provider_id
+users |o..o{ surveys : reviewed_by_id
+users ||..o{ responses : respondent_id
+@enduml

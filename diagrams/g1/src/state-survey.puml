@@ -1,0 +1,22 @@
+@startuml
+!include style.iuml
+skinparam StateBackgroundColor #F5F7FA
+skinparam StateBorderColor #555555
+[*] --> DRAFT : create_survey
+DRAFT --> PENDING_REVIEW : submit_for_review\n[complete, targeting saved]
+PENDING_REVIEW --> PUBLISHED : approve\n[closing date not passed]
+PENDING_REVIEW --> DRAFT : reject(reason)
+state PUBLISHED {
+  [*] --> NotOpenYet : [opens_on after today]
+  [*] --> Open : [no opens_on, or reached]
+  NotOpenYet --> Open : opens_on reached
+}
+PUBLISHED --> PAUSED : pause
+PAUSED --> PUBLISHED : resume
+PUBLISHED --> CLOSED : close; closing date passed;\nresponse limit reached
+PAUSED --> CLOSED : close; closing\ndate passed
+DRAFT --> [*] : delete [no responses]
+CLOSED --> [*] : delete [no responses]
+note right of DRAFT : The only editable state.\nA rejected survey returns\nhere with its reason.
+note right of PENDING_REVIEW : Locked for the provider;\nthe admin's decision\nlocks the row.
+@enduml

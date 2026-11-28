@@ -1,0 +1,33 @@
+@startuml
+!include style.iuml
+skinparam rectangleBackgroundColor #F5F7FA
+skinparam usecaseBackgroundColor #FFFFFF
+rectangle "Respondent" as R
+usecase "1 Store the\nresponse" as P1
+usecase "2 Queue the\nopen answers" as P2
+database "D1 responses\nand answers" as D1
+database "D2 sentiment_\nanalysis_results" as D2
+usecase "3 Claim a\nbatch" as P3
+usecase "4 Detect the\nlanguage" as P4
+database "D3 model files\nand manifest" as D3
+usecase "5 Label\nthe text" as P5
+usecase "6 Store the\noutcome" as P6
+usecase "7 Summarise for\nthe provider" as P7
+rectangle "Provider" as P
+R --> P1 : answers, timings,\ndevice id
+P1 --> D1 : response, snapshot,\nanswers
+P1 --> P2 : saved open answers
+P2 --> D2 : PENDING rows
+D2 --> P3 : due rows
+P3 --> D2 : RUNNING,\nattempts + 1
+P3 --> P4 : answer text
+P4 --> P5 : text, ar / en / other
+P4 --> P6 : no letter:\nno_text
+D3 --> P5 : weights,\nSHA-256 checked
+P5 --> P6 : label and score,\nor error code
+P6 --> D2 : COMPLETED, SKIPPED,\nPENDING or FAILED
+D1 --> P7 : included responses,\nsnapshots
+D2 --> P7 : labels, statuses
+P --> P7 : group or filter
+P7 --> P : counts per question and\ngroup; locked under 5
+@enduml

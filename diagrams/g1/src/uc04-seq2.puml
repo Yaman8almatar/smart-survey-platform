@@ -1,0 +1,56 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "SurveyAnswerScreen\n(Flutter app)" as App
+participant "DraftView\n(API)" as API
+participant "ResponseService,\nQualityService" as Svc
+database "DraftRepository\nPostgreSQL" as DB
+activate R
+activate App
+App -> App : ActiveTimeTracker\n.show(question)
+activate App
+deactivate App
+loop each move: Next, Skip or Back
+  R -> App : Answer and move
+  alt required and empty (Next)
+    App --> R : Ask for an answer,\nstay on the question
+  else answered, or optional
+    App -> App : show(next question),\nsnapshot() timings
+    activate App
+    deactivate App
+    opt answers or timings changed
+      App -> API : PUT /api/v1/surveys/\n{id}/draft/ answers,\ntimings (full replace)
+      activate API
+      API -> Svc : save_draft()
+      activate Svc
+      Svc -> Svc : ensure_can_answer(),\ncheck each answer,\nclean_timings()
+      activate Svc
+      deactivate Svc
+      Svc -> DB : UPDATE response_drafts
+      activate DB
+      deactivate DB
+      API --> App : 200 draft
+      deactivate Svc
+      deactivate API
+    end
+  end
+end
+opt leave before sending
+  R -> App : Leave survey
+  App -> App : hide()
+  activate App
+  deactivate App
+  App -> API : PUT .../draft/ with\nthe last values
+  activate API
+  API --> App : 200 draft
+  deactivate API
+  App --> R : Start screen; resume\nlater with Continue
+end
+App --> R : Review page, then\nSend (part 3)
+note over App : Active time counts only while\na question is shown and the\napp is in the foreground
+deactivate App
+deactivate R
+@enduml

@@ -1,0 +1,49 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "LoginScreen\n(Flutter app)" as App
+participant "TokenView\n(API)" as API
+participant "Authentication-\nService" as Svc
+database "UserRepository\nPostgreSQL" as DB
+activate R
+R -> App : Email and password
+activate App
+App -> API : POST /api/v1/\nauth/token/
+activate API
+API -> Svc : authenticate_user()
+activate Svc
+Svc -> DB : find_by_email()
+activate DB
+deactivate DB
+alt no account, or wrong password
+  Svc --> API : InvalidCredentials
+  API --> App : 401 invalid_credentials
+  App --> R : "Email or password\nis incorrect."
+else suspended or deleted
+  Svc --> API : InvalidCredentials
+  API --> App : 401 "Account is\nsuspended or deleted."
+  App --> R : The message
+else email not confirmed
+  Svc --> API : EmailNotConfirmed
+  API --> App : 403 email_not_\nconfirmed
+  App --> R : "Confirm your email\naddress first..."
+else all checks pass
+  Svc --> API : user
+  deactivate Svc
+  API -> API : RefreshToken\n.for_user(user)
+  activate API
+  deactivate API
+  API --> App : 200 access (30 min),\nrefresh (7 days)
+  deactivate API
+  App -> App : TokenStore\nkeeps the pair
+  activate App
+  deactivate App
+  App --> R : Survey list (UC-03)
+end
+note over App, Svc : Throttle auth_token: 10 a minute, then 429.\nThe password is checked first, so only the\nowner learns the address is unconfirmed.
+deactivate App
+deactivate R
+@enduml

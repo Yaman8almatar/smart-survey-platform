@@ -1,0 +1,62 @@
+@startuml
+!include cls-head.iuml
+class User {
+  +user_id : int
+  +name : str
+  +email : str
+  +user_type : UserType
+  +account_status : AccountStatus
+  +is_active : bool
+  +email_verified : bool
+  +created_at : datetime
+  --
+  +activate()
+  +suspend()
+  +mark_deleted()
+}
+class RespondentProfile {
+  +profile_id : int
+  +age : int
+  +gender : Gender
+  +region : Governorate
+  +interests : list<Interest>
+  +education : Education
+  +occupation : Occupation
+  +marital_status : MaritalStatus
+  +updated_at : datetime
+  --
+  +clean()
+  +update_profile(age, gender, region,\n  interests, education, occupation,\n  marital_status)
+  +is_complete() : bool
+  +completion_percent() : int
+}
+enum UserType {
+  SERVICE_PROVIDER
+  RESPONDENT
+  ADMIN
+}
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+enum Gender {
+  MALE
+  FEMALE
+  ANY
+}
+enum "Governorate (15), Interest (12),\nEducation (7), Occupation (9),\nMaritalStatus (5)" as Lists {
+  codes in core/enums.py
+}
+User "1" *-- "0..1" RespondentProfile : respondent_profile
+User ..> UserType
+User ..> AccountStatus
+RespondentProfile ..> Gender
+RespondentProfile ..> Lists
+note bottom of RespondentProfile
+  is_complete: age, gender, region
+  and one interest set.
+  completion_percent: share of the
+  7 details filled, rounded.
+end note
+@enduml

@@ -1,5 +1,11 @@
 # Diagrams
 
+## Graduation 1 report figures
+
+The figures of the Graduation 1 report are in [g1/](g1/README.md): 47 PlantUML sources with their PNGs and three
+charts, drawn from develop d127aa7. The Mermaid files below are the earlier drafts of TASK-46, TASK-59 and TASK-60;
+where the two differ, the report follows g1/.
+
 Iteration 0 outputs (Agile Modeling: initial requirements and architecture envisioning), 2026-10-30, are PNG exports.
 Increment 1 diagrams (2026-11-13, TASK-25) are Mermaid sources in Markdown files, which GitHub renders (D-141).
 Each source file starts with a Basis block and ends with a legend table.

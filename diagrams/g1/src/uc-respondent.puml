@@ -1,0 +1,22 @@
+@startuml
+!include style.iuml
+left to right direction
+skinparam packageStyle rectangle
+actor Respondent
+actor "Email Service" as Mail <<secondary>>
+actor "Analysis worker" as Worker <<system>>
+rectangle "Smart Survey Platform" {
+  usecase "UC-01 Register as respondent\n(with email confirmation)" as UC01
+  usecase "UC-02 Manage demographic\nprofile" as UC02
+  usecase "UC-03 Browse matching\nsurveys" as UC03
+  usecase "UC-04 Answer survey\n(draft and resume)" as UC04
+  usecase "UC-06 View answered\nsurveys" as UC06
+}
+Respondent -- UC01
+Respondent -- UC02
+Respondent -- UC03
+Respondent -- UC04
+Respondent -- UC06
+UC01 -- Mail
+UC04 -- Worker
+@enduml

@@ -1,0 +1,6 @@
+!include style.iuml
+hide circle
+skinparam ClassBackgroundColor #F5F7FA
+skinparam ClassBorderColor #555555
+skinparam ClassAttributeFontSize 10
+skinparam ClassAttributeIconSize 0

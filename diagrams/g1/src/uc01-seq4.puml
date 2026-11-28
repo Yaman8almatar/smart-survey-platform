@@ -1,0 +1,62 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Respondent\nor provider" as R
+participant "Browser" as B
+participant "password_reset,\npassword_reset_\nconfirm (web views)" as V
+participant "AccountEmail-\nService" as Svc
+database "UserRepository\nPostgreSQL" as DB
+activate R
+R -> B : Open the reset page\n(the app's log-in\nscreen shows it)
+activate B
+B -> V : POST /users/\npassword-reset/
+activate V
+V -> Svc : send_password_reset()
+activate Svc
+Svc -> DB : find_by_email()
+activate DB
+deactivate DB
+Svc -> Svc : active, usable\npassword, _claim_slot()\n(once in 5 min)? then\nsend_mail()
+activate Svc
+deactivate Svc
+V --> B : 302 /users/login/,\nthe same message\nfor every address
+deactivate Svc
+deactivate V
+R -> B : Open the\nemailed link
+B -> V : GET /users/password-\nreset/{uidb64}/{token}/
+activate V
+V -> Svc : check_password_\nreset_link()
+activate Svc
+alt link used, expired or the\npassword changed since
+  V --> B : 302 /users/\npassword-reset/
+  B --> R : "This link is not\nvalid or has expired.\nAsk for a new one."
+else link valid
+  V --> B : 200 new-password\nform
+  deactivate Svc
+  deactivate V
+  R -> B : New password twice
+  B -> V : POST new_password1,\nnew_password2
+  activate V
+  V -> Svc : reset_password()
+  activate Svc
+  Svc -> Svc : link again, passwords\nmatch, validate_\npassword()
+  activate Svc
+  deactivate Svc
+  group transaction.atomic
+    Svc -> DB : UPDATE users:\npassword, email_\nverified true
+    activate DB
+    deactivate DB
+    Svc -> DB : blacklist_refresh_\ntokens(user)
+    activate DB
+    deactivate DB
+  end
+  V --> B : 302 /users/login/
+  deactivate Svc
+  deactivate V
+  B --> R : "Your password has\nbeen changed. You\ncan now log in."
+end
+deactivate B
+deactivate R
+@enduml

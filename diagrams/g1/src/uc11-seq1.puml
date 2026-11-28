@@ -1,0 +1,52 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Browser" as B
+participant "submit_for_review\n(web view)" as V
+participant "SurveyService,\nTargetingService" as Svc
+database "Survey, Question,\nTargeting repositories\nPostgreSQL" as DB
+activate P
+P -> B : Submit for review\non a draft
+activate B
+B -> V : GET /surveys/{id}/\nsubmit/
+activate V
+V -> Svc : get_publish_preview()
+activate Svc
+Svc -> Svc : _get_publishable_survey():\nowner, DRAFT, closing\ndate not past
+activate Svc
+deactivate Svc
+Svc -> DB : questions, option counts,\ntargeting criteria
+activate DB
+deactivate DB
+alt no question; a choice question with\nunder 2 options; an attention check\nwithout its answer; no targeting
+  Svc --> V : ValidationError or\nTargetingCriteriaNotFound
+  V --> B : 302 /surveys/ with\nthe message
+else all checks pass
+  Svc -> Svc : describe_reach(criteria):\nbanded count (P-19)
+  activate Svc
+  deactivate Svc
+  V --> B : 200 confirmation: reach,\nwho can answer, opening\nand closing dates, limit,\nquestion count
+  deactivate Svc
+  deactivate V
+  P -> B : Confirm
+  B -> V : POST /surveys/{id}/\nsubmit/
+  activate V
+  V -> Svc : submit_for_review()
+  activate Svc
+  Svc -> Svc : _get_publishable_survey()\nagain
+  activate Svc
+  deactivate Svc
+  Svc -> DB : UPDATE surveys:\nPENDING_REVIEW,\nsubmitted_at; last review\ncleared
+  activate DB
+  deactivate DB
+  V --> B : 302 /surveys/ "Survey\nsubmitted for review."
+  deactivate Svc
+  deactivate V
+end
+note over V, DB : The admin approves or rejects in UC-14;\nthe reach is counted again at approval
+deactivate B
+deactivate P
+@enduml

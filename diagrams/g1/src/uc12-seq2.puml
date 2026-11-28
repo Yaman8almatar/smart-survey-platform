@@ -1,0 +1,64 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Response pages" as B
+participant "response_list,\nresponse_detail,\nresponse_inclusion" as V
+participant "ResponseReview-\nService, Quality-\nService" as Svc
+database "Response, Analysis\nrepositories\nPostgreSQL" as DB
+activate P
+P -> B : Open Responses\n(show, order, page)
+activate B
+B -> V : GET .../responses/?show=\n&order=&page=
+activate V
+V -> Svc : list_responses()
+activate Svc
+Svc -> Svc : evaluate_survey();\nnumber by submit time
+activate Svc
+deactivate Svc
+Svc -> DB : sentiment statuses\nper response
+activate DB
+deactivate DB
+V --> B : 25 rows: number, date,\nscore, band, flags, open\nanswers, included or not
+deactivate Svc
+deactivate V
+P -> B : Open response {number}
+B -> V : GET .../responses/\n{number}/
+activate V
+V -> Svc : get_response(user,\nid, number)
+activate Svc
+alt locked, or number outside 1 to total
+  V --> B : locked card, or 302 to\nthe list with the error
+else valid
+  Svc -> DB : answers with options,\nsentiment results
+  activate DB
+  deactivate DB
+  V --> B : number, date, active time,\nverdict, answers, labels;\nprevious and next
+  deactivate Svc
+  deactivate V
+end
+P -> B : Exclude (or Include)
+B -> V : POST .../responses/\n{number}/inclusion/
+activate V
+V -> Svc : set_response_inclusion(\nuser, id, number, True)
+activate Svc
+Svc -> Svc : owner, results open;\nno score: no exclusion
+activate Svc
+deactivate Svc
+group transaction.atomic
+  Svc -> DB : lock_exclusion_states()\nSELECT FOR UPDATE
+  activate DB
+  deactivate DB
+  Svc -> DB : set_excluded():\nUPDATE is_excluded
+  activate DB
+  deactivate DB
+end
+V --> B : 302 "Response {n} is excluded.\nYou can include it again\nat any time."
+deactivate Svc
+deactivate V
+note over B, V : Never a name, email, id or time of day (FR-09)
+deactivate B
+deactivate P
+@enduml

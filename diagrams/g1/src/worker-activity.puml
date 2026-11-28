@@ -1,0 +1,31 @@
+@startuml
+!include style.iuml
+|Submit (server)|
+|Analysis worker|
+|Sentiment model|
+|Submit (server)|
+start
+:Store the response\n(UC-04);
+:One PENDING row per\nopen answer with text;
+|Analysis worker|
+repeat
+  :Claim up to 8 due rows\n(SKIP LOCKED): RUNNING,\nattempts + 1;
+  :Detect the language\nof each answer;
+  if (Any letter?) then ([no])
+    :SKIPPED\n(no_text);
+  else ([yes])
+    |Sentiment model|
+    :Label and score\n(local model\nby default);
+    |Analysis worker|
+    if (Label\nreturned?) then ([yes])
+      :COMPLETED:\nlabel, score,\nlanguage, model;
+    (no) elseif (Unavailable and\nattempts < 3?) then ([yes])
+      :PENDING:\nretry in 30 s,\nthen 120 s;
+    else ([no])
+      :FAILED with\nthe error code;
+    endif
+  endif
+  :Store each outcome on its\nown; wait 2 s when the\nbatch was empty;
+repeat while (Worker running?) is ([yes]) not ([stopped])
+stop
+@enduml

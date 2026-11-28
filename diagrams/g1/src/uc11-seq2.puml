@@ -1,0 +1,76 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Browser" as B
+participant "survey_list,\npause_, resume_,\nclose_survey (web views)" as V
+participant "SurveyService" as Svc
+database "SurveyRepository\nPostgreSQL" as DB
+activate P
+P -> B : Open My Surveys
+activate B
+B -> V : GET /surveys/
+activate V
+V -> Svc : list_provider_survey_\nitems(user)
+activate Svc
+Svc -> DB : close_past_end(today):\nPUBLISHED or PAUSED\nwith closes_on < today\nbecome CLOSED
+activate DB
+deactivate DB
+Svc -> DB : find_by_provider_id()
+activate DB
+deactivate DB
+Svc -> Svc : _survey_action_flags():\ncan_pause, can_resume,\ncan_close ...
+activate Svc
+deactivate Svc
+V --> B : 200 list with the\nallowed buttons
+deactivate Svc
+deactivate V
+alt Pause
+  B -> V : POST /surveys/{id}/\npause/
+  activate V
+  V -> Svc : pause_survey()
+  activate Svc
+  Svc -> Svc : owner; PUBLISHED?
+  activate Svc
+  deactivate Svc
+  Svc -> DB : UPDATE surveys SET\nstatus PAUSED
+  activate DB
+  deactivate DB
+  V --> B : 302 "Survey paused."
+  deactivate Svc
+  deactivate V
+else Resume
+  B -> V : POST /surveys/{id}/\nresume/
+  activate V
+  V -> Svc : resume_survey()
+  activate Svc
+  Svc -> Svc : owner; PAUSED?
+  activate Svc
+  deactivate Svc
+  Svc -> DB : UPDATE surveys SET\nstatus PUBLISHED
+  activate DB
+  deactivate DB
+  V --> B : 302 "Survey resumed."
+  deactivate Svc
+  deactivate V
+else Close
+  B -> V : POST /surveys/{id}/\nclose/
+  activate V
+  V -> Svc : close_survey()
+  activate Svc
+  Svc -> Svc : owner; PUBLISHED\nor PAUSED?
+  activate Svc
+  deactivate Svc
+  Svc -> DB : UPDATE surveys SET\nstatus CLOSED, closed_at
+  activate DB
+  deactivate DB
+  V --> B : 302 "Survey closed\nsuccessfully."
+  deactivate Svc
+  deactivate V
+end
+note over V, DB : A state that does not allow the action gives\nNotEditable and its message. The response that\nreaches the limit closes the survey (UC-04, 3 of 3).
+deactivate B
+deactivate P
+@enduml
