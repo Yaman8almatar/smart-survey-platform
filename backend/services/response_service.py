@@ -1,10 +1,8 @@
-import logging
-
-from django.conf import settings
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from apps.core.models import Answer, Response, ResponseDraft
-from core.enums import QuestionType, UserType
+from core.enums import QuestionType, SurveyStatus, UserType
 from core.exceptions import (
     DraftNotFound,
     DuplicateResponse,
@@ -15,17 +13,17 @@ from core.exceptions import (
     ValidationError,
 )
 from repositories.draft_repository import DraftRepository
+from repositories.profile_repository import ProfileRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
 from repositories.survey_repository import SurveyRepository
 from services.analysis_service import AnalysisService
+from services.quality_service import QualityService
 from services.targeting_service import TargetingService
-
-logger = logging.getLogger(__name__)
 
 
 class ResponseService:
-    """Handles Response submission, answer validation, and analysis triggering."""
+    """Handles Response submission, answer validation, and analysis queueing."""
 
     MIN_RATING = 1
     MAX_RATING = 5
@@ -39,6 +37,8 @@ class ResponseService:
         targeting_service=None,
         analysis_service=None,
         draft_repository=None,
+        profile_repository=None,
+        quality_service=None,
     ):
         """Wire repositories and services used by response submission workflows."""
         self.survey_repository = survey_repository or SurveyRepository()
@@ -47,6 +47,8 @@ class ResponseService:
         self.targeting_service = targeting_service or TargetingService()
         self.analysis_service = analysis_service or AnalysisService()
         self.draft_repository = draft_repository or DraftRepository()
+        self.profile_repository = profile_repository or ProfileRepository()
+        self.quality_service = quality_service or QualityService()
 
     def ensure_can_answer(self, respondent_user, survey_id):
         """Return the survey if this respondent may still answer it."""
@@ -56,8 +58,7 @@ class ResponseService:
         if survey is None:
             raise SurveyNotFound("Survey not found.")
 
-        if not survey.can_accept_responses():
-            raise NotEditable("Responses are allowed only for published surveys.")
+        self._ensure_open(survey)
 
         if not self.targeting_service.match_respondent_to_survey(
             respondent_user,
@@ -71,8 +72,27 @@ class ResponseService:
 
         return survey
 
-    def submit_response(self, respondent_user, survey_id, answers):
-        """Validate and store a respondent survey submission with its answers."""
+    def _ensure_open(self, survey):
+        """Raise the reason a survey takes no response today: its state or its schedule (FR-11)."""
+        if survey.status == SurveyStatus.PAUSED:
+            raise NotEditable("This survey is paused.")
+        if survey.status == SurveyStatus.CLOSED:
+            raise NotEditable("This survey has closed.")
+        if not survey.can_accept_responses():
+            raise NotEditable("Responses are allowed only for published surveys.")
+
+        today = timezone.localdate()
+        if survey.opens_on is not None and survey.opens_on > today:
+            raise NotEditable("This survey is not open yet.")
+        if survey.has_passed_closing(today):
+            raise NotEditable("This survey has closed.")
+
+    def submit_response(self, respondent_user, survey_id, answers, timings=None, device_id=None):
+        """Validate and store a respondent survey submission with its answers and evidence.
+
+        timings and device_id are optional FR-04 evidence: a malformed value is rejected, a
+        missing one is not (DESIGN-INC2 2.4).
+        """
         survey = self.ensure_can_answer(respondent_user, survey_id)
 
         questions = list(self.question_repository.find_by_survey_id(survey_id))
@@ -81,19 +101,38 @@ class ResponseService:
 
         self._validate_required_answers(questions, answer_map)
         self._validate_all_answer_data(question_map, answer_map)
+        if timings is not None:
+            timings = self.quality_service.clean_timings(timings, question_map.keys())
+        device_id = self.quality_service.clean_device_id(device_id)
 
         try:
             with transaction.atomic():
-                # Response and answers are stored together or not at all.
-                draft = self.draft_repository.find(survey_id, respondent_user.user_id)
-                response = self.response_repository.save(
-                    Response(
-                        survey=survey,
-                        respondent=respondent_user,
-                        started_at=draft.started_at if draft else None,
+                # D-046 rule 6: the lock makes the state check and the limit count hold until
+                # commit, so two parallel submits cannot both take the last place.
+                survey = self.survey_repository.find_by_id_for_update(survey_id)
+                if survey is None:
+                    raise SurveyNotFound("Survey not found.")
+                self._ensure_open(survey)
+                submitted_count = None
+                if survey.target_responses is not None:
+                    # P-08: every submitted response counts, excluded ones too.
+                    submitted_count = self.response_repository.count_submitted_for_survey(
+                        survey_id
                     )
-                )
+                    if submitted_count >= survey.target_responses:
+                        raise NotEditable("This survey has closed.")
 
+                # Response, answers, evidence and snapshot are stored together or not at all.
+                draft = self.draft_repository.find(survey_id, respondent_user.user_id)
+                response = Response(
+                    survey=survey,
+                    respondent=respondent_user,
+                    started_at=draft.started_at if draft else None,
+                )
+                self._copy_profile_snapshot(response, respondent_user)
+                response = self.response_repository.save(response)
+
+                saved_answers = []
                 for answer_data in answer_map.values():
                     question = question_map.get(answer_data.get("question_id"))
                     if question is None:
@@ -102,16 +141,31 @@ class ResponseService:
                     answer = self._build_answer(response, question, answer_data)
                     if answer is not None:
                         self.response_repository.save_answer(answer)
+                        saved_answers.append(answer)
 
+                # The submit's own timings win; otherwise the app's last draft save counts.
+                if timings is None:
+                    timings = draft.timings if draft else []
+                self.quality_service.capture(
+                    response,
+                    questions,
+                    saved_answers,
+                    timings,
+                    device_id,
+                    draft.started_at if draft else None,
+                )
+
+                # PENDING rows commit with the answers; the analysis worker reads them later.
+                self.analysis_service.queue_open_text_answers(saved_answers)
                 self.draft_repository.delete(survey_id, respondent_user.user_id)
 
-                if response.has_open_text_answers():
-                    # Sentiment analysis runs only after the submission is committed.
-                    response_id = response.response_id
-                    transaction.on_commit(
-                        lambda: self._dispatch_sentiment_analysis(response_id),
-                        robust=True,
-                    )
+                # FR-11: the response that reaches the limit closes the survey.
+                if (
+                    submitted_count is not None
+                    and submitted_count + 1 >= survey.target_responses
+                ):
+                    survey.close()
+                    self.survey_repository.update(survey)
         except IntegrityError as exc:
             # A parallel submit can pass the pre-check; only this constraint means a duplicate.
             if "unique_response_per_survey_respondent" in str(exc):
@@ -129,8 +183,11 @@ class ResponseService:
             raise DraftNotFound("No draft for this survey.")
         return draft
 
-    def save_draft(self, user, survey_id, answers):
-        """Replace the respondent's unsent answers; no question is required yet."""
+    def save_draft(self, user, survey_id, answers, timings=None):
+        """Replace the respondent's unsent answers; no question is required yet.
+
+        Sent timings replace the stored ones (the app sends cumulative values); None keeps them.
+        """
         survey = self.ensure_can_answer(user, survey_id)
 
         question_map = {
@@ -143,12 +200,16 @@ class ResponseService:
             if question is None:
                 raise QuestionNotFound("Question does not belong to this survey.")
             self._validate_answer_data(question, answer_data, required=False)
+        if timings is not None:
+            timings = self.quality_service.clean_timings(timings, question_map.keys())
 
         stored_answers = [self._stored_draft_answer(item) for item in answer_map.values()]
         draft = self.draft_repository.find(survey_id, user.user_id)
         if draft is None:
             draft = ResponseDraft(survey=survey, respondent=user)
         draft.answers = stored_answers
+        if timings is not None:
+            draft.timings = timings
 
         try:
             with transaction.atomic():
@@ -160,12 +221,27 @@ class ResponseService:
 
         draft = self.draft_repository.find(survey_id, user.user_id)
         draft.answers = stored_answers
+        if timings is not None:
+            draft.timings = timings
         return self.draft_repository.save(draft)
 
     def delete_draft(self, user, survey_id):
         """Delete the respondent's draft for a survey; no error when there is none."""
         self.ensure_can_answer(user, survey_id)
         self.draft_repository.delete(survey_id, user.user_id)
+
+    def _copy_profile_snapshot(self, response, respondent_user):
+        """Copy the respondent's profile into the response as it is at submit (P-08)."""
+        profile = self.profile_repository.find_by_user_id(respondent_user.user_id)
+        if profile is None:
+            return
+        response.snap_age = profile.age
+        response.snap_gender = profile.gender
+        response.snap_region = profile.region
+        response.snap_education = profile.education
+        response.snap_occupation = profile.occupation
+        response.snap_marital_status = profile.marital_status
+        response.snap_interests = list(profile.interests)
 
     def _stored_draft_answer(self, answer_data):
         """Keep question_id and only the answer fields that have a value."""
@@ -174,22 +250,6 @@ class ResponseService:
             if answer_data.get(key) is not None:
                 stored[key] = answer_data[key]
         return stored
-
-    def _dispatch_sentiment_analysis(self, response_id):
-        """Dispatch sentiment analysis asynchronously via Celery or fallback synchronously."""
-        if settings.CELERY_ENABLED:
-            try:
-                from apps.core.tasks import analyze_open_text_answers_task
-
-                analyze_open_text_answers_task.delay(response_id)
-                return
-            except Exception:
-                logger.exception(
-                    "Celery dispatch failed for response_id=%s; running analysis directly.",
-                    response_id,
-                )
-
-        self.analysis_service.analyze_open_text_answers(response_id)
 
     def validate_duplicate_response(self, respondent_user, survey_id):
         """Prevent a respondent from submitting more than one response to the same survey."""

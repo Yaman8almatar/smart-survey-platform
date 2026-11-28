@@ -289,7 +289,7 @@ pip install -r backend\requirements.txt
 copy backend\.env.example backend\.env
 ```
 
-Edit `backend\.env` and set `SECRET_KEY` and `HF_API_TOKEN`. The database values already match
+Edit `backend\.env` and set `SECRET_KEY`. The database values already match
 `docker-compose.yml` (`DB_HOST=127.0.0.1`, `DB_PORT=5432`). Never commit `backend\.env`.
 
 ### 4. Start PostgreSQL (repository root)
@@ -313,10 +313,20 @@ Open:
 http://127.0.0.1:8000/
 ```
 
+Sentiment results stay waiting until the analysis worker runs. The worker labels open-text answers with M4
+(clapAI/roberta-base-multilingual-sentiment) on this laptop's CPU, with no network and no paid service; the web
+process never loads the model. Once, install the model runtime from the repository root with
+`.venv\Scripts\python.exe -m pip install -r backend\requirements-ml.txt`, and check that the three `SENTIMENT_` values
+from `backend\.env.example` are in `backend\.env`. Every model file is checked against the committed manifest in
+`backend\infrastructure\model_manifests\` (the files T-2 evaluated); any other file makes the worker refuse to
+analyse. Then, from `backend\`, run `..\.venv\Scripts\python.exe manage.py run_analysis_worker --check`
+(it labels three fixed sentences and exits) and start the worker in a third window with
+`..\.venv\Scripts\python.exe manage.py run_analysis_worker` (Ctrl+C stops it).
+
 ### Optional: production-style stack
 
 `docker-compose.prod.yml` is optional. Daily work and the demo use `docker-compose.yml` only.
-It runs PostgreSQL, Redis, the Gunicorn web server and one Celery worker under the project name
+It runs PostgreSQL, Redis, the Gunicorn web server and one analysis worker (`python manage.py run_analysis_worker`) under the project name
 `smart-survey-prod`, with its own database volume, so it never touches the demo database.
 
 ```powershell

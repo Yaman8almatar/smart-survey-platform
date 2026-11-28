@@ -1,13 +1,11 @@
-# STATUS — 2026-11-13
-Branch: feat/t5-flow-metrics
-Task: TASK-27 — T-5 flow-metrics script and Increment 1 report (issue #45)
-Done: tools/flow_metrics.py (stdlib + gh, read-only) prints WIP, throughput, work item age, cycle time; 26 tool tests.
-  Increment 1 (2026-11-02..15, develop f142586): WIP 0, throughput 19, 18 of 19 within 7 days (94.7%), P85 0.6 days.
-  FR-01, FR-02, FR-06: code complete, report sections pending (not Done).
-Changes: 1 modified, 4 new, 0 deleted — tools/flow_metrics.py, tools/tests/test_flow_metrics.py, tools/tests/prs.json,
-  planning/flow-metrics-increment1.md, planning/KANBAN.md
-Tests: 578 passed in 408.28s (backend); 26 passed in 0.11s (tools/tests)
-Check: OK (System check identified no issues)
-Committed: yes, in the TASK-27 commit on feat/t5-flow-metrics
-Open questions: In Progress not measured (gh token has no project scope); SLE update decided at the 2026-11-15 review
-Next: advisor hand-checks a few cycle times; Yaman or Hasan approves the PR from his own account, Yaman merges.
+# STATUS — 2026-11-28
+Branch: docs/g1-plantuml-diagrams
+Task: TASK-61 — commit the Graduation 1 report diagrams (47 PlantUML sources, PNGs, three charts) under diagrams/g1/ (issue #107)
+Done: diagrams/g1/ added exactly as extracted; SHA-256 check 101 files, no mismatch, missing or unlisted file;
+  diagrams/README.md gains the "Graduation 1 report figures" section pointing to g1/.
+Changes: 2 modified, 102 new, 0 deleted — diagrams/g1/, diagrams/README.md, planning/STATUS.md
+Tests: skipped (no code changes); full suites run in CI
+Check: System check identified no issues (0 silenced).
+Committed: yes, in the TASK-61 change commit (start commit 923e03c)
+Open questions: none
+Next: advisor checks the diff against his package; Yaman approves and squash-merges into develop

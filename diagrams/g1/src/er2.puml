@@ -1,0 +1,65 @@
+@startuml
+!include er-head.iuml
+entity users <<view 1>> {
+  * user_id : bigint <<PK>>
+}
+entity surveys {
+  * survey_id : bigint <<PK>>
+  --
+  * provider_id : bigint <<FK>>
+  * title : varchar(255)
+  * description : text
+  * status : varchar(32)
+  * created_at : timestamptz
+  published_at : timestamptz
+  closed_at : timestamptz
+  reach_at_publish : integer (>= 0)
+  * shuffle_questions : boolean = false
+  * shuffle_options : boolean = false
+  submitted_at : timestamptz
+  reviewed_at : timestamptz
+  reviewed_by_id : bigint <<FK>>
+  * rejection_reason : varchar(1000) = ''
+  opens_on : date
+  closes_on : date
+  target_responses : integer (>= 0)
+}
+entity survey_targeting_criteria {
+  * criteria_id : bigint <<PK>>
+  --
+  * survey_id : bigint <<FK, UK>>
+  gender : varchar(16)
+  age_min : integer (>= 0)
+  age_max : integer (>= 0)
+  * regions : varchar(32)[]
+  * education_levels : varchar(32)[]
+  * occupations : varchar(32)[]
+  * marital_statuses : varchar(32)[]
+  * interests : varchar(32)[]
+}
+entity questions {
+  * question_id : bigint <<PK>>
+  --
+  * survey_id : bigint <<FK>>
+  * question_text : text
+  * question_type : varchar(32)
+  * is_required : boolean
+  * order_index : integer (>= 0)
+  * is_attention_check : boolean = false
+  expected_option_id : bigint <<FK>>
+  expected_rating : smallint (>= 0)
+}
+entity question_options {
+  * option_id : bigint <<PK>>
+  --
+  * question_id : bigint <<FK>>
+  * option_text : varchar(255)
+  * order_index : integer (>= 0)
+}
+users ||..o{ surveys : provider_id
+users |o..o{ surveys : reviewed_by_id
+surveys ||..o| survey_targeting_criteria : survey_id
+surveys ||..o{ questions : survey_id
+questions ||..o{ question_options : question_id
+question_options |o..o{ questions : expected_option_id
+@enduml

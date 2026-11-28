@@ -24,7 +24,14 @@ urlpatterns = [
         views.targeting_criteria,
         name="targeting_criteria",
     ),
+    path(
+        "<int:survey_id>/targeting/reach/",
+        views.targeting_reach,
+        name="targeting_reach",
+    ),
     path("<int:survey_id>/delete/", views.delete_survey, name="delete_survey"),
-    path("<int:survey_id>/publish/", views.publish_survey, name="publish_survey"),
+    path("<int:survey_id>/submit/", views.submit_for_review, name="submit_for_review"),
     path("<int:survey_id>/close/", views.close_survey, name="close_survey"),
+    path("<int:survey_id>/pause/", views.pause_survey, name="pause_survey"),
+    path("<int:survey_id>/resume/", views.resume_survey, name="resume_survey"),
 ]

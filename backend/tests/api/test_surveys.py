@@ -26,6 +26,11 @@ def test_eligible_lists_matching_survey_with_question_count(
             "title": "Campus survey",
             "description": "About campus life",
             "question_count": 3,
+            # Choice 10 s + rating 8 s + text 40 s = 58 s.
+            "expected_minutes": 1,
+            # The fixture survey is created published, without a publish time.
+            "published_on": None,
+            "closes_on": None,
         }
     ]
 
@@ -42,7 +47,7 @@ def test_eligible_is_empty_when_nothing_matches(client, authenticate, respondent
 def test_eligible_excludes_surveys_that_do_not_match_the_profile(
     client, authenticate, respondent, make_survey
 ):
-    make_survey(title="Wrong region", region="ALEPPO")
+    make_survey(title="Wrong region", regions=["ALEPPO"])
     make_survey(title="Wrong gender", gender=Gender.FEMALE)
     make_survey(title="Too old", age_max=20)
     authenticate(respondent)
@@ -142,3 +147,76 @@ def test_detail_returns_409_when_survey_is_not_published(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "not_editable"
+
+
+def answer_endpoints(client, survey):
+    """Call detail, draft save and submit once each; return their status and error code."""
+    choice, rating, _text = survey.questions.order_by("order_index")
+    option = choice.options.order_by("order_index").first()
+    answers = [
+        {"question_id": choice.question_id, "selected_option_id": option.option_id},
+        {"question_id": rating.question_id, "rating_value": 4},
+    ]
+    calls = {
+        "detail": client.get(detail_url(survey)),
+        "draft": client.put(
+            f"/api/v1/surveys/{survey.survey_id}/draft/", {"answers": answers}, format="json"
+        ),
+        "submit": client.post(
+            f"/api/v1/surveys/{survey.survey_id}/responses/", {"answers": answers}, format="json"
+        ),
+    }
+    return {
+        name: (response.status_code, response.json()["error"]["code"])
+        for name, response in calls.items()
+    }
+
+
+def eligible_ids(client):
+    return [row["id"] for row in client.get(ELIGIBLE_URL).json()]
+
+
+def test_ineligible_respondent_gets_one_403_verdict_and_no_list_entry(
+    client, authenticate, respondent, survey
+):
+    # The respondent fixture lives in DAMASCUS; this survey targets ALEPPO only.
+    survey.criteria.regions = ["ALEPPO"]
+    survey.criteria.save()
+    authenticate(respondent)
+
+    assert survey.survey_id not in eligible_ids(client)
+    assert answer_endpoints(client, survey) == {
+        "detail": (403, "unauthorized_action"),
+        "draft": (403, "unauthorized_action"),
+        "submit": (403, "unauthorized_action"),
+    }
+
+
+def test_after_submit_detail_draft_and_submit_all_answer_409_duplicate(
+    client, authenticate, respondent, survey
+):
+    authenticate(respondent)
+    assert survey.survey_id in eligible_ids(client)
+    assert client.get(detail_url(survey)).status_code == 200
+    choice, rating, _text = survey.questions.order_by("order_index")
+    first = client.post(
+        f"/api/v1/surveys/{survey.survey_id}/responses/",
+        {
+            "answers": [
+                {
+                    "question_id": choice.question_id,
+                    "selected_option_id": choice.options.first().option_id,
+                },
+                {"question_id": rating.question_id, "rating_value": 5},
+            ]
+        },
+        format="json",
+    )
+    assert first.status_code == 201
+
+    assert answer_endpoints(client, survey) == {
+        "detail": (409, "duplicate_response"),
+        "draft": (409, "duplicate_response"),
+        "submit": (409, "duplicate_response"),
+    }
+    assert survey.survey_id not in eligible_ids(client)

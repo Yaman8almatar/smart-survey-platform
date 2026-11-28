@@ -8,6 +8,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from services.account_email_service import AccountEmailService
 from services.authentication_service import AuthenticationService
 from services.profile_service import ProfileService
 from services.question_service import QuestionService
@@ -69,6 +70,7 @@ class RegisterView(PublicAPIView):
             data["region"],
             data["interests"],
         )
+        AccountEmailService().send_confirmation(user, request.build_absolute_uri("/"))
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -78,7 +80,7 @@ class TokenView(PublicAPIView):
     @extend_schema(
         tags=AUTH_TAG,
         request=LoginSerializer,
-        responses={200: TokenPairSerializer},
+        responses={200: TokenPairSerializer, 403: ErrorSerializer},
         summary="Exchange email and password for access and refresh tokens",
     )
     def post(self, request):
@@ -229,7 +231,13 @@ SUBMIT_REQUEST_EXAMPLE = OpenApiExample(
             {"question_id": 1, "selected_option_id": 2},
             {"question_id": 2, "rating_value": 4},
             {"question_id": 3, "answer_value": "Clear and quick."},
-        ]
+        ],
+        "timings": [
+            {"question_id": 1, "active_ms": 4200},
+            {"question_id": 2, "active_ms": 3100},
+            {"question_id": 3, "active_ms": 15800},
+        ],
+        "device_id": "3f9c2a7e-51b4-4d0e-9a3c-7b1d2e8f6a40",
     },
     request_only=True,
 )
@@ -253,6 +261,9 @@ SUBMIT_ERROR_EXAMPLE = OpenApiExample(
 
 
 class SubmitResponseView(APIView):
+    # ScopedRateThrottle keys a signed-in request by user id: the limit is per respondent.
+    throttle_scope = "survey_submit"
+
     @extend_schema(
         tags=SURVEY_TAG,
         request=SubmitResponseSerializer,
@@ -262,6 +273,7 @@ class SubmitResponseView(APIView):
             403: ErrorSerializer,
             404: ErrorSerializer,
             409: ErrorSerializer,
+            429: ErrorSerializer,
         },
         examples=[SUBMIT_REQUEST_EXAMPLE, SUBMIT_RESPONSE_EXAMPLE, SUBMIT_ERROR_EXAMPLE],
         summary="Submit answers to a survey",
@@ -270,9 +282,17 @@ class SubmitResponseView(APIView):
         """Validate and store the submission through ResponseService."""
         serializer = SubmitResponseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        answers = [dict(answer) for answer in serializer.validated_data["answers"]]
+        data = serializer.validated_data
+        answers = [dict(answer) for answer in data["answers"]]
+        timings = [dict(entry) for entry in data["timings"]] if "timings" in data else None
 
-        response = ResponseService().submit_response(request.user, survey_id, answers)
+        response = ResponseService().submit_response(
+            request.user,
+            survey_id,
+            answers,
+            timings=timings,
+            device_id=data.get("device_id"),
+        )
         return Response(
             ResponseCreatedSerializer(response).data,
             status=status.HTTP_201_CREATED,
@@ -285,7 +305,11 @@ DRAFT_REQUEST_EXAMPLE = OpenApiExample(
         "answers": [
             {"question_id": 1, "selected_option_id": 2},
             {"question_id": 3, "answer_value": "Clear so far."},
-        ]
+        ],
+        "timings": [
+            {"question_id": 1, "active_ms": 4200},
+            {"question_id": 3, "active_ms": 9600},
+        ],
     },
     request_only=True,
 )
@@ -296,6 +320,10 @@ DRAFT_RESPONSE_EXAMPLE = OpenApiExample(
         "answers": [
             {"question_id": 1, "selected_option_id": 2},
             {"question_id": 3, "answer_value": "Clear so far."},
+        ],
+        "timings": [
+            {"question_id": 1, "active_ms": 4200},
+            {"question_id": 3, "active_ms": 9600},
         ],
         "started_at": "2026-11-08T09:30:00Z",
         "updated_at": "2026-11-08T09:34:00Z",
@@ -338,9 +366,11 @@ class DraftView(APIView):
         """Validate and store the draft through ResponseService."""
         serializer = SaveDraftSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        answers = [dict(answer) for answer in serializer.validated_data["answers"]]
+        data = serializer.validated_data
+        answers = [dict(answer) for answer in data["answers"]]
+        timings = [dict(entry) for entry in data["timings"]] if "timings" in data else None
 
-        draft = ResponseService().save_draft(request.user, survey_id, answers)
+        draft = ResponseService().save_draft(request.user, survey_id, answers, timings=timings)
         return Response(DraftSerializer(draft).data)
 
     @extend_schema(

@@ -28,25 +28,37 @@
 
         <!-- Dashboard cards -->
         <div class="row g-3 mb-4">
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-sm-6 col-lg-4">
                 <div class="metric-card">
                     <span>Total surveys</span>
                     <strong>{{ metrics.total }}</strong>
                 </div>
             </div>
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-sm-6 col-lg-4">
                 <div class="metric-card">
                     <span>Draft</span>
                     <strong>{{ metrics.draft }}</strong>
                 </div>
             </div>
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-sm-6 col-lg-4">
+                <div class="metric-card">
+                    <span>Pending review</span>
+                    <strong>{{ metrics.pending }}</strong>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
                 <div class="metric-card">
                     <span>Published</span>
                     <strong>{{ metrics.published }}</strong>
                 </div>
             </div>
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-sm-6 col-lg-4">
+                <div class="metric-card">
+                    <span>Paused</span>
+                    <strong>{{ metrics.paused }}</strong>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
                 <div class="metric-card">
                     <span>Closed</span>
                     <strong>{{ metrics.closed }}</strong>

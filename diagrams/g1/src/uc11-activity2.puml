@@ -1,0 +1,30 @@
+@startuml
+!include style.iuml
+|Provider|
+|Website|
+|Server|
+|Server|
+start
+:Survey PUBLISHED\n(UC-14);
+repeat
+  |Provider|
+  :Press Pause, Resume\nor Close;
+  |Server|
+  if (Allowed in this\nstate?) then ([yes])
+    :Change the state:\nPAUSED, PUBLISHED\nor CLOSED;
+  else ([no])
+    :Refuse with\nthe message;
+  endif
+  |Website|
+  :Show the survey list\nwith the message;
+  |Server|
+repeat while (Closed?) is ([no]) not ([yes])
+stop
+floating note right
+  The server also closes a survey:
+  the response that reaches the
+  limit (UC-04), or a closing date
+  that has passed, on the next read.
+  Paused: respondents are refused.
+end note
+@enduml

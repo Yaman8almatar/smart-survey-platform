@@ -19,7 +19,8 @@ Android emulator notes:
 
 ## Auth flow
 1. `POST /auth/register/` creates the respondent and the profile. It returns 201 and **no tokens**.
-2. `POST /auth/token/` with `email` and `password` returns `access` (30 minutes) and `refresh` (7 days). Suspended or deleted accounts get 401 `invalid_credentials`.
+2. `POST /auth/token/` with `email` and `password` returns `access` (30 minutes) and `refresh` (7 days). Suspended or deleted accounts get 401 `invalid_credentials`. An account whose email is not confirmed yet gets 403 `email_not_confirmed` (FR-15).
+   Registration sends a confirmation email, and the account can log in only after its owner opens that link; password recovery is on the website (`/users/password-reset/`), not in the API.
 3. Send `Authorization: Bearer <access>` on every other call.
 4. On 401, call `POST /auth/token/refresh/` with `{"refresh": "..."}`. It returns a new `access` and a new `refresh`
    (rotation): store both, because the old refresh token is blacklisted and refused from then on. If refresh fails, log in again.
@@ -35,7 +36,7 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | Method | Path | Auth | Success | Errors |
 |---|---|---|---|---|
 | POST | `/auth/register/` | none | 201 `{id,email,name,role}` | 400, 429 |
-| POST | `/auth/token/` | none | 200 `{access,refresh}` | 400, 401, 429 |
+| POST | `/auth/token/` | none | 200 `{access,refresh}` | 400, 401, 403, 429 |
 | POST | `/auth/token/refresh/` | none | 200 `{access,refresh}` | 400, 401, 429 |
 | POST | `/auth/logout/` | none | 204 | 400, 429 |
 | GET | `/me/` | respondent | 200 `{id,email,name,role}` | 401, 403 |
@@ -44,8 +45,8 @@ Only respondents may use the API. Other roles can obtain a token but get 403 `pe
 | GET | `/profile/options/` | none | 200 `{governorates,education,occupation,marital_status,interests}` | — |
 | GET | `/surveys/eligible/` | respondent | 200 `[{id,title,description,question_count}]` | 401, 403 |
 | GET | `/surveys/{id}/` | respondent | 200 `{id,title,description,questions[]}` | 401, 403, 404, 409 |
-| POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409 |
-| GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,started_at,updated_at}` | 401, 403, 404, 409 |
+| POST | `/surveys/{id}/responses/` | respondent | 201 `{id,survey_id,submitted_at}` | 400, 401, 403, 404, 409, 429 |
+| GET | `/surveys/{id}/draft/` | respondent | 200 `{survey_id,answers,timings,started_at,updated_at}` | 401, 403, 404, 409 |
 | PUT | `/surveys/{id}/draft/` | respondent | 200 draft | 400, 401, 403, 404, 409 |
 | DELETE | `/surveys/{id}/draft/` | respondent | 204 | 401, 403, 404, 409 |
 | GET | `/me/responses/` | respondent | 200 `[{survey_id,title,description,submitted_at}]` | 401, 403 |
@@ -92,6 +93,7 @@ Submit body:
 Use `selected_option_id` for multiple choice, `rating_value` (1 to 5) for rating, `answer_value` for open text. Optional questions may be left out.
 
 A successful submit deletes the draft; the response keeps the draft's started_at (not exposed in the API yet; for FR-18).
+Submit and draft save also take optional quality evidence; see Quality signals.
 
 ## Drafts (FR-06)
 A respondent's unsent answers are kept per survey until the respondent submits them. Each respondent has at most one draft per survey.
@@ -119,6 +121,7 @@ A respondent's unsent answers are kept per survey until the respondent submits t
    {"question_id": 1, "selected_option_id": 2},
    {"question_id": 3, "answer_value": "Clear so far."}
  ],
+ "timings": [],
  "started_at": "2026-11-08T09:30:00Z",
  "updated_at": "2026-11-08T09:34:00Z"}
 ```
@@ -137,6 +140,34 @@ Errors. The first five rows apply to all three calls and are checked in this ord
 | 404 | `question_not_found` | `PUT` only: a `question_id` does not belong to the survey. |
 | 401 | `not_authenticated` | No token was sent (all three calls). |
 
+## Quality signals (FR-04)
+The app may send evidence of how a survey was answered. Both fields are optional and additive: a client that sends
+neither works as before, and the 201 body of a submit is unchanged.
+
+| Field | Where | Shape |
+|---|---|---|
+| `timings` | `PUT /surveys/{id}/draft/`, `POST /surveys/{id}/responses/` | `[{"question_id": 3, "active_ms": 15800}]`: cumulative active time per question, `active_ms` an integer from 0 to 3,600,000, one entry per question at most |
+| `device_id` | `POST /surveys/{id}/responses/` | the app's install id, 16 to 64 characters from `A-Z a-z 0-9 _ -` |
+
+```json
+{"answers": [{"question_id": 1, "selected_option_id": 2}],
+ "timings": [{"question_id": 1, "active_ms": 4200}],
+ "device_id": "3f9c2a7e-51b4-4d0e-9a3c-7b1d2e8f6a40"}
+```
+- Draft save: sent `timings` replace the stored ones (the app sends cumulative values); a save without the key keeps
+  them. The draft 200 body returns `timings` (`[]` until one is sent).
+- Submit: its own `timings` are used when sent, else the draft's.
+- Errors: a malformed entry, a repeated `question_id`, an `active_ms` outside the range or a `device_id` that does not
+  match the format give 400 `validation_error`; a `question_id` outside the survey gives 404 `question_not_found`
+  (the same as for answers).
+- **Evidence never rejects a response.** Missing or inconsistent evidence (no timings, no device id, no draft, or a
+  total active time above the server's wall time plus 10 s) still gives 201; the server only records that the
+  evidence is incomplete.
+- The device id is stored only as a keyed hash (HMAC-SHA256 with `DEVICE_HASH_KEY`, separate from `SECRET_KEY`);
+  the raw id is stored and logged nowhere.
+- Providers may mark up to two questions as attention checks. No attention field (`is_attention_check`, the expected
+  answer) is ever returned: questions keep exactly the seven fields listed above.
+
 ## Error shape
 Every error, including 401 and 403, has one shape. `fields` appears only for input validation errors.
 ```json
@@ -146,11 +177,11 @@ Every error, including 401 and 403, has one shape. `fields` appears only for inp
 |---|---|
 | 400 | `validation_error`, `parse_error`, `invalid_token` (logout) |
 | 401 | `not_authenticated`, `authentication_failed`, `invalid_credentials` |
-| 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible) |
+| 403 | `permission_denied` (wrong role), `unauthorized_action` (survey not eligible), `email_not_confirmed` (log-in before the email is confirmed) |
 | 404 | `survey_not_found`, `question_not_found`, `draft_not_found`, `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `duplicate_response`, `not_editable` (survey is not published) |
-| 429 | `throttled` (too many auth requests; see Throttling) |
+| 429 | `throttled` (too many auth or submit requests; see Throttling) |
 | 500 | `internal_error` |
 
 Mapping lives in one place: `backend/apps/api/exceptions.py`.
@@ -165,6 +196,9 @@ The four auth endpoints are rate limited per client IP with DRF `ScopedRateThrot
 | `POST /auth/token/refresh/` | `auth_refresh` | 30/min |
 | `POST /auth/register/` | `auth_register` | 5/min |
 | `POST /auth/logout/` | `auth_logout` | 30/min |
+| `POST /surveys/{id}/responses/` | `survey_submit` | 10/min |
+
+The `survey_submit` scope counts per signed-in respondent (by user id), not per address.
 
 A request over the limit gets 429 `throttled` and a `Retry-After` header (seconds to wait). Scopes are independent: using up
 login does not block token refresh. Endpoints without a scope, including `/healthz/live/` and `/healthz/ready/`, are not
@@ -182,7 +216,7 @@ Throttling limits abuse; it is not complete brute-force protection, because clie
 - URLs that do not exist (or a non-numeric survey id) return Django's HTML 404, not the JSON error shape.
 - Use a `SECRET_KEY` of at least 32 bytes: JWT signing reuses it, and shorter keys trigger a PyJWT warning.
 - The eligible list runs one count query per survey (small lists).
-- K-02: sentiment analysis still runs in the request after the commit, so a submit with open-text answers can take longer when the AI service is slow.
+- Sentiment analysis runs in a separate worker (`python manage.py run_analysis_worker`); a submit no longer waits for it. Results are PENDING until the worker runs.
 - F-27: two parallel submits of the same survey can raise a database error, returned as 500 `internal_error` instead of 409.
 - F-26: emails are case sensitive.
 - Passwords are not checked for strength (same as the web form).

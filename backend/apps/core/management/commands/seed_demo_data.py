@@ -20,7 +20,6 @@ from core.enums import (
     Governorate,
     Interest,
     QuestionType,
-    SentimentLabel,
     SurveyStatus,
     UserType,
 )
@@ -153,7 +152,7 @@ class Command(BaseCommand):
                 "gender": Gender.ANY,
                 "age_min": 18,
                 "age_max": 35,
-                "region": Governorate.DAMASCUS,
+                "regions": [Governorate.DAMASCUS],
             },
         )[0]
 
@@ -231,11 +230,18 @@ class Command(BaseCommand):
         return answer
 
     def _upsert_sentiment_result(self, answer):
-        """Create or update the demo completed sentiment result."""
+        """Create or reset the demo sentiment result as PENDING for the analysis worker."""
+        # A seeded row must not look like a model result (A-205).
         result, _ = SentimentAnalysisResult.objects.get_or_create(answer=answer)
-        result.status = AnalysisStatus.COMPLETED
-        result.sentiment_label = SentimentLabel.POSITIVE
-        result.sentiment_score = 0.95
-        result.analyzed_at = timezone.now()
+        result.status = AnalysisStatus.PENDING
+        result.sentiment_label = None
+        result.sentiment_score = None
+        result.analyzed_at = None
+        result.attempts = 0
+        result.next_attempt_at = None
+        result.locked_at = None
+        result.error_code = ""
+        result.language = ""
+        result.model_id = ""
         result.save()
         return result

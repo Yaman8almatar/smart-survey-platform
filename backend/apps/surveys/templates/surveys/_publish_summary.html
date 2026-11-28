@@ -1,0 +1,46 @@
+{% comment %}
+W-03 reach line and "Who can answer" rows; shared by the submit page and the admin review page.
+Context: reach, who, schedule (FR-11), and show_edit_link with survey_id for the "Edit targeting" link.
+{% endcomment %}
+{% with any_label="Any" %}
+<div class="publish-reach">
+    {% if reach.state == "few" %}
+        {% include "partials/signal_ring.html" with value=0 size=96 text="&lt;5" decorative=True %}
+    {% elif reach.state == "none" %}
+        {% include "partials/signal_ring.html" with value=0 size=96 text="0" decorative=True %}
+    {% else %}
+        {% include "partials/signal_ring.html" with value=reach.percent size=96 decorative=True %}
+    {% endif %}
+    <div>
+        <p class="reach-card__big">{% if reach.state == "few" %}Fewer than 5 respondents{% elif reach.state == "none" %}No respondent{% else %}{{ reach.count }} of {{ reach.total }} respondents{% endif %}</p>
+        <p class="reach-card__line">{% if reach.state == "none" %}matches the targeting yet.{% else %}match the targeting now and will see the survey once it is published.{% endif %}</p>
+    </div>
+</div>
+
+<section class="publish-section" aria-labelledby="who-title">
+    <div class="targeting-section__head">
+        <h2 id="who-title" class="publish-title">Who can answer</h2>
+        {% if show_edit_link %}
+            <a class="publish-link" href="{% url 'surveys:targeting_criteria' survey_id %}">Edit targeting</a>
+        {% endif %}
+    </div>
+    <dl class="publish-rows">
+        <div class="publish-row"><dt>Gender</dt><dd>{{ who.gender|default:any_label }}</dd></div>
+        <div class="publish-row"><dt>Age</dt><dd>{{ who.age|default:any_label }}</dd></div>
+        <div class="publish-row"><dt>Governorates</dt><dd>{{ who.regions|join:", "|default:any_label }}</dd></div>
+        <div class="publish-row"><dt>Education level</dt><dd>{{ who.education_levels|join:", "|default:any_label }}</dd></div>
+        <div class="publish-row"><dt>Occupation</dt><dd>{{ who.occupations|join:", "|default:any_label }}</dd></div>
+        <div class="publish-row"><dt>Marital status</dt><dd>{{ who.marital_statuses|join:", "|default:any_label }}</dd></div>
+        <div class="publish-row"><dt>Interests</dt><dd>{% if who.interests %}At least one of: {{ who.interests|join:", " }}{% else %}{{ any_label }}{% endif %}</dd></div>
+    </dl>
+</section>
+
+<!-- FR-11: the schedule and the response limit -->
+<section class="publish-section" aria-label="Schedule and limit">
+    <dl class="publish-rows">
+        <div class="publish-row"><dt>Opens</dt><dd>{% if schedule.opens_on %}{{ schedule.opens_on|date:"j M Y" }}{% else %}On approval{% endif %}</dd></div>
+        <div class="publish-row"><dt>Closes</dt><dd>{% if schedule.closes_on %}{{ schedule.closes_on|date:"j M Y" }}{% else %}No closing date{% endif %}</dd></div>
+        <div class="publish-row"><dt>Response limit</dt><dd>{% if schedule.target_responses %}{{ schedule.target_responses }} responses{% else %}No limit{% endif %}</dd></div>
+    </dl>
+</section>
+{% endwith %}

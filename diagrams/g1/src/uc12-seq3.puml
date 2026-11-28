@@ -1,0 +1,68 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Analytics page" as B
+participant "exclude_flagged,\ninclude_all,\nretry_failed" as V
+participant "QualityService,\nAnalysisService" as Svc
+database "Response, Analysis\nrepositories\nPostgreSQL" as DB
+activate P
+alt Exclude flagged
+  P -> B : Exclude flagged
+  activate B
+  B -> V : GET /analysis/{id}/\nexclude-flagged/
+  activate V
+  V -> Svc : evaluate_survey()
+  activate Svc
+  V --> B : confirmation with the\ncount (0: back to results)
+  deactivate Svc
+  deactivate V
+  P -> B : Confirm
+  B -> V : POST .../exclude-flagged/
+  activate V
+  V -> Svc : exclude_flagged()
+  activate Svc
+  Svc -> DB : lock, then one bulk UPDATE\nof the flagged included ones
+  activate DB
+  deactivate DB
+  V --> B : 302 "{n} flagged responses\nare excluded..."
+  deactivate Svc
+  deactivate V
+  deactivate B
+else Include all
+  P -> B : Include all
+  activate B
+  B -> V : GET, then POST\n/analysis/{id}/include-all/
+  activate V
+  V -> Svc : include_all()
+  activate Svc
+  Svc -> DB : find_excluded_ids_by_\nsurvey_id(); lock; one\nbulk UPDATE
+  activate DB
+  deactivate DB
+  V --> B : 302 "All {n} responses\nare included."
+  deactivate Svc
+  deactivate V
+  deactivate B
+else Retry failed analysis
+  P -> B : Retry failed answers
+  activate B
+  B -> V : POST /analysis/{id}/\nretry-failed/
+  activate V
+  V -> Svc : retry_failed()
+  activate Svc
+  Svc -> Svc : owner, results open
+  activate Svc
+  deactivate Svc
+  Svc -> DB : reset_failed(): FAILED\nback to PENDING, due\nnow, attempts 0
+  activate DB
+  deactivate DB
+  V --> B : 302 "{n} answers are queued\nfor analysis again."
+  deactivate Svc
+  deactivate V
+  deactivate B
+end
+note over V, DB : Verdicts never change with inclusion; the\nanalysis worker picks the reset rows up
+deactivate P
+@enduml

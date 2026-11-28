@@ -1,0 +1,14 @@
+@startuml
+!include style.iuml
+left to right direction
+skinparam packageStyle rectangle
+actor Admin
+rectangle "Smart Survey Platform" {
+  usecase "UC-14 Review survey\n(approve, or reject\nwith a reason)" as UC14
+  usecase "UC-15 Manage users\n(suspend, activate,\nsoft delete)" as UC15
+  usecase "UC-16 View system\nreports" as UC16
+}
+Admin -- UC14
+Admin -- UC15
+Admin -- UC16
+@enduml

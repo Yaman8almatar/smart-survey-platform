@@ -1,0 +1,88 @@
+@startuml
+!include er-head.iuml
+entity users <<view 1>> {
+  * user_id : bigint <<PK>>
+}
+entity surveys <<view 2>> {
+  * survey_id : bigint <<PK>>
+}
+entity questions <<view 2>> {
+  * question_id : bigint <<PK>>
+}
+entity question_options <<view 2>> {
+  * option_id : bigint <<PK>>
+}
+entity responses {
+  * response_id : bigint <<PK>>
+  --
+  * survey_id : bigint <<FK>>
+  * respondent_id : bigint <<FK>>
+  started_at : timestamptz
+  * submitted_at : timestamptz
+  * is_excluded : boolean = false
+  excluded_at : timestamptz
+  snap_age : smallint (>= 0)
+  * snap_gender, snap_region,
+    snap_education, snap_occupation,
+    snap_marital_status : varchar = ''
+  * snap_interests : varchar(32)[]
+}
+entity response_drafts {
+  * draft_id : bigint <<PK>>
+  --
+  * survey_id : bigint <<FK>>
+  * respondent_id : bigint <<FK>>
+  * answers : jsonb
+  * timings : jsonb = []
+  * started_at : timestamptz
+  * updated_at : timestamptz
+}
+entity answers {
+  * answer_id : bigint <<PK>>
+  --
+  * response_id : bigint <<FK>>
+  * question_id : bigint <<FK>>
+  answer_value : text
+  rating_value : integer
+  selected_option_id : bigint <<FK>>
+}
+entity response_quality {
+  * quality_id : bigint <<PK>>
+  --
+  * response_id : bigint <<FK, UK>>
+  * survey_id : bigint <<FK>>
+  * timings : jsonb = []
+  active_ms : bigint
+  * attention_total : smallint = 0
+  * attention_failed : smallint = 0
+  * rating_count : smallint = 0
+  * rating_all_same : boolean = false
+  * device_hash : varchar(64) = ''
+  * signals_ok : boolean
+}
+entity sentiment_analysis_results {
+  * result_id : bigint <<PK>>
+  --
+  * answer_id : bigint <<FK, UK>>
+  sentiment_label : varchar(16)
+  sentiment_score : float8
+  * status : varchar(32)
+  analyzed_at : timestamptz
+  * attempts : smallint = 0
+  next_attempt_at : timestamptz
+  locked_at : timestamptz
+  * error_code : varchar(32) = ''
+  * language : varchar(8) = ''
+  * model_id : varchar(255) = ''
+}
+users ||..o{ responses : respondent_id
+users ||..o{ response_drafts : respondent_id
+surveys ||..o{ responses : survey_id
+surveys ||..o{ response_drafts : survey_id
+surveys ||..o{ response_quality
+responses ||..o{ answers : response_id
+responses ||..o| response_quality : response_id
+questions ||..o{ answers : question_id
+question_options |o..o{ answers : selected_option_id
+answers ||..o| sentiment_analysis_results : answer_id
+@enduml

@@ -1,0 +1,15 @@
+@startuml
+!include style.iuml
+skinparam StateBackgroundColor #F5F7FA
+skinparam StateBorderColor #555555
+[*] --> PENDING : submit_response\n(queue_open_text_answers)
+PENDING --> RUNNING : claim_batch [due] /\nattempts + 1, locked_at
+RUNNING --> COMPLETED : label returned
+RUNNING --> SKIPPED : no letter / no_text
+RUNNING --> PENDING : unavailable [attempts < 3] /\nretry after 30 s, then 120 s
+RUNNING --> FAILED : unavailable [attempts = 3];\nconfig, payment_required,\nbad_output
+RUNNING --> RUNNING : claim_batch [lock over\n5 min, attempts < 3]
+FAILED --> PENDING : retry_failed (provider) /\nattempts = 0
+COMPLETED --> [*]
+SKIPPED --> [*]
+@enduml

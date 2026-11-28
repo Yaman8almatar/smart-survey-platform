@@ -1,0 +1,10 @@
+candidate,corpus,corpus_rows,applied,en_reviews,en_service,ar_reviews,ar_posts,total
+M0,cardiffnlp/tweet_eval sentiment,59899,True,0,0,0,0,0
+M1,cardiffnlp/tweet_sentiment_multilingual arabic+english,6066,True,0,0,0,294,294
+M2,tyqiangz/multilingual-sentiments arabic+english,6066,True,0,0,0,294,294
+M4,clapAI/MultiLingualSentiment ar+en,1728235,True,0,8,468,296,772
+M5,arbml/ASTD,9694,True,0,0,0,1065,1065
+M5,arbml/ArSAS,19897,True,0,0,0,0,0
+M5,cardiffnlp/tweet_sentiment_multilingual arabic (SemEval-2017),3033,True,0,0,0,294,294
+M4,clapAI/MultiLingualSentiment multilingual (not applied),9391,False,0,0,0,0,0
+all,dropped (union of applied corpora),,True,0,8,468,1369,1845

@@ -1,0 +1,71 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "ProfileScreen\n(Flutter app)" as App
+participant "ProfileOptionsView,\nProfileView (API)" as API
+participant "ProfileService" as Svc
+database "ProfileRepository\nPostgreSQL" as DB
+activate R
+R -> App : Open the profile
+activate App
+par fixed lists
+  App -> API : GET /api/v1/profile/\noptions/ (no token)
+  activate API
+  API -> Svc : options()
+  activate Svc
+  Svc --> API : five lists from\ncore/enums.py
+  deactivate Svc
+  API --> App : 200 five lists
+  deactivate API
+else stored profile
+  App -> API : GET /api/v1/me/\nprofile/
+  activate API
+  API -> Svc : get_profile(user)
+  activate Svc
+  Svc -> DB : find_by_user_id()
+  activate DB
+  deactivate DB
+  alt profile exists
+    API --> App : 200 profile with\ncompletion_percent
+  else no profile yet
+    API --> App : 404 not_found
+    deactivate Svc
+    deactivate API
+  end
+end
+App --> R : Form with the stored\nvalues and the percent
+R -> App : Change fields, Save
+App -> API : PUT /api/v1/me/profile/\n(full replace)
+activate API
+API -> API : ProfileSerializer\n.is_valid()
+activate API
+deactivate API
+alt a field is malformed
+  API --> App : 400 validation_error\nwith fields
+  App --> R : Highlight the fields
+else well formed
+  API -> Svc : update_profile(user,\nseven fields)
+  activate Svc
+  Svc -> Svc : _ensure_respondent(),\nvalidate_profile_data()
+  activate Svc
+  deactivate Svc
+  alt a rule is broken
+    Svc --> API : ValidationError
+    API --> App : 400 validation_error
+    App --> R : Not saved, Try again
+  else rules pass
+    Svc -> DB : find_by_user_id();\nUPDATE or INSERT
+    activate DB
+    deactivate DB
+    API --> App : 200 profile, new\ncompletion_percent
+    deactivate Svc
+    deactivate API
+    App --> R : "Profile saved"
+  end
+end
+deactivate App
+deactivate R
+@enduml

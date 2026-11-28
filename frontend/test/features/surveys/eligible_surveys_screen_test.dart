@@ -24,6 +24,8 @@ const Map<String, Object> demoSurvey = {
   'title': 'Campus Services Survey',
   'description': 'How do you rate campus services?',
   'question_count': 5,
+  'expected_minutes': 2,
+  'published_on': '2026-11-18',
 };
 
 Future<void> pumpList(WidgetTester tester, TestApi test) async {
@@ -120,7 +122,7 @@ void main() {
     expect(find.text('Sara'), findsOneWidget);
     expect(find.text('Campus Services Survey'), findsOneWidget);
     expect(find.text('How do you rate campus services?'), findsOneWidget);
-    expect(find.text('5 questions'), findsOneWidget);
+    expect(find.text('5 questions · About 2 min'), findsOneWidget);
     expect(find.text('Matches your profile'), findsOneWidget);
     expect(find.text('Start'), findsNothing);
   });

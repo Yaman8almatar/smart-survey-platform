@@ -1,0 +1,89 @@
+@startuml
+!include cls-head.iuml
+class Survey
+class User
+class Question
+class QuestionOption
+class Response {
+  +response_id : int
+  +started_at, submitted_at : datetime
+  +is_excluded : bool
+  +excluded_at : datetime
+  +snap_age : int
+  +snap_gender, snap_region,
+   snap_education, snap_occupation,
+   snap_marital_status : str
+  +snap_interests : list<str>
+  --
+  +add_answer(answer) : Answer
+  +has_open_text_answers() : bool
+}
+class ResponseDraft {
+  +draft_id : int
+  +answers : list<dict>
+  +timings : list<dict>
+  +started_at, updated_at : datetime
+}
+class ResponseQuality {
+  +quality_id : int
+  +timings : list<dict>
+  +active_ms : int
+  +attention_total : int
+  +attention_failed : int
+  +rating_count : int
+  +rating_all_same : bool
+  +device_hash : str
+  +signals_ok : bool
+}
+class Answer {
+  +answer_id : int
+  +answer_value : str
+  +rating_value : int
+  --
+  +is_textual() / is_rating_based()
+  +is_option_based() : bool
+  +requires_sentiment_analysis() : bool
+}
+class SentimentAnalysisResult {
+  +result_id : int
+  +sentiment_label : SentimentLabel
+  +sentiment_score : float
+  +status : AnalysisStatus
+  +analyzed_at : datetime
+  +attempts : int
+  +next_attempt_at, locked_at : datetime
+  +error_code, language, model_id : str
+  --
+  +mark_completed(label, score,\n  analyzed_at, language, model_id)
+  +mark_failed(error_code)
+  +mark_skipped(error_code)
+  +schedule_retry(next_attempt_at)
+}
+enum AnalysisStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+enum SentimentLabel {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+Survey "1" *-- "0..*" Response : responses
+Survey "1" *-- "0..*" ResponseDraft : drafts
+User "1" -- "0..*" Response : respondent
+User "1" -- "0..*" ResponseDraft : respondent
+Response "1" *-- "0..*" Answer : answers
+Response "1" *-- "0..1" ResponseQuality : quality
+Question "1" -- "0..*" Answer
+Answer "0..*" --> "0..1" QuestionOption : selected_option
+Answer "1" *-- "0..1" SentimentAnalysisResult
+SentimentAnalysisResult ..> AnalysisStatus
+SentimentAnalysisResult ..> SentimentLabel
+note bottom of ResponseQuality
+  FR-04 evidence only: no flag,
+  score or band is stored
+end note
+@enduml

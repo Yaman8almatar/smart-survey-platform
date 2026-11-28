@@ -10,6 +10,10 @@ class InvalidCredentials(SmartSurveyException):
     """Raised when login credentials are invalid."""
 
 
+class EmailNotConfirmed(SmartSurveyException):
+    """Raised when a self-registered account logs in before confirming its email address."""
+
+
 class UnauthorizedAction(SmartSurveyException):
     """Raised when a user is not allowed to perform an action."""
 
@@ -44,6 +48,32 @@ class DraftNotFound(SmartSurveyException):
 
 class ExternalAnalysisServiceError(SmartSurveyException):
     """Raised when the external sentiment analysis service fails."""
+
+    error_code = "error"
+
+
+class AnalysisConfigError(ExternalAnalysisServiceError):
+    """Raised when the token or URL is missing or the service refuses the request (4xx)."""
+
+    error_code = "config"
+
+
+class AnalysisPaymentRequired(ExternalAnalysisServiceError):
+    """Raised when the service answers HTTP 402 (no credit left)."""
+
+    error_code = "payment_required"
+
+
+class AnalysisUnavailable(ExternalAnalysisServiceError):
+    """Raised on a timeout, a connection error, HTTP 429 or 5xx; a later attempt may work."""
+
+    error_code = "unavailable"
+
+
+class AnalysisBadOutput(ExternalAnalysisServiceError):
+    """Raised when the service answer is not valid JSON or has an unknown label."""
+
+    error_code = "bad_output"
 
 
 class ValidationError(SmartSurveyException):

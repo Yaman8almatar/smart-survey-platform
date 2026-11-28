@@ -1,0 +1,56 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Analytics page" as B
+participant "analytics_dashboard\n(web view)" as V
+participant "AnalysisService,\nQualityService" as Svc
+database "Repositories\nPostgreSQL" as DB
+activate P
+P -> B : Open Analytics; choose a\nbreakdown or one filter
+activate B
+B -> V : GET /analysis/\nsurveys/{id}/?group_by=\nor ?filter=dimension:key
+activate V
+V -> Svc : get_survey_results(\nuser, id, group_by,\nfilter_key)
+activate Svc
+Svc -> Svc : ensure_survey_owner()
+activate Svc
+deactivate Svc
+Svc -> DB : COUNT\nsubmitted
+activate DB
+deactivate DB
+alt under 5 responses (P-20)
+  Svc --> V : locked, count, 5
+  V --> B : 200 locked card: "Results\nopen at 5 responses"
+else 5 or more
+  Svc -> DB : responses, answers,\nsentiment; no\nattention checks
+  activate DB
+  deactivate DB
+  Svc -> Svc : _filter_groups():\ngroups of 5 or more;\nthe rest pooled
+  activate Svc
+  deactivate Svc
+  opt filter (FR-13)
+    Svc -> Svc : keep the group;\n_filter_can_show()\nper question (5 answers)
+    activate Svc
+    deactivate Svc
+  end
+  opt breakdown
+    Svc -> Svc : pool_groups(): under 5\nbecome "Other groups"
+    activate Svc
+    deactivate Svc
+  end
+  Svc -> Svc : summaries, sentiment\ncounts, over time,\nanalysis_overdue()
+  activate Svc
+  deactivate Svc
+  V -> Svc : evaluate_survey(user, id)
+  Svc --> V : verdict per response,\nflag and band counts
+  deactivate Svc
+  V --> B : 200 charts, sentiment,\ncomparison tables,\nquality panel
+  deactivate V
+end
+note over B, V : No name or email reaches the page:\ndemographic groups and numbers only (FR-09)
+deactivate B
+deactivate P
+@enduml

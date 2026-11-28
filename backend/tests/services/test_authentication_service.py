@@ -1,16 +1,27 @@
 import pytest
 from django.db import IntegrityError
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 from core.enums import AccountStatus, Gender, UserType
 from core.exceptions import InvalidCredentials, ValidationError
 from repositories.profile_repository import ProfileRepository
 from repositories.user_repository import UserRepository
+from services.account_email_service import AccountEmailService, email_confirmation_token
 from services.authentication_service import AuthenticationService
 
 
 @pytest.fixture
 def auth_service():
     return AuthenticationService()
+
+
+def _confirm(user):
+    """Open the account's confirmation link through the service (FR-15)."""
+    AccountEmailService().confirm_email(
+        urlsafe_base64_encode(force_bytes(user.pk)),
+        email_confirmation_token.make_token(user),
+    )
 
 
 @pytest.mark.django_db
@@ -66,11 +77,12 @@ def test_duplicate_email_registration_is_rejected(auth_service):
 
 @pytest.mark.django_db
 def test_authenticate_with_valid_credentials_succeeds(auth_service):
-    auth_service.register_service_provider(
+    registered = auth_service.register_service_provider(
         name="Provider User",
         email="login@example.com",
         password="strong-password",
     )
+    _confirm(registered)
 
     user = auth_service.authenticate_user("login@example.com", "strong-password")
 
@@ -79,11 +91,12 @@ def test_authenticate_with_valid_credentials_succeeds(auth_service):
 
 @pytest.mark.django_db
 def test_authenticate_ignores_email_letter_case_and_spaces(auth_service):
-    auth_service.register_service_provider(
+    registered = auth_service.register_service_provider(
         name="Provider User",
         email="case-login@example.com",
         password="strong-password",
     )
+    _confirm(registered)
 
     user = auth_service.authenticate_user("  Case-Login@EXAMPLE.com ", "strong-password")
 

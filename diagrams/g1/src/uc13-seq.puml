@@ -1,0 +1,47 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Browser" as B
+participant "response_export_\ncsv, _xlsx\n(web views)" as V
+participant "ResponseReview-\nService, Quality-\nService" as Svc
+database "Question, Response,\nAnalysis repositories\nPostgreSQL" as DB
+activate P
+P -> B : Export CSV or Excel
+activate B
+B -> V : GET .../responses/\nexport/csv/ (or xlsx/)
+activate V
+V -> Svc : export_responses()
+activate Svc
+Svc -> Svc : evaluate_survey(): owner,\nresults_open() (P-20),\nverdict per response
+activate Svc
+deactivate Svc
+alt not the owner
+  V --> B : 302 provider dashboard\nwith the message
+else fewer than 5 responses
+  V --> B : 302 response list\n(locked card)
+else results open
+  Svc -> DB : questions with options,\nincluded answers,\nsentiment statuses
+  activate DB
+  deactivate DB
+  Svc --> V : questions; one row per\nincluded response, by\nits list number
+  deactivate Svc
+  V -> V : export_table(): Response,\nSubmitted, Score, Band,\nFlags, one column per\nquestion (+ sentiment)
+  activate V
+  deactivate V
+  V -> V : _clean(): strip control\ncharacters, then _guard()\nputs ' before = + - @,\ntab or carriage return
+  activate V
+  deactivate V
+  alt CSV
+    V --> B : 200 survey-{id}-responses\n.csv (UTF-8 with BOM)
+  else Excel
+    V --> B : 200 survey-{id}-responses\n.xlsx, sheet "Responses"
+    deactivate V
+  end
+end
+note over V, DB : No name, email, respondent id, device hash or\ntime of day in the file; excluded responses keep\ntheir numbers but give no row
+deactivate B
+deactivate P
+@enduml

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">Survey review</div>
+                <h1>Surveys waiting for review</h1>
+                <p class="section-subtitle mb-0">
+                    Oldest first. A survey is published only after you approve it.
+                </p>
+            </div>
+            <a
+                class="btn btn-outline-secondary"
+                href="{% url 'admin_panel:admin_dashboard' %}"
+            >
+                <i class="bi bi-speedometer2 me-1"></i>
+                Dashboard
+            </a>
+        </div>
+
+        <!-- FR-12 review queue -->
+        <div class="card table-card">
+            <div class="card-body">
+                {% if rows %}
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Survey</th>
+                                    <th>Provider</th>
+                                    <th>Submitted</th>
+                                    <th>Questions</th>
+                                    <th class="text-end"><span class="visually-hidden">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rows %}
+                                    <tr>
+                                        <td><div class="item-title">{{ row.survey.title }}</div></td>
+                                        <td>
+                                            <div>{{ row.provider_name }}</div>
+                                            <div class="text-muted small">{{ row.provider_email }}</div>
+                                        </td>
+                                        <td>{{ row.submitted_at|date:"j M Y" }}</td>
+                                        <td>{{ row.question_count }}</td>
+                                        <td class="text-end">
+                                            <a
+                                                class="btn btn-sm btn-primary"
+                                                href="{% url 'admin_panel:review_survey' row.survey.survey_id %}"
+                                            >
+                                                <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i>
+                                                Review
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="empty-state">No survey is waiting for review.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

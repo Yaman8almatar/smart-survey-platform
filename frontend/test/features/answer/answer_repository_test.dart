@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:smart_survey_app/core/api/api_client.dart';
 import 'package:smart_survey_app/core/api/api_exception.dart';
 import 'package:smart_survey_app/core/api/token_store.dart';
+import 'package:smart_survey_app/core/device_id_store.dart';
 import 'package:smart_survey_app/features/answer/answer_models.dart';
 import 'package:smart_survey_app/features/answer/answer_repository.dart';
 import 'package:smart_survey_app/features/answer/survey_parts.dart';
@@ -34,6 +35,12 @@ class _RecordingApi extends ApiClient {
     this.timeout = timeout;
     return {'id': 1, 'survey_id': 1, 'submitted_at': '2026-11-08T14:42:00Z'};
   }
+}
+
+/// A keystore that cannot be read.
+class _BrokenDeviceIdStore implements DeviceIdStore {
+  @override
+  Future<String> readOrCreate() async => throw Exception('keystore locked');
 }
 
 void main() {
@@ -158,17 +165,21 @@ void main() {
           {'question_id': 13, 'rating_value': 4},
           {'question_id': 12, 'answer_value': 'Clear and quick.'},
         ],
+        'device_id': testDeviceId,
       });
       expect(result.responseId, 55);
       expect(result.submittedAt, DateTime.utc(2026, 11, 8, 14, 42));
     });
 
-    test('submit passes the 60 s timeout', () async {
+    test("submit uses the client's default timeout", () async {
       final api = _RecordingApi();
 
-      await AnswerRepository(api: api).submit(1, const {});
+      await AnswerRepository(
+        api: api,
+        deviceIds: MemoryDeviceIdStore(),
+      ).submit(1, const {});
 
-      expect(api.timeout, const Duration(seconds: 60));
+      expect(api.timeout, isNull);
     });
 
     test('trims text and leaves out a blank one', () async {
@@ -183,6 +194,7 @@ void main() {
         'answers': [
           {'question_id': 12, 'answer_value': 'spaced'},
         ],
+        'device_id': testDeviceId,
       });
     });
 
@@ -191,7 +203,55 @@ void main() {
 
       await test.answers.submit(1, const {});
 
-      expect(jsonDecode(captured.body), {'answers': <Object>[]});
+      expect(jsonDecode(captured.body), {
+        'answers': <Object>[],
+        'device_id': testDeviceId,
+      });
+    });
+
+    test('carries timings and the device ID', () async {
+      final test = submitApi();
+
+      await test.answers.submit(
+        1,
+        const {11: Answer.option(101)},
+        timings: const {11: 4200, 12: 0},
+      );
+
+      expect(jsonDecode(captured.body), {
+        'answers': [
+          {'question_id': 11, 'selected_option_id': 101},
+        ],
+        'timings': [
+          {'question_id': 11, 'active_ms': 4200},
+          {'question_id': 12, 'active_ms': 0},
+        ],
+        'device_id': testDeviceId,
+      });
+    });
+
+    test('a device ID store that throws leaves the key out', () async {
+      final test = TestApi((request) async {
+        captured = request;
+        return jsonResponse({
+          'id': 55,
+          'survey_id': 1,
+          'submitted_at': '2026-11-08T14:42:00Z',
+        }, 201);
+      }, deviceIds: _BrokenDeviceIdStore());
+
+      final result = await test.answers.submit(
+        1,
+        const {},
+        timings: const {11: 10},
+      );
+
+      final body = jsonDecode(captured.body) as Map<String, dynamic>;
+      expect(body.containsKey('device_id'), isFalse);
+      expect(body['timings'], [
+        {'question_id': 11, 'active_ms': 10},
+      ]);
+      expect(result.responseId, 55);
     });
 
     test('passes on the API error', () {
@@ -241,6 +301,32 @@ void main() {
       });
       expect(draft.startedAt, DateTime.utc(2026, 11, 8, 9, 30));
       expect(draft.updatedAt, DateTime.utc(2026, 11, 8, 9, 34));
+      expect(draft.timings, isEmpty);
+    });
+
+    test('timings in the 200 body parse by question id', () async {
+      final test = answering('''
+{"survey_id": 5,
+ "answers": [],
+ "timings": [{"question_id": 1, "active_ms": 15800},
+             {"question_id": 3, "active_ms": 0}],
+ "started_at": "2026-11-08T09:30:00Z",
+ "updated_at": "2026-11-08T09:34:00Z"}
+''', 200);
+
+      final draft = await test.answers.draft(5);
+
+      expect(draft!.timings, {1: 15800, 3: 0});
+    });
+
+    test('timings [] gives an empty map', () async {
+      final test = answering('''
+{"survey_id": 5, "answers": [], "timings": [],
+ "started_at": "2026-11-08T09:30:00Z",
+ "updated_at": "2026-11-08T09:30:00Z"}
+''', 200);
+
+      expect((await test.answers.draft(5))!.timings, isEmpty);
     });
 
     test('404 draft_not_found returns null', () async {
@@ -348,6 +434,19 @@ void main() {
       });
     });
 
+    test('saveDraft carries timings when given', () async {
+      final test = recording(jsonResponse({}));
+
+      await test.answers.saveDraft(1, const {}, timings: const {1: 3000});
+
+      expect(jsonDecode(captured.body), {
+        'answers': <Object>[],
+        'timings': [
+          {'question_id': 1, 'active_ms': 3000},
+        ],
+      });
+    });
+
     test('deleteDraft sends DELETE and accepts an empty 204', () async {
       final test = recording(http.Response('', 204));
 
@@ -365,6 +464,17 @@ void main() {
       }).keptFor(detail());
 
       expect(kept!.answers, {3: const Answer.rating(2)});
+    });
+
+    test('keptFor carries the timings over', () {
+      final kept = SurveyDraft(
+        answers: const {3: Answer.rating(2)},
+        timings: const {1: 900, 3: 1200},
+        startedAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      ).keptFor(detail());
+
+      expect(kept!.timings, {1: 900, 3: 1200});
     });
 
     test('keptFor is null when no answer is left', () {

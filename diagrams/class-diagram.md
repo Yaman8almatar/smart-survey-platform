@@ -1,13 +1,20 @@
-# Class diagram: domain model (Increment 1)
+# Class diagram: domain model (Increment 2)
 
 ```
 Basis: team convention (diagrams/README.md: requirement IDs and layer names)
-Source of truth: backend/apps/core/models/ (ten model files), backend/core/enums.py
-Date / version: 2026-11-13, develop commit d3d2db2
+Source of truth: backend/apps/core/models/ (eleven model files: user.py, respondent_profile.py, survey.py,
+  targeting_criteria.py, question.py, question_option.py, response.py, response_draft.py, response_quality.py,
+  answer.py, sentiment_analysis_result.py), backend/core/enums.py
+Date / version: 2026-11-27, develop commit 59f1957
 ```
 
-The ten domain classes of `apps.core`, their key attributes, the methods that hold business rules, and the
-enumerations they use. Attribute types are the Python types of the Django fields.
+The eleven domain classes of `apps.core`, their key attributes, the methods that hold business rules, and the
+enumerations they use. Attribute types are the Python types of the Django fields. Changes since Increment 1
+(develop d3d2db2): the sentiment worker fields (T-9), the targeting lists and the reach at publish (FR-03), and the
+response quality evidence, attention questions, include or exclude decision and profile snapshot (FR-04). Changes
+since the FR-04 version (develop f3c96d4): the shuffle switches (FR-16, migration 0014), the admin review (FR-12,
+0015), the schedule and response limit with the PAUSED state (FR-11, 0016), and the email confirmation flag (FR-15,
+0017).
 
 ```mermaid
 classDiagram
@@ -20,6 +27,7 @@ classDiagram
         +UserType user_type
         +AccountStatus account_status
         +bool is_active
+        +bool email_verified
         +datetime created_at
         +activate()
         +suspend()
@@ -50,9 +58,26 @@ classDiagram
         +datetime created_at
         +datetime? published_at
         +datetime? closed_at
+        +int? reach_at_publish
+        +bool shuffle_questions
+        +bool shuffle_options
+        +datetime? submitted_at
+        +datetime? reviewed_at
+        +str rejection_reason
+        +date? opens_on
+        +date? closes_on
+        +int? target_responses
         +clean()
+        +submit_for_review()
+        +approve(admin_user)
+        +reject(admin_user, reason)
         +publish()
+        +pause()
+        +resume()
         +close()
+        +is_pending_review() bool
+        +is_open_on(day) bool
+        +has_passed_closing(day) bool
         +can_edit() bool
         +can_delete() bool
         +can_accept_responses() bool
@@ -63,7 +88,11 @@ classDiagram
         +Gender? gender
         +int? age_min
         +int? age_max
-        +Governorate? region
+        +list~Governorate~ regions
+        +list~Education~ education_levels
+        +list~Occupation~ occupations
+        +list~MaritalStatus~ marital_statuses
+        +list~Interest~ interests
         +is_open_to_all() bool
     }
 
@@ -73,6 +102,8 @@ classDiagram
         +QuestionType question_type
         +bool is_required
         +int order_index
+        +bool is_attention_check
+        +int? expected_rating
         +is_choice_based() bool
         +is_open_text() bool
     }
@@ -87,6 +118,15 @@ classDiagram
         +int response_id
         +datetime? started_at
         +datetime submitted_at
+        +bool is_excluded
+        +datetime? excluded_at
+        +int? snap_age
+        +str snap_gender
+        +str snap_region
+        +str snap_education
+        +str snap_occupation
+        +str snap_marital_status
+        +list~str~ snap_interests
         +add_answer(answer) Answer
         +has_open_text_answers() bool
     }
@@ -94,8 +134,21 @@ classDiagram
     class ResponseDraft {
         +int draft_id
         +list~dict~ answers
+        +list~dict~ timings
         +datetime started_at
         +datetime updated_at
+    }
+
+    class ResponseQuality {
+        +int quality_id
+        +list~dict~ timings
+        +int? active_ms
+        +int attention_total
+        +int attention_failed
+        +int rating_count
+        +bool rating_all_same
+        +str device_hash
+        +bool signals_ok
     }
 
     class Answer {
@@ -114,8 +167,16 @@ classDiagram
         +float? sentiment_score
         +AnalysisStatus status
         +datetime? analyzed_at
-        +mark_completed(label, score, analyzed_at)
-        +mark_failed()
+        +int attempts
+        +datetime? next_attempt_at
+        +datetime? locked_at
+        +str error_code
+        +str language
+        +str model_id
+        +mark_completed(label, score, analyzed_at, language, model_id)
+        +mark_failed(error_code)
+        +mark_skipped(error_code)
+        +schedule_retry(next_attempt_at)
     }
 
     class UserType {
@@ -135,7 +196,9 @@ classDiagram
     class SurveyStatus {
         <<enumeration>>
         DRAFT
+        PENDING_REVIEW
         PUBLISHED
+        PAUSED
         CLOSED
     }
 
@@ -149,8 +212,10 @@ classDiagram
     class AnalysisStatus {
         <<enumeration>>
         PENDING
+        RUNNING
         COMPLETED
         FAILED
+        SKIPPED
     }
 
     class SentimentLabel {
@@ -199,10 +264,14 @@ classDiagram
     Survey "1" *-- "0..*" ResponseDraft : drafts
     Question "1" *-- "0..*" QuestionOption : options
     Response "1" *-- "0..*" Answer : answers
+    Response "1" *-- "0..1" ResponseQuality : quality
     User "1" -- "0..*" Survey : provider
+    User "0..1" -- "0..*" Survey : reviewed_by
     User "1" -- "0..*" Response : respondent
     User "1" -- "0..*" ResponseDraft : respondent
+    Survey "1" -- "0..*" ResponseQuality : survey
     Question "1" -- "0..*" Answer : answers
+    Question "0..*" --> "0..1" QuestionOption : expected_option
     Answer "0..*" --> "0..1" QuestionOption : selected_option
     Answer "1" *-- "0..1" SentimentAnalysisResult : sentiment_analysis_result
 
@@ -220,9 +289,16 @@ classDiagram
     RespondentProfile ..> MaritalStatus
     TargetingCriteria ..> Gender
     TargetingCriteria ..> Governorate
+    TargetingCriteria ..> Interest
+    TargetingCriteria ..> Education
+    TargetingCriteria ..> Occupation
+    TargetingCriteria ..> MaritalStatus
 
     note for Governorate "Long code lists: the values are in backend/core/enums.py"
     note for RespondentProfile "completion_percent: share of 7 details filled. is_complete: age, gender, region, interests set"
+    note for ResponseQuality "FR-04 evidence stored at submit: facts only, no flag, score or band is stored"
+    note for Survey "Lifecycle in state-survey-lifecycle.md. Empty opens_on, closes_on or target_responses: no bound"
+    note for Response "snap_ fields: the profile as it was at submit, plain text without choices"
 ```
 
 ## Business rules held by the classes
@@ -234,12 +310,24 @@ classDiagram
 | RespondentProfile | `is_complete` | True when age, gender, a valid governorate and at least one interest are set. |
 | RespondentProfile | `completion_percent` | Filled share of the seven `COMPLETION_FIELDS`, rounded, in percent. |
 | Survey | `clean` | The provider must be a SERVICE_PROVIDER user. |
+| Survey | `submit_for_review` | DRAFT to PENDING_REVIEW; stamps `submitted_at` and clears the last review (reason, reviewer, time). The completeness checks run before it in `SurveyService`. |
+| Survey | `approve` | Records the admin and `reviewed_at`, then `publish`: PUBLISHED with `published_at`. |
+| Survey | `reject` | Back to DRAFT with the admin's reason, reviewer and `reviewed_at`. |
+| Survey | `pause`, `resume` | PUBLISHED to PAUSED and back; a paused survey takes no response and is not listed. |
+| Survey | `close` | CLOSED with `closed_at`. |
+| Survey | `is_open_on` | PUBLISHED and the day inside `opens_on` to `closes_on` (an empty date is no bound). |
+| Survey | `has_passed_closing` | True when `closes_on` is before the day. |
 | Survey | `can_edit` | Only a DRAFT survey can be edited. |
 | Survey | `can_delete` | Only a DRAFT or CLOSED survey can be deleted. |
 | Survey | `can_accept_responses` | Only a PUBLISHED survey accepts responses. |
-| TargetingCriteria | `is_open_to_all` | No gender (or ANY), no age limits and no region. |
+| TargetingCriteria | `is_open_to_all` | No gender (or ANY), no age limits and every list empty (regions, education levels, occupations, marital statuses, interests). |
 | Answer | `requires_sentiment_analysis` | Only an answer to an OPEN_TEXT question is analysed. |
-| SentimentAnalysisResult | `mark_completed`, `mark_failed` | COMPLETED stores label and score; FAILED clears them and stamps `analyzed_at`. |
+| SentimentAnalysisResult | `mark_completed` | COMPLETED stores label, score, `analyzed_at`, language and model id; clears `error_code` and the lock. |
+| SentimentAnalysisResult | `mark_failed`, `mark_skipped` | FAILED or SKIPPED clears label and score and stores the reason code; FAILED also stamps `analyzed_at`. |
+| SentimentAnalysisResult | `schedule_retry` | Back to PENDING, due at `next_attempt_at`, lock cleared. |
+
+`ResponseQuality` and the FR-04 fields on `Question` and `Response` hold no method: the evidence is built by
+`QualityService.capture` and judged on read by `services/quality_rules.py` (see `activity-fr04-quality-rules.md`).
 
 ## Legend
 
@@ -250,10 +338,10 @@ classDiagram
 | `+` | Public member. |
 | `name()` and `name() type` | Method, with its return type when it returns a value. |
 | `type?` | Optional attribute: the field allows NULL. |
-| `list~T~` | List of T: `list~Interest~` is a PostgreSQL array, `list~dict~` is a JSON list. |
+| `list~T~` | List of T: `list~Interest~`, `list~Governorate~` and `list~str~` are PostgreSQL arrays, `list~dict~` is a JSON list. |
 | Line with filled diamond (`*--`) | Composition: the part belongs to exactly one whole and is deleted with it (`on_delete=CASCADE`). The diamond is on the whole. |
 | Plain line (`--`) | Association between two classes, with its multiplicities and label. |
-| Line with open arrow (`-->`) | Association: Answer knows its selected option; deleting the option sets the link to NULL (`on_delete=SET_NULL`). |
+| Line with open arrow (`-->`) | Association in one direction: Answer knows its selected option and Question knows its expected option; deleting the option sets the link to NULL (`on_delete=SET_NULL`). |
 | (delete rules) | The ORM delete rules of the plain associations are listed in erd.md. |
 | Dashed arrow (`..>`) | Dependency: the attribute type is that enumeration. |
 | `1`, `0..1`, `0..*` | Multiplicity at that end of the line. |

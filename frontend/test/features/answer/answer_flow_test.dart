@@ -80,11 +80,15 @@ http.Response created() => jsonResponse({
 }, 201);
 
 /// The 200 body of the draft endpoint, saved just now.
-http.Response draftResponse(List<Object?> answers) {
+http.Response draftResponse(
+  List<Object?> answers, [
+  List<Object?> timings = const [],
+]) {
   final now = DateTime.now().toUtc().toIso8601String();
   return jsonResponse({
     'survey_id': 1,
     'answers': answers,
+    'timings': timings,
     'started_at': now,
     'updated_at': now,
   });
@@ -124,7 +128,11 @@ class FlowApi {
   int deletes = 0;
   final List<Object?> sent = [];
   final List<Object?> saved = [];
+
+  /// Every request as "METHOD path", in order.
+  final List<String> requests = [];
   List<Object?>? _stored;
+  List<Object?> _storedTimings = const [];
 
   Future<http.Response> _handleDraft(http.Request request) async {
     switch (request.method) {
@@ -133,20 +141,25 @@ class FlowApi {
         saved.add(body);
         if (save != null) return save!();
         _stored = body['answers'] as List<Object?>;
-        return draftResponse(_stored!);
+        _storedTimings = (body['timings'] as List<Object?>?) ?? _storedTimings;
+        return draftResponse(_stored!, _storedTimings);
       case 'DELETE':
         deletes++;
         if (remove != null) return remove!();
         _stored = null;
+        _storedTimings = const [];
         return http.Response('', 204);
       default:
         if (draft != null) return draft!();
-        return _stored == null ? noDraft() : draftResponse(_stored!);
+        return _stored == null
+            ? noDraft()
+            : draftResponse(_stored!, _storedTimings);
     }
   }
 
   Future<http.Response> _handle(http.Request request) async {
     final path = request.url.path;
+    requests.add('${request.method} $path');
     if (path.endsWith('/draft/')) return _handleDraft(request);
     if (path.endsWith('surveys/eligible/')) {
       listLoads++;
@@ -156,6 +169,8 @@ class FlowApi {
           'title': 'Transport in Homs',
           'description': 'Tell us about buses.',
           'question_count': 3,
+          'expected_minutes': 1,
+          'published_on': '2026-11-18',
         },
       ]);
     }
@@ -220,12 +235,60 @@ bool isSelected(WidgetTester tester, String label) => tester
     .widget<AnswerOption>(find.widgetWithText(AnswerOption, label))
     .selected;
 
-const _expectedBody = {
-  'answers': [
-    {'question_id': 11, 'selected_option_id': 102},
-    {'question_id': 13, 'rating_value': 4},
-  ],
+/// A clock the test moves by hand, in milliseconds.
+class FakeClock {
+  int ms = 0;
+  int call() => ms;
+}
+
+/// The start screen alone, timed by [clock].
+Future<void> openStartWith(
+  WidgetTester tester,
+  FlowApi flow,
+  FakeClock clock,
+) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light(),
+      home: SurveyStartScreen(
+        answerRepository: flow.api.answers,
+        surveyId: 1,
+        onSessionExpired: () {},
+        clock: clock.call,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> beginWith(
+  WidgetTester tester,
+  FlowApi flow,
+  FakeClock clock,
+) async {
+  await openStartWith(tester, flow, clock);
+  await tapText(tester, 'Start survey');
+}
+
+List<Object?> answersOf(Object? body) =>
+    (body! as Map<String, dynamic>)['answers'] as List<Object?>;
+
+/// The `timings` of a request body as question id to active ms.
+Map<int, int> timingsOf(Object? body) => {
+  for (final row in (body! as Map<String, dynamic>)['timings'] as List)
+    (row as Map<String, dynamic>)['question_id'] as int:
+        row['active_ms'] as int,
 };
+
+const _expectedAnswers = [
+  {'question_id': 11, 'selected_option_id': 102},
+  {'question_id': 13, 'rating_value': 4},
+];
+
+const String a04 =
+    'We record how long each question takes and an anonymous app ID, to spot '
+    'careless or repeated answers. The survey owner never sees your name or '
+    'email.';
 
 void main() {
   group('list and start', () {
@@ -608,7 +671,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('leaves at once with no answer and sends no request', (
+    testWidgets('leaves at once with no answer; only the start mark was sent', (
       tester,
     ) async {
       final flow = FlowApi();
@@ -616,7 +679,8 @@ void main() {
 
       await tapClose(tester);
 
-      expect(flow.saved, isEmpty);
+      expect(flow.saved, hasLength(1));
+      expect(answersOf(flow.saved.single), isEmpty);
       expect(find.text('Leave without saving?'), findsNothing);
       expect(find.byType(SurveyStartScreen), findsOneWidget);
       expect(find.byType(SurveyAnswerScreen), findsNothing);
@@ -631,7 +695,7 @@ void main() {
 
         await tapClose(tester);
 
-        expect(flow.saved, hasLength(1));
+        expect(flow.saved, hasLength(2));
         expect(find.text('Leave without saving?'), findsNothing);
         expect(find.byType(SurveyAnswerScreen), findsNothing);
         expect(find.text('Your draft'), findsOneWidget);
@@ -690,7 +754,10 @@ void main() {
       tester,
     ) async {
       final gate = Completer<http.Response>();
-      final flow = FlowApi(save: () => gate.future);
+      var calls = 0;
+      final flow = FlowApi(
+        save: () async => ++calls == 1 ? draftResponse(const []) : gate.future,
+      );
       await begin(tester, flow);
       await tapText(tester, 'Taxi');
 
@@ -699,7 +766,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       await tester.tap(find.byTooltip('Leave survey'), warnIfMissed: false);
       await tester.pump();
-      expect(flow.saved, hasLength(1));
+      expect(flow.saved, hasLength(2));
 
       gate.complete(draftResponse(const []));
       await tester.pumpAndSettle();
@@ -730,23 +797,33 @@ void main() {
 
       await tapText(tester, 'Next');
 
-      expect(flow.saved.single, {
-        'answers': [
-          {'question_id': 11, 'selected_option_id': 102},
-        ],
-      });
+      expect(flow.saved, hasLength(2));
+      expect(answersOf(flow.saved.last), [
+        {'question_id': 11, 'selected_option_id': 102},
+      ]);
     });
 
-    testWidgets('moving without a change sends no PUT', (tester) async {
+    testWidgets('moving without a change repeats the answers with timings', (
+      tester,
+    ) async {
+      final clock = FakeClock();
       final flow = FlowApi();
-      await begin(tester, flow);
+      await beginWith(tester, flow, clock);
       await tapText(tester, 'Taxi');
+      clock.ms += 1000;
       await tapText(tester, 'Next');
+      clock.ms += 2000;
 
       await tapText(tester, 'Back');
+
+      expect(flow.saved, hasLength(3));
+      expect(answersOf(flow.saved[2]), answersOf(flow.saved[1]));
+      expect(timingsOf(flow.saved[1]), {11: 1000, 12: 0});
+      expect(timingsOf(flow.saved[2]), {11: 1000, 12: 2000});
+
       await tapText(tester, 'Next');
 
-      expect(flow.saved, hasLength(1));
+      expect(flow.saved, hasLength(3));
     });
 
     testWidgets('typing sends nothing until the question changes', (
@@ -759,10 +836,10 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'Crowded');
       await tester.pumpAndSettle();
-      expect(flow.saved, hasLength(1));
+      expect(flow.saved, hasLength(2));
 
       await tapText(tester, 'Next');
-      expect(flow.saved, hasLength(2));
+      expect(flow.saved, hasLength(3));
     });
 
     testWidgets('one save at a time; the newest answers follow', (
@@ -771,7 +848,7 @@ void main() {
       final gate = Completer<http.Response>();
       var calls = 0;
       final flow = FlowApi(
-        save: () async => ++calls == 1 ? gate.future : draftResponse(const []),
+        save: () async => ++calls == 2 ? gate.future : draftResponse(const []),
       );
       await begin(tester, flow);
       await tapText(tester, 'Taxi');
@@ -780,18 +857,16 @@ void main() {
       await tester.pumpAndSettle();
 
       await tapText(tester, 'Next');
-      expect(flow.saved, hasLength(1));
+      expect(flow.saved, hasLength(2));
 
       gate.complete(draftResponse(const []));
       await tester.pumpAndSettle();
 
-      expect(flow.saved, hasLength(2));
-      expect(flow.saved.last, {
-        'answers': [
-          {'question_id': 11, 'selected_option_id': 102},
-          {'question_id': 12, 'answer_value': 'Crowded'},
-        ],
-      });
+      expect(flow.saved, hasLength(3));
+      expect(answersOf(flow.saved.last), [
+        {'question_id': 11, 'selected_option_id': 102},
+        {'question_id': 12, 'answer_value': 'Crowded'},
+      ]);
     });
 
     testWidgets('a failed save is silent and is tried at the next change', (
@@ -808,12 +883,15 @@ void main() {
 
       await tapText(tester, 'Back');
 
-      expect(flow.saved, hasLength(2));
+      expect(flow.saved, hasLength(3));
     });
 
     testWidgets('409 not_editable shows the survey is closed', (tester) async {
+      var calls = 0;
       final flow = FlowApi(
-        save: () async => errorResponse(409, 'not_editable', 'Closed.'),
+        save: () async => ++calls == 1
+            ? draftResponse(const [])
+            : errorResponse(409, 'not_editable', 'Closed.'),
       );
       await begin(tester, flow);
       await tapText(tester, 'Taxi');
@@ -825,9 +903,11 @@ void main() {
     });
 
     testWidgets('an ended session while saving opens login', (tester) async {
+      var calls = 0;
       final flow = FlowApi(
-        save: () async =>
-            errorResponse(401, 'authentication_failed', 'Token invalid.'),
+        save: () async => ++calls == 1
+            ? draftResponse(const [])
+            : errorResponse(401, 'authentication_failed', 'Token invalid.'),
         tokens: MemoryTokenStore(access: 'a', refresh: 'r'),
       );
       await begin(tester, flow);
@@ -843,10 +923,12 @@ void main() {
     ) async {
       final saveGate = Completer<http.Response>();
       final sendGate = Completer<http.Response>();
-      var calls = 0;
-      final flow = FlowApi(
-        save: () async =>
-            ++calls == 2 ? saveGate.future : draftResponse(const []),
+      late final FlowApi flow;
+      // Holds the save of the review, the one with both answers.
+      flow = FlowApi(
+        save: () async => answersOf(flow.saved.last).length == 2
+            ? saveGate.future
+            : draftResponse(const []),
         submit: () => sendGate.future,
       );
       await reachReview(tester, flow);
@@ -1113,7 +1195,9 @@ void main() {
 
       await tapText(tester, 'Send answers');
 
-      expect(flow.sent.single, _expectedBody);
+      expect(answersOf(flow.sent.single), _expectedAnswers);
+      expect(timingsOf(flow.sent.single).keys, [11, 12, 13]);
+      expect((flow.sent.single! as Map)['device_id'], testDeviceId);
       expect(find.byType(SurveySentScreen), findsOneWidget);
       expect(find.byType(SurveyAnswerScreen), findsNothing);
       expect(find.text('Answers sent'), findsOneWidget);
@@ -1194,7 +1278,7 @@ void main() {
       await tapText(tester, 'Try again');
 
       expect(find.text('Answers sent'), findsOneWidget);
-      expect(flow.sent.last, _expectedBody);
+      expect(answersOf(flow.sent.last), _expectedAnswers);
     });
 
     testWidgets('409 duplicate_response shows its message', (tester) async {
@@ -1319,6 +1403,193 @@ void main() {
         find.text('Your session ended. Please log in again.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('quality signals (FR-04)', () {
+    const chosen = {'question_id': 11, 'selected_option_id': 102};
+
+    testWidgets('no draft: the first request after Start survey is the mark', (
+      tester,
+    ) async {
+      final clock = FakeClock();
+      final flow = FlowApi();
+      await openStartWith(tester, flow, clock);
+      final before = flow.requests.length;
+
+      await tapText(tester, 'Start survey');
+
+      expect(flow.requests[before], 'PUT /api/v1/surveys/1/draft/');
+      expect(flow.saved.single, {'answers': <Object>[], 'timings': <Object>[]});
+    });
+
+    testWidgets('a draft with no answers sends no start mark', (tester) async {
+      final flow = FlowApi(draft: () async => draftResponse(const []));
+      await openStartWith(tester, flow, FakeClock());
+
+      expect(find.text('Start survey'), findsOneWidget);
+      await tapText(tester, 'Start survey');
+
+      expect(flow.saved, isEmpty);
+      expect(find.text('Question 1 of 3'), findsOneWidget);
+    });
+
+    testWidgets('4 s on question 1 then Next sends 4000 for it', (
+      tester,
+    ) async {
+      final clock = FakeClock();
+      final flow = FlowApi();
+      await beginWith(tester, flow, clock);
+      await tapText(tester, 'Taxi');
+      clock.ms += 4000;
+
+      await tapText(tester, 'Next');
+
+      expect(timingsOf(flow.saved.last), {11: 4000, 12: 0});
+    });
+
+    testWidgets('Send posts timings of every visited question and the ID; '
+        'time on the review is not added', (tester) async {
+      final clock = FakeClock();
+      final flow = FlowApi();
+      await beginWith(tester, flow, clock);
+      await tapText(tester, 'Taxi');
+      clock.ms += 1000;
+      await tapText(tester, 'Next');
+      await tapText(tester, 'Skip');
+      await tapText(tester, '4');
+      clock.ms += 2000;
+      await tapText(tester, 'Review answers');
+      clock.ms += 60000;
+
+      await tapText(tester, 'Send answers');
+
+      final body = flow.sent.single! as Map<String, dynamic>;
+      expect(body['answers'], _expectedAnswers);
+      expect(timingsOf(body), {11: 1000, 12: 0, 13: 2000});
+      expect(body['device_id'], testDeviceId);
+    });
+
+    testWidgets('hidden and paused add nothing; hiding sends one save', (
+      tester,
+    ) async {
+      final clock = FakeClock();
+      final flow = FlowApi();
+      await beginWith(tester, flow, clock);
+      await tapText(tester, 'Taxi');
+      clock.ms += 1000;
+
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pump();
+
+      expect(flow.saved, hasLength(2));
+      expect(answersOf(flow.saved.last), [chosen]);
+      expect(timingsOf(flow.saved.last), {11: 1000});
+
+      clock.ms += 60000;
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pump();
+      expect(flow.saved, hasLength(2));
+
+      clock.ms += 500;
+      await tapText(tester, 'Next');
+
+      expect(timingsOf(flow.saved.last), {11: 1500, 12: 0});
+    });
+
+    testWidgets('a draft with 3,000 ms on question 1 plus 2 s gives 5000', (
+      tester,
+    ) async {
+      final clock = FakeClock();
+      final flow = FlowApi(
+        draft: () async => draftResponse(const [], const [
+          {'question_id': 11, 'active_ms': 3000},
+          {'question_id': 99, 'active_ms': 700},
+        ]),
+      );
+      await beginWith(tester, flow, clock);
+      await tapText(tester, 'Taxi');
+      clock.ms += 2000;
+
+      await tapText(tester, 'Next');
+
+      expect(flow.saved, hasLength(1));
+      expect(timingsOf(flow.saved.single), {11: 5000, 12: 0});
+    });
+
+    testWidgets('on leave, a failing timings-only save closes with no dialog', (
+      tester,
+    ) async {
+      final clock = FakeClock();
+      var calls = 0;
+      final flow = FlowApi(
+        save: () async =>
+            ++calls <= 2 ? draftResponse(const []) : networkDown(),
+      );
+      await beginWith(tester, flow, clock);
+      await tapText(tester, 'Taxi');
+      clock.ms += 1000;
+      await tapText(tester, 'Next');
+      clock.ms += 5000;
+
+      await tester.tap(find.byTooltip('Leave survey'));
+      await tester.pumpAndSettle();
+
+      expect(flow.saved, hasLength(3));
+      expect(timingsOf(flow.saved.last), {11: 1000, 12: 5000});
+      expect(find.text('Leave without saving?'), findsNothing);
+      expect(find.byType(SurveyAnswerScreen), findsNothing);
+    });
+
+    testWidgets('Start over sends a new start mark with empty timings', (
+      tester,
+    ) async {
+      final flow = FlowApi(
+        draft: () async => draftResponse(
+          const [chosen],
+          const [
+            {'question_id': 11, 'active_ms': 3000},
+          ],
+        ),
+      );
+      await openStartWith(tester, flow, FakeClock());
+
+      await tester.tap(find.byIcon(Icons.restart_alt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Start over'));
+      await tester.pumpAndSettle();
+
+      expect(flow.deletes, 1);
+      expect(flow.saved.single, {'answers': <Object>[], 'timings': <Object>[]});
+    });
+
+    testWidgets('the A-04 notice is on the start view', (tester) async {
+      await openStartWith(tester, FlowApi(), FakeClock());
+
+      expect(find.text('Start survey'), findsOneWidget);
+      expect(find.text(a04), findsOneWidget);
+      expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
+    });
+
+    testWidgets('the A-04 notice is on the resume view', (tester) async {
+      final flow = FlowApi(draft: () async => draftResponse(const [chosen]));
+      await openStartWith(tester, flow, FakeClock());
+
+      expect(find.text('Your draft'), findsOneWidget);
+      expect(find.text(a04), findsOneWidget);
+      expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
     });
   });
 }

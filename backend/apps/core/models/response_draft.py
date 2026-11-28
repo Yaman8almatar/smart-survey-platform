@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Value
 
 
 class ResponseDraft(models.Model):
@@ -17,6 +18,8 @@ class ResponseDraft(models.Model):
         related_name="response_drafts",
     )
     answers = models.JSONField(default=list)
+    # FR-04: cumulative active time per question, replaced on every save that sends it.
+    timings = models.JSONField(default=list, db_default=Value([], output_field=models.JSONField()))
     started_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -12,117 +12,269 @@
                     #{{ results.survey_id }}.
                 </p>
             </div>
-            <a class="btn btn-outline-secondary" href="{% url 'surveys:survey_list' %}">
-                <i class="bi bi-arrow-left me-1"></i>
-                Back to surveys
-            </a>
+            <div class="page-actions">
+                <a class="btn btn-outline-secondary" href="{% url 'surveys:survey_list' %}">
+                    <i class="bi bi-arrow-left me-1"></i>
+                    Back to surveys
+                </a>
+                {% if not locked %}
+                    <a class="btn btn-outline-primary" href="{% url 'analysis:response_list' survey.id %}"><i class="bi bi-list-ol me-1" aria-hidden="true"></i>View responses</a>
+                {% endif %}
+            </div>
         </div>
 
+        {% if locked %}
+{% include "analysis/_locked_card.html" %}
+        {% else %}
         <!-- Analytics summary cards -->
         <div class="row g-3 mb-4">
             <div class="col-sm-6 col-lg-3">
                 <div class="metric-card">
                     <span>Responses</span>
                     <strong>{{ results.response_count }}</strong>
+                    <small>{{ results.included_count }} included</small>
                 </div>
             </div>
             <div class="col-sm-6 col-lg-3">
                 <div class="metric-card">
                     <span>Positive</span>
                     <strong>{{ results.positive_count }}</strong>
-                    <small>{{ results.positive_rate_label }}</small>
+                    <small>{{ results.positive_rate_label }} of {{ sentiment.analysed }} analysed</small>
                 </div>
             </div>
             <div class="col-sm-6 col-lg-3">
                 <div class="metric-card">
                     <span>Neutral</span>
                     <strong>{{ results.neutral_count }}</strong>
-                    <small>{{ results.neutral_rate_label }}</small>
+                    <small>{{ results.neutral_rate_label }} of {{ sentiment.analysed }} analysed</small>
                 </div>
             </div>
             <div class="col-sm-6 col-lg-3">
                 <div class="metric-card">
                     <span>Negative</span>
                     <strong>{{ results.negative_count }}</strong>
-                    <small>{{ results.negative_rate_label }}</small>
+                    <small>{{ results.negative_rate_label }} of {{ sentiment.analysed }} analysed</small>
                 </div>
             </div>
         </div>
+
+        {% if quality %}
+        <!-- W-04: response quality; nothing is excluded automatically (P-08) -->
+        <div class="card table-card mb-4 quality-panel">
+            <div class="card-body">
+                <div class="quality-panel__head">
+                    <h2 class="section-title mb-0">Response quality</h2>
+                    <span class="quality-caption">Rules version {{ quality.rules_version }}</span>
+                </div>
+                <p class="quality-count-line"><strong>{{ quality.included }} of {{ quality.total }}</strong> responses included.{% if quality.excluded > 0 %} {{ quality.excluded }} excluded.{% endif %}</p>
+
+                {% if quality.before_checks > 0 %}
+                    <div class="alert alert-info d-flex gap-2" role="note">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <div>{% if quality.before_checks == 1 %}<strong>1 response was collected before quality checks.</strong> It has no score and stays included.{% else %}<strong>{{ quality.before_checks }} responses were collected before quality checks.</strong> They have no score and stay included.{% endif %}</div>
+                    </div>
+                {% endif %}
+
+                <ul class="quality-bands">
+                    <li class="quality-band">
+                        <span class="quality-band__name"><span class="quality-dot quality-dot--clean" aria-hidden="true"></span>Clean</span>
+                        <strong>{{ quality.bands.CLEAN }}</strong>
+                        <span class="quality-caption">No flag</span>
+                    </li>
+                    <li class="quality-band">
+                        <span class="quality-band__name"><span class="quality-dot quality-dot--check" aria-hidden="true"></span>Check</span>
+                        <strong>{{ quality.bands.CHECK }}</strong>
+                        <span class="quality-caption">Score 60 to 99</span>
+                    </li>
+                    <li class="quality-band">
+                        <span class="quality-band__name"><span class="quality-dot quality-dot--low" aria-hidden="true"></span>Low</span>
+                        <strong>{{ quality.bands.LOW }}</strong>
+                        <span class="quality-caption">Score under 60</span>
+                    </li>
+                </ul>
+
+                {% if not quality.flag_rows %}
+                    <p>No response is flagged.</p>
+                {% endif %}
+                {% if quality.flag_rows or quality.not_checked_rows %}
+                    <div class="table-responsive">
+                        <table class="table quality-table">
+                            <thead>
+                                <tr><th scope="col">Flag</th><th scope="col">What it means</th><th scope="col">Responses</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in quality.flag_rows %}
+                                    <tr>
+                                        {% if row.code == "ATTENTION_FAILED" %}<td>Failed attention check</td><td>Chose a different answer than the attention check asked for.</td>{% elif row.code == "SPEEDING" %}<td>Answered very fast</td><td>Half or more of the closed questions took under 2 seconds, or the whole response was twice as fast as most.</td>{% elif row.code == "DUPLICATE_DEVICE" %}<td>Same device as another account</td><td>Two accounts answered from one app installation. Both responses are flagged.</td>{% elif row.code == "STRAIGHT_LINING" %}<td>Same rating on every rating question</td><td>All 5 or more rating answers are identical.</td>{% else %}<td>Timing or device data missing</td><td>The app sent no timings or device ID, or its times exceed the server's clock.</td>{% endif %}
+                                        <td>{{ row.count }}</td>
+                                    </tr>
+                                {% endfor %}
+                                {% for code in quality.not_checked_rows %}
+                                    <tr class="quality-row--muted">
+                                        {% if code == "ATTENTION_FAILED" %}<td>Failed attention check</td><td>Not checked: this survey has no attention check.</td>{% elif code == "SPEEDING" %}<td>Answered very fast</td><td>Not checked: needs at least 3 answered closed questions.</td>{% else %}<td>Same rating on every rating question</td><td>Not checked: needs 5 or more rating questions.</td>{% endif %}
+                                        <td>&ndash;</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+
+                <div class="quality-actions">
+                    {% if quality.flagged_included > 0 %}
+                        <a class="btn btn-outline-danger" href="{% url 'analysis:exclude_flagged' results.survey_id %}"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Exclude flagged responses ({{ quality.flagged_included }})</a>
+                    {% else %}
+                        <button type="button" class="btn btn-outline-danger" disabled><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Exclude flagged responses</button>
+                    {% endif %}
+                    {% if quality.excluded > 0 %}
+                        <a class="btn btn-outline-secondary" href="{% url 'analysis:include_all' results.survey_id %}"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Include all ({{ quality.excluded }} excluded)</a>
+                    {% else %}
+                        <button type="button" class="btn btn-outline-secondary" disabled><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Include all</button>
+                    {% endif %}
+                </div>
+                <p class="quality-footer">Flagged responses are kept. You decide which ones count.</p>
+                <p class="quality-caption mb-0">Charts, summaries and the export count included responses only. Speed says little on factual questions, where people who know the answer are quick.</p>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Analytics charts -->
         <div class="row g-4">
             <div class="col-lg-7">
                 <div class="card table-card h-100">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h2 class="section-title mb-0">
-                                Sentiment distribution
-                            </h2>
-                            <span class="badge text-bg-light">
-                                <i class="bi bi-pie-chart me-1"></i>Chart.js
-                            </span>
-                        </div>
-                        {% if has_responses %}
-                            {% if results.failed_count > 0 %}
-                                <div class="alert alert-danger d-flex gap-2" role="status">
-                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        <h2 class="section-title mb-3">Sentiment of open answers</h2>
+                        <!-- W-05a: count line, worker hint, failed notice, chart, waiting, skipped -->
+                        {% if not open_text_question %}
+                            <div class="empty-state">
+                                This survey has no open-text question, so there is no sentiment to show.
+                            </div>
+                        {% elif sentiment.total == 0 %}
+                            <div class="empty-state">No open answers to analyse yet.</div>
+                        {% else %}
+                            <p class="sentiment-count-line">Analysed {{ sentiment.analysed }} of {{ sentiment.total }} open answers.{% if sentiment.waiting > 0 %} {{ sentiment.waiting }} waiting.{% endif %}{% if sentiment.failed > 0 %} {{ sentiment.failed }} failed.{% endif %}</p>
+
+                            {% if sentiment.analysis_overdue %}
+                                <div class="alert alert-warning d-flex gap-2" role="status">
+                                    <i class="bi bi-hourglass-split" aria-hidden="true"></i>
                                     <div>
-                                        <strong>Sentiment analysis failed for {{ results.failed_count }} open-text answer{{ results.failed_count|pluralize }}.</strong>
-                                        <div>The answers are saved and counted in the results. The analysis service could not process them.</div>
+                                        <strong>Analysis is waiting.</strong>
+                                        <div>The analysis worker may not be running. The answers are saved and counted; each one gets a label when the worker runs.</div>
                                     </div>
                                 </div>
                             {% endif %}
-                            {% if results.has_completed_sentiment %}
-                                {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
-                                <div class="chart-panel">
-                                    <canvas id="sentimentDistributionChart"></canvas>
-                                </div>
-                            {% elif results.failed_count == 0 %}
-                                <div class="empty-state">
-                                    Sentiment analysis results are not yet available.
+
+                            {% if sentiment.failed > 0 %}
+                                <div class="alert alert-danger d-flex gap-2" role="status">
+                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>{% if sentiment.failed == 1 %}1 answer could not be analysed.{% else %}{{ sentiment.failed }} answers could not be analysed.{% endif %}</strong>
+                                        <ul class="sentiment-reasons">
+                                            {% for reason in sentiment.failed_reasons %}
+                                                <li>{% if reason.code == "payment_required" %}The analysis service needs payment.{% elif reason.code == "config" %}The analysis service is not set up.{% elif reason.code == "unavailable" %}The analysis service could not be reached after 3 tries.{% elif reason.code == "bad_output" %}The analysis service returned an unknown result.{% else %}The reason was not recorded.{% endif %} ({{ reason.count }})</li>
+                                            {% endfor %}
+                                        </ul>
+                                        <div>The answers are saved and counted in the results.</div>
+                                        <form method="post" action="{% url 'analysis:retry_failed' results.survey_id %}" class="mt-2">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Retry failed answers
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             {% endif %}
-                        {% else %}
-                            <div class="empty-state">
-                                No responses have been submitted for this survey yet.
-                            </div>
+
+                            {% if sentiment.analysed > 0 %}
+                                {{ sentiment_chart_data|json_script:"sentiment-chart-data" }}
+                                <div class="chart-panel sentiment-chart">
+                                    <canvas id="sentimentDistributionChart" aria-label="Sentiment of the analysed answers" role="img"></canvas>
+                                    <div class="sentiment-chart-centre" aria-hidden="true">
+                                        <strong>{{ sentiment.analysed }}</strong>
+                                        <span>analysed</span>
+                                    </div>
+                                </div>
+                                <ul class="sentiment-legend">
+                                    <li><span class="sentiment-swatch sentiment-swatch-positive"></span>Positive <strong>{{ results.positive_count }}</strong> <span>{{ results.positive_rate_label }}</span></li>
+                                    <li><span class="sentiment-swatch sentiment-swatch-neutral"></span>Neutral <strong>{{ results.neutral_count }}</strong> <span>{{ results.neutral_rate_label }}</span></li>
+                                    <li><span class="sentiment-swatch sentiment-swatch-negative"></span>Negative <strong>{{ results.negative_count }}</strong> <span>{{ results.negative_rate_label }}</span></li>
+                                </ul>
+                            {% else %}
+                                <div class="empty-state">The chart appears when the first answer is analysed.</div>
+                            {% endif %}
+
+                            {% if sentiment.waiting > 0 %}
+                                <p class="sentiment-caption">{% if sentiment.waiting == 1 %}1 answer is waiting for the analysis worker.{% else %}{{ sentiment.waiting }} answers are waiting for the analysis worker.{% endif %} Reload the page to update.</p>
+                            {% endif %}
+                        {% endif %}
+
+                        {% if open_text_question and sentiment.skipped > 0 %}
+                            <p class="sentiment-caption">{% if sentiment.skipped == 1 %}1 answer had no words to analyse and is left out.{% else %}{{ sentiment.skipped }} answers had no words to analyse and are left out.{% endif %}</p>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
             <div class="col-lg-5">
+                <!-- W-05b: the GET form only reloads the page with group_by -->
                 <div class="card table-card h-100">
                     <div class="card-body">
-                        <h2 class="section-title">Analytics summary</h2>
-                        <p class="item-subtitle">
-                            Rates reflect completed sentiment analysis for submitted
-                            open-text answers.
-                        </p>
-                        <div class="analytics-list">
-                            <div>
-                                <span>Positive rate</span>
-                                <strong>{{ results.positive_rate_label }}</strong>
+                        <h2 class="section-title">Group breakdown</h2>
+                        <p class="item-subtitle">Groups come from each respondent's profile when they answered. Groups with fewer than 5 answers are combined.</p>
+                        {% if filter %}
+                            <p class="filter-note">Comparison is off while a filter is on.</p>
+                        {% endif %}
+                        <form method="get" action="{% url 'analysis:analytics_dashboard' results.survey_id %}" class="group-breakdown-form">
+                            <label class="form-label" for="group-by-select">Compare groups by</label>
+                            <div class="group-breakdown-form__row">
+                                <select class="form-select" id="group-by-select" name="group_by">
+                                    {% for value, label in group_by_options %}
+                                        <option value="{{ value }}"{% if value == group_by %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-outline-secondary">Show</button>
                             </div>
-                            <div>
-                                <span>Neutral rate</span>
-                                <strong>{{ results.neutral_rate_label }}</strong>
-                            </div>
-                            <div>
-                                <span>Negative rate</span>
-                                <strong>{{ results.negative_rate_label }}</strong>
-                            </div>
-                            <div>
-                                <span>Total responses</span>
-                                <strong>{{ results.response_count }}</strong>
-                            </div>
-                        </div>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
 
+        {% if responses_over_time %}
+            <!-- FR-13: every submitted response by UTC day; exact counts of arrivals, no answer -->
+            <div class="card table-card mt-4">
+                <div class="card-body">
+                    <h2 class="section-title mb-3">Responses over time</h2>
+                    {{ responses_over_time|json_script:"responses-over-time-data" }}
+                    <div class="chart-panel responses-over-time-chart">
+                        <canvas id="surveyResponsesOverTimeChart" aria-label="Submitted responses per day" role="img"></canvas>
+                    </div>
+                    <p class="sentiment-caption mb-0">All submitted responses, by day (UTC).</p>
+                </div>
+            </div>
+        {% endif %}
+
         {% if has_responses %}
+            <!-- FR-13: the GET form only reloads the page with filter -->
+            <div class="card table-card mt-4">
+                <div class="card-body">
+                    <h2 class="section-title">Filter results</h2>
+                    <p class="item-subtitle">Show the question results for one group. Groups come from each respondent's profile when they answered; groups with fewer than 5 responses are combined.</p>
+                    <form method="get" action="{% url 'analysis:analytics_dashboard' results.survey_id %}" class="group-breakdown-form">
+                        <label class="form-label" for="filter-select">Show results for</label>
+                        <div class="group-breakdown-form__row">
+                            <select class="form-select" id="filter-select" name="filter">
+                                <option label="All respondents" value="">All respondents</option>
+                                {% for option in filter_options %}
+                                    <option label="{{ option.label }}" value="{{ option.key }}"{% if option.key == filter.key %} selected{% endif %}>{{ option.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-outline-secondary">Show</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- Question analytics -->
             <div class="mt-4">
                 <div class="page-header mb-3">
@@ -131,6 +283,12 @@
                         <h2 class="section-title mb-0">Question results</h2>
                     </div>
                 </div>
+
+                {% if filter %}
+                    <p class="filter-results-line">Showing {{ filter.count }} of {{ results.included_count }} included responses: {{ filter.label }}.</p>
+                {% elif filter_unavailable %}
+                    <div class="alert alert-info" role="status">This filter is not available. Showing all respondents.</div>
+                {% endif %}
 
                 {% if results.question_summaries %}
                     <div class="answer-insights-list">
@@ -155,7 +313,54 @@
                                     </div>
 
                                     {% if question.chart_type == "text" %}
-                                        {% if question.text_answers %}
+                                        <!-- W-05b: sentiment of this question, then the optional group table -->
+                                        <div class="question-sentiment">
+                                            {% if question.too_few %}
+                                                <p class="question-sentiment__message">Not enough answers to show this question for this group.</p>
+                                            {% elif question.sentiment.analysed == 0 %}
+                                                {% if question.sentiment.total > 0 %}
+                                                    <p class="question-sentiment__line">Analysed 0 of {{ question.sentiment.total }} answers.</p>
+                                                {% endif %}
+                                                <p class="question-sentiment__message">No answers to this question have been analysed yet.</p>
+                                            {% else %}
+                                                <p class="question-sentiment__line">Analysed {{ question.sentiment.analysed }} of {{ question.sentiment.total }} answers.</p>
+                                                <div class="sentiment-bar" role="img" aria-label="{{ question.sentiment.analysed }} analysed answers: {{ question.sentiment.positive }} positive, {{ question.sentiment.neutral }} neutral, {{ question.sentiment.negative }} negative">
+                                                    {% for share in question.sentiment_shares %}<span class="sentiment-bar__segment sentiment-swatch-{{ share.key }}" style="width: {{ share.width }}%"></span>{% endfor %}
+                                                </div>
+                                                <ul class="sentiment-legend">
+                                                    {% for share in question.sentiment_shares %}
+                                                        <li><span class="sentiment-swatch sentiment-swatch-{{ share.key }}" aria-hidden="true"></span>{{ share.name }} {{ share.count }} · {{ share.label }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                                {% if question.breakdown_view %}
+                                                    <h4 class="answer-section-label group-breakdown__heading">{{ question.breakdown_view.heading }}</h4>
+                                                    {% if question.breakdown_view.enough %}
+                                                        <div class="table-responsive group-breakdown__scroll">
+                                                            <table class="table group-breakdown-table">
+                                                                <thead>
+                                                                    <tr><th scope="col">Group</th><th scope="col">Analysed</th><th scope="col">Positive</th><th scope="col">Neutral</th><th scope="col">Negative</th></tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {% for row in question.breakdown_view.rows %}
+                                                                        <tr{% if row.pooled %} class="group-breakdown-table__pooled"{% endif %}>
+                                                                            <th scope="row">{{ row.label }}</th>
+                                                                            <td>{{ row.analysed }}</td>
+                                                                            {% for share in row.shares %}<td>{{ share.count }} <span class="group-breakdown-table__share">{{ share.label }}</span></td>{% endfor %}
+                                                                        </tr>
+                                                                    {% endfor %}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                        <p class="sentiment-caption group-breakdown__caption">Shares of the analysed answers in each group.</p>
+                                                    {% else %}
+                                                        <p class="question-sentiment__message">Not enough responses to show this breakdown.</p>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                        {% if question.text_hidden %}
+                                            <p class="filter-note">Open answers are not listed while a filter is on.</p>
+                                        {% elif question.text_answers %}
                                             <h4 class="answer-section-label">
                                                 Submitted text answers
                                             </h4>
@@ -177,6 +382,8 @@
                                                 No text answers submitted yet.
                                             </div>
                                         {% endif %}
+                                    {% elif question.too_few %}
+                                        <p class="question-sentiment__message">Not enough answers to show this question for this group.</p>
                                     {% else %}
                                         <div class="row g-3 align-items-stretch">
                                             <div class="col-lg-8">
@@ -207,6 +414,33 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        {% if question.group_table_view %}
+                                            <!-- FR-13: this question by group, pooled on its own answers -->
+                                            <h4 class="answer-section-label group-breakdown__heading">{{ question.group_table_view.heading }}</h4>
+                                            {% if question.group_table_view.enough %}
+                                                <div class="table-responsive group-breakdown__scroll">
+                                                    <table class="table group-breakdown-table">
+                                                        <thead>
+                                                            <tr><th scope="col">Group</th><th scope="col">Answers</th>{% if question.chart_type == "bar" %}{% for option in question.group_table_view.options %}<th scope="col">{{ option }}</th>{% endfor %}{% else %}<th scope="col">Average</th>{% endif %}</tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for row in question.group_table_view.rows %}
+                                                                <tr{% if row.pooled %} class="group-breakdown-table__pooled"{% endif %}>
+                                                                    <th scope="row">{{ row.label }}</th>
+                                                                    <td>{{ row.answers }}</td>
+                                                                    {% if question.chart_type == "bar" %}{% for share in row.shares %}<td>{{ share.count }} <span class="group-breakdown-table__share">{{ share.label }}</span></td>{% endfor %}{% else %}<td>{{ row.average }}</td>{% endif %}
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                {% if question.chart_type == "bar" %}
+                                                    <p class="sentiment-caption group-breakdown__caption">Shares of the answers in each group.</p>
+                                                {% endif %}
+                                            {% else %}
+                                                <p class="question-sentiment__message">Not enough responses to show this breakdown.</p>
+                                            {% endif %}
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </div>
@@ -217,16 +451,17 @@
                 {% endif %}
             </div>
         {% endif %}
+        {% endif %}
     </div>
 </section>
 
-{% if has_responses %}
+{% if has_responses and not locked %}
     {{ question_chart_data|json_script:"question-chart-data" }}
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
-{% if has_responses %}
+{% if has_responses and not locked %}
     <script>
         if (typeof Chart === "undefined") {
             console.warn("Analytics dashboard: Chart.js is not available.");
@@ -239,13 +474,16 @@
                     notice.textContent = "Charts are unavailable right now.";
                     canvas.parentNode.appendChild(notice);
                 });
+            document.querySelectorAll(".sentiment-chart-centre").forEach((centre) => {
+                centre.style.display = "none";
+            });
         } else {
         /* Colours come from tokens.css through the helper defined in site.js,
            which loads before this block. */
         const ssToken = window.ssToken;
 
-        /* The template renders the canvas only when at least one completed
-           sentiment result exists; the empty and failure messages are server-side. */
+        /* W-05a: the template renders the canvas only when at least one answer is
+           analysed; the centre total, the legend and every message are server-side. */
         const sentimentDataEl = document.getElementById("sentiment-chart-data");
         const sentimentCanvas = document.getElementById("sentimentDistributionChart");
         if (sentimentDataEl && sentimentCanvas) {
@@ -268,9 +506,10 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    cutout: "68%",
                     plugins: {
                         legend: {
-                            position: "bottom"
+                            display: false
                         }
                     }
                 }

@@ -17,6 +17,14 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG is False.")
     # Local development fallback only; minimum 32 chars to satisfy SHA256 length.
     SECRET_KEY = "django-insecure-dev-fallback-secret-key-32chars"
+# FR-04: key of the device-id HMAC. Separate from SECRET_KEY, so rotating SECRET_KEY keeps
+# the same-device comparison working (DESIGN-INC2 2.4).
+DEVICE_HASH_KEY = os.getenv("DEVICE_HASH_KEY", "").strip()
+if not DEVICE_HASH_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("DEVICE_HASH_KEY must be set when DEBUG is False.")
+    # Local development fallback only.
+    DEVICE_HASH_KEY = "insecure-dev-fallback-device-hash-key-32chars"
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "").split(",")
@@ -129,6 +137,7 @@ REST_FRAMEWORK = {
         "auth_refresh": "30/min",
         "auth_register": "5/min",
         "auth_logout": "30/min",
+        "survey_submit": "10/min",
     },
     "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0")),
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
@@ -136,6 +145,25 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.api.exceptions.api_exception_handler",
 }
+
+# Sentiment analyzer (FR-05). "local" runs M4 in the worker process only; "huggingface" is the
+# remote fallback and reads HF_API_TOKEN and HF_SENTIMENT_MODEL_URL itself. The local model's
+# files are checked against the committed manifest backend/infrastructure/model_manifests/<id>.sha256.
+SENTIMENT_ANALYZER = os.getenv("SENTIMENT_ANALYZER", "local").strip()
+SENTIMENT_MODEL_PATH = os.getenv("SENTIMENT_MODEL_PATH", "").strip()
+SENTIMENT_MODEL_ID = os.getenv(
+    "SENTIMENT_MODEL_ID", "clapAI/roberta-base-multilingual-sentiment"
+).strip()
+
+# FR-15 email confirmation and password reset. The console backend prints each email in the
+# server window; set the SMTP values in .env to send real emails.
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Smart Survey <no-reply@smartsurvey.local>")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "") or 25)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "").lower() in {"1", "true", "yes", "on"}
 
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 if REDIS_URL:
@@ -202,14 +230,3 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
-
-# Celery Configuration
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = TIME_ZONE
-CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60
-CELERY_ENABLED = os.getenv("USE_CELERY", "false").lower() in {"true", "1", "yes"}

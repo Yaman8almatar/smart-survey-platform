@@ -114,12 +114,15 @@ class TokenPairSerializer(serializers.Serializer):
 
 
 class EligibleSurveySerializer(serializers.Serializer):
-    """One eligible survey row with its question count."""
+    """One eligible survey row with its question count, expected minutes and publish date."""
 
     id = serializers.IntegerField(source="survey.survey_id")
     title = serializers.CharField(source="survey.title")
     description = serializers.CharField(source="survey.description")
     question_count = serializers.IntegerField()
+    expected_minutes = serializers.IntegerField()
+    published_on = serializers.DateField(allow_null=True)
+    closes_on = serializers.DateField(allow_null=True)
 
 
 class OptionSerializer(serializers.Serializer):
@@ -176,16 +179,26 @@ class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
 
+class TimingSerializer(serializers.Serializer):
+    """Cumulative active time on one question (FR-04); QualityService checks the rest."""
+
+    question_id = serializers.IntegerField()
+    active_ms = serializers.IntegerField(min_value=0, max_value=3_600_000)
+
+
 class SubmitResponseSerializer(serializers.Serializer):
-    """Body of a survey submission."""
+    """Body of a survey submission; timings and device_id are optional evidence (FR-04)."""
 
     answers = AnswerSerializer(many=True)
+    timings = TimingSerializer(many=True, required=False)
+    device_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,64}$", required=False)
 
 
 class SaveDraftSerializer(serializers.Serializer):
-    """Body of a draft save; the sent list replaces the stored one."""
+    """Body of a draft save; the sent answers replace the stored ones, and so do timings."""
 
     answers = AnswerSerializer(many=True)
+    timings = TimingSerializer(many=True, required=False)
 
 
 class DraftSerializer(serializers.Serializer):
@@ -193,6 +206,7 @@ class DraftSerializer(serializers.Serializer):
 
     survey_id = serializers.IntegerField()
     answers = serializers.ListField(child=serializers.DictField())
+    timings = TimingSerializer(many=True)
     started_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
 

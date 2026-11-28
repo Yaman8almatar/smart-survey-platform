@@ -1,0 +1,7 @@
+# The analysis worker's model runtime (FR-05, M4 run locally on the CPU).
+# Installed on the laptop into the repository's .venv:
+#   .venv\Scripts\python.exe -m pip install -r backend\requirements-ml.txt
+# CI and the Docker image do not install it (P-16); tests use fakes instead.
+# Versions match evaluation/requirements.txt, the ones T-2 evaluated M4 with.
+torch==2.15.0
+transformers==5.23.0

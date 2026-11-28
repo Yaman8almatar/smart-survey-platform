@@ -3,14 +3,17 @@ from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
 from django.shortcuts import redirect, render
 from django.urls import NoReverseMatch, reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from core.enums import USER_TYPE_LABELS, UserType
-from core.exceptions import SmartSurveyException
+from core.exceptions import EmailNotConfirmed, SmartSurveyException
+from services.account_email_service import AccountEmailService
 from services.authentication_service import AuthenticationService
 
 from .forms import (
+    EmailRequestForm,
     LoginForm,
+    NewPasswordForm,
     RespondentRegistrationForm,
     ServiceProviderRegistrationForm,
 )
@@ -46,7 +49,7 @@ def register_service_provider(request):
         form = ServiceProviderRegistrationForm(request.POST)
         if form.is_valid():
             try:
-                AuthenticationService().register_service_provider(
+                user = AuthenticationService().register_service_provider(
                     form.cleaned_data["name"],
                     form.cleaned_data["email"],
                     form.cleaned_data["password"],
@@ -54,8 +57,7 @@ def register_service_provider(request):
             except SmartSurveyException as error:
                 messages.error(request, str(error), extra_tags="danger")
             else:
-                messages.success(request, "Service provider account created.")
-                return redirect("users:login")
+                return _confirmation_sent(request, user)
     else:
         form = ServiceProviderRegistrationForm()
 
@@ -68,7 +70,7 @@ def register_respondent(request):
         form = RespondentRegistrationForm(request.POST)
         if form.is_valid():
             try:
-                AuthenticationService().register_respondent(
+                user = AuthenticationService().register_respondent(
                     form.cleaned_data["name"],
                     form.cleaned_data["email"],
                     form.cleaned_data["password"],
@@ -80,16 +82,26 @@ def register_respondent(request):
             except SmartSurveyException as error:
                 messages.error(request, str(error), extra_tags="danger")
             else:
-                messages.success(request, "Respondent account created.")
-                return redirect("users:login")
+                return _confirmation_sent(request, user)
     else:
         form = RespondentRegistrationForm()
 
     return render(request, "users/register_respondent.html", {"form": form})
 
 
+def _confirmation_sent(request, user):
+    """Email the confirmation link after a registration, then send the user to log-in."""
+    AccountEmailService().send_confirmation(user, request.build_absolute_uri("/"))
+    messages.success(
+        request,
+        f"Account created. We sent a confirmation link to {user.email}. Open it, then log in.",
+    )
+    return redirect("users:login")
+
+
 def login_view(request):
     """Render login and delegate credential validation to AuthenticationService."""
+    email_not_confirmed = None
     if request.method == "POST":
         form = LoginForm(request.POST)
         if form.is_valid():
@@ -98,6 +110,9 @@ def login_view(request):
                     form.cleaned_data["email"],
                     form.cleaned_data["password"],
                 )
+            except EmailNotConfirmed as error:
+                # Shown in the form, with the link to send the confirmation again.
+                email_not_confirmed = str(error)
             except SmartSurveyException as error:
                 messages.error(request, str(error), extra_tags="danger")
             else:
@@ -107,7 +122,85 @@ def login_view(request):
     else:
         form = LoginForm()
 
-    return render(request, "users/login.html", {"form": form})
+    return render(
+        request,
+        "users/login.html",
+        {"form": form, "email_not_confirmed": email_not_confirmed},
+    )
+
+
+@require_GET
+def confirm_email(request, uidb64, token):
+    """Open the emailed confirmation link."""
+    try:
+        AccountEmailService().confirm_email(uidb64, token)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+        return redirect("users:resend_confirmation")
+    messages.success(request, "Email confirmed. You can now log in.")
+    return redirect("users:login")
+
+
+def resend_confirmation(request):
+    """Ask for a new confirmation link; the answer is the same for every address."""
+    form = EmailRequestForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        AccountEmailService().resend_confirmation(
+            form.cleaned_data["email"], request.build_absolute_uri("/")
+        )
+        messages.success(
+            request,
+            "If an unconfirmed account uses this email, we sent a new link. Check your inbox.",
+        )
+        return redirect("users:login")
+    return render(request, "users/resend_confirmation.html", {"form": form})
+
+
+def password_reset(request):
+    """Ask for a password reset link; the answer is the same for every address."""
+    form = EmailRequestForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        AccountEmailService().send_password_reset(
+            form.cleaned_data["email"], request.build_absolute_uri("/")
+        )
+        messages.success(
+            request,
+            "If an account uses this email, we sent a link to reset its password. "
+            "Check your inbox.",
+        )
+        return redirect("users:login")
+    return render(request, "users/password_reset.html", {"form": form})
+
+
+def password_reset_confirm(request, uidb64, token):
+    """Choose a new password through the emailed link."""
+    service = AccountEmailService()
+    try:
+        service.check_password_reset_link(uidb64, token)
+    except SmartSurveyException as error:
+        messages.error(request, str(error), extra_tags="danger")
+        return redirect("users:password_reset")
+
+    form = NewPasswordForm(request.POST if request.method == "POST" else None)
+    error_message = None
+    if request.method == "POST" and form.is_valid():
+        try:
+            service.reset_password(
+                uidb64,
+                token,
+                form.cleaned_data["new_password1"],
+                form.cleaned_data["new_password2"],
+            )
+        except SmartSurveyException as error:
+            error_message = str(error)
+        else:
+            messages.success(request, "Your password has been changed. You can now log in.")
+            return redirect("users:login")
+    return render(
+        request,
+        "users/password_reset_confirm.html",
+        {"form": form, "error_message": error_message},
+    )
 
 
 @require_POST
@@ -122,7 +215,7 @@ def _dashboard_url_for(user):
     """Return the dashboard URL for the authenticated user's role."""
     route_names = {
         UserType.SERVICE_PROVIDER: ["surveys:provider_dashboard"],
-        UserType.RESPONDENT: ["responses:respondent_dashboard"],
+        UserType.RESPONDENT: ["responses:use_app"],
         UserType.ADMIN: ["admin_panel:admin_dashboard"],
     }.get(user.user_type, [])
 
@@ -189,28 +282,10 @@ def _quick_actions_for(user_type):
         ],
         UserType.RESPONDENT: [
             {
-                "title": "Respondent Dashboard",
-                "description": "View your respondent workspace.",
-                "url_name": "responses:respondent_dashboard",
-                "icon": "bi-speedometer2",
-            },
-            {
-                "title": "Demographic Profile",
-                "description": "Keep eligibility information current.",
-                "url_name": "responses:demographic_profile",
-                "icon": "bi-person-vcard",
-            },
-            {
-                "title": "Eligible Surveys",
-                "description": "See surveys currently available to you.",
-                "url_name": "responses:eligible_surveys",
-                "icon": "bi-ui-checks-grid",
-            },
-            {
-                "title": "Answered Surveys",
-                "description": "Review surveys you have already submitted.",
-                "url_name": "responses:answered_surveys",
-                "icon": "bi-check2-square",
+                "title": "Answer surveys in the app",
+                "description": "Answer surveys and keep your profile in the Smart Survey app.",
+                "url_name": "responses:use_app",
+                "icon": "bi-phone",
             },
         ],
         UserType.ADMIN: [
@@ -242,7 +317,7 @@ def _welcome_message_for(user_type):
     messages_by_role = {
         UserType.SERVICE_PROVIDER: "Manage surveys, questions, targeting criteria, and analytics.",
         UserType.RESPONDENT: (
-            "Manage your profile and participate only in surveys you are eligible for."
+            "Answer surveys and keep your profile in the Smart Survey app."
         ),
         UserType.ADMIN: "Manage users and monitor system activity.",
     }

@@ -1,0 +1,57 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "RegisterScreen\n(Flutter app)" as App
+participant "RegisterView\n(API)" as API
+participant "Authentication-\nService, Account-\nEmailService" as Svc
+database "User, Profile\nrepositories,\nPostgreSQL" as DB
+activate R
+R -> App : Name, email, password,\nage, gender, governorate,\ninterests
+activate App
+App -> API : POST /api/v1/auth/\nregister/
+activate API
+API -> API : RegisterSerializer\n.is_valid()
+activate API
+deactivate API
+alt a field is malformed
+  API --> App : 400 validation_error\nwith fields
+  App --> R : Mark the fields
+else fields well formed
+  API -> Svc : register_respondent()
+  activate Svc
+  Svc -> Svc : validate_profile_data(),\n_reject_duplicate_email(),\n_validate_user_password()
+  activate Svc
+  deactivate Svc
+  alt a rule is broken (for example\nthe email is registered)
+    Svc --> API : ValidationError
+    API --> App : 400 validation_error
+    App --> R : The message
+  else rules pass
+    group transaction.atomic
+      Svc -> DB : INSERT users\n(RESPONDENT, ACTIVE,\nemail_verified false)
+      activate DB
+      deactivate DB
+      Svc -> DB : INSERT\nrespondent_profiles
+      activate DB
+      deactivate DB
+    end
+    Svc --> API : user
+    deactivate Svc
+    API -> Svc : send_confirmation()
+    activate Svc
+    Svc -> Svc : signed link, valid\n3 days; send_mail()\nto the email backend
+    activate Svc
+    deactivate Svc
+    API --> App : 201 id, email, name,\nrole (no tokens)
+    deactivate Svc
+    deactivate API
+    App --> R : Log-in screen:\n"Account created. We\nsent a confirmation link\nto {email}. Open it,\nthen log in."
+  end
+end
+note over App, API : Throttle auth_register:\n5 a minute, then 429
+deactivate App
+deactivate R
+@enduml

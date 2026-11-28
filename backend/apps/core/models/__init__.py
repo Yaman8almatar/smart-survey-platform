@@ -4,6 +4,7 @@ from .question_option import QuestionOption
 from .respondent_profile import RespondentProfile
 from .response import Response
 from .response_draft import ResponseDraft
+from .response_quality import ResponseQuality
 from .sentiment_analysis_result import SentimentAnalysisResult
 from .survey import Survey
 from .targeting_criteria import TargetingCriteria
@@ -16,6 +17,7 @@ __all__ = [
     "RespondentProfile",
     "Response",
     "ResponseDraft",
+    "ResponseQuality",
     "SentimentAnalysisResult",
     "Survey",
     "TargetingCriteria",

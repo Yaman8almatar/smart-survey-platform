@@ -1,0 +1,36 @@
+@startuml
+!include style.iuml
+|Provider|
+|Admin|
+|Server|
+|Provider|
+start
+:Press Submit for review\non a draft;
+|Server|
+if (Publish checks\npass?) then ([yes])
+  :Show the confirmation:\nbanded reach, who\ncan answer, schedule;
+else ([no])
+  |Provider|
+  :Read the message,\nfix the draft;
+  stop
+endif
+|Provider|
+:Confirm;
+|Server|
+:Check again;\nPENDING_REVIEW\n(survey locked);
+|Admin|
+:Open the queue,\nthen the survey;
+if (Decision?) then ([reject])
+  :Write a reason\n(1 to 1,000\ncharacters);
+  |Server|
+  :Back to DRAFT\nwith the\nreason;
+  |Provider|
+  :Read the reason,\nedit, submit again;
+  stop
+else ([approve])
+  |Server|
+  :Lock the row;\nstill pending,\ndate not passed?;
+  :Store the reach;\nPUBLISHED;
+  stop
+endif
+@enduml

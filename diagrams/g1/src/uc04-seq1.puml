@@ -1,0 +1,78 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "SurveyStartScreen,\nSurveyAnswerScreen\n(Flutter app)" as App
+participant "SurveyDetailView,\nDraftView (API)" as API
+participant "QuestionService,\nResponseService" as Svc
+database "Repositories\nPostgreSQL" as DB
+activate R
+R -> App : Open a survey
+activate App
+par survey
+  App -> API : GET /api/v1/surveys/\n{id}/
+  activate API
+  API -> Svc : get_response_form()
+  activate Svc
+  Svc -> Svc : ensure_can_answer(): open,\neligible, not answered
+  activate Svc
+  deactivate Svc
+  Svc -> DB : find_by_survey_id_\nwith_options()
+  activate DB
+  deactivate DB
+  opt shuffle on (FR-16)
+    Svc -> Svc : respondent_order():\nSHA-256 seeded order
+    activate Svc
+    deactivate Svc
+  end
+  API --> App : 200 survey, questions\nin order; or 403/409
+  deactivate Svc
+  deactivate API
+else draft
+  App -> API : GET /api/v1/surveys/\n{id}/draft/
+  activate API
+  API -> Svc : get_draft()
+  activate Svc
+  Svc -> DB : DraftRepository.find()
+  activate DB
+  deactivate DB
+  API --> App : 200 draft, or 404\ndraft_not_found
+  deactivate Svc
+  deactivate API
+end
+alt paused, closed, not open,\nnot eligible or answered
+  App --> R : The reason: not editable,\nnot eligible, answered
+else may answer
+  opt draft with answers, and the\nrespondent picks Start over
+    App --> R : Continue or Start over
+    R -> App : Start over
+    App -> API : DELETE .../draft/
+    activate API
+    API -> Svc : delete_draft()
+    activate Svc
+    Svc -> DB : DELETE response_drafts
+    activate DB
+    deactivate DB
+    API --> App : 204
+    deactivate Svc
+    deactivate API
+  end
+  opt no draft on the server: the start mark
+    App -> API : PUT .../draft/ with\nempty answers, timings
+    activate API
+    API -> Svc : save_draft()
+    activate Svc
+    Svc -> DB : INSERT response_drafts\n(server started_at)
+    activate DB
+    deactivate DB
+    API --> App : 200 draft
+    deactivate Svc
+    deactivate API
+  end
+  App --> R : First unanswered\nquestion
+end
+deactivate App
+deactivate R
+@enduml

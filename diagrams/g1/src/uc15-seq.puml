@@ -1,0 +1,73 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Admin as A
+participant "Browser" as B
+participant "user_management\n(web view)" as V
+participant "AdminService" as Svc
+database "UserRepository\nPostgreSQL" as DB
+activate A
+A -> B : Open User Management
+activate B
+B -> V : GET /admin-panel/users/
+activate V
+V -> Svc : list_user_management_\nitems(admin)
+activate Svc
+Svc -> Svc : _ensure_admin()
+activate Svc
+deactivate Svc
+Svc -> DB : list_all()
+activate DB
+deactivate DB
+Svc -> Svc : _account_action_flags():\ncan_activate, can_suspend,\ncan_delete, is_self
+activate Svc
+deactivate Svc
+V --> B : 200 accounts with the\nallowed buttons
+deactivate Svc
+deactivate V
+A -> B : Suspend (or Activate,\nor Soft delete)
+B -> V : POST /admin-panel/users/\naction, user_id
+activate V
+V -> V : _process_account_action():\nuser_id must be a number
+activate V
+deactivate V
+alt suspend
+  V -> Svc : suspend_account()
+  activate Svc
+  Svc -> Svc : _ensure_admin(), _reject_\nself_destructive_action()
+  activate Svc
+  deactivate Svc
+  Svc -> DB : find_by_id(), then UPDATE:\nSUSPENDED, is_active false
+  activate DB
+  deactivate DB
+  deactivate Svc
+else activate
+  V -> Svc : activate_account()
+  activate Svc
+  Svc -> DB : find_by_id(), then UPDATE:\nACTIVE, is_active true
+  activate DB
+  deactivate DB
+  deactivate Svc
+else soft delete
+  V -> Svc : delete_account()
+  activate Svc
+  Svc -> Svc : _ensure_admin(), _reject_\nself_destructive_action()
+  activate Svc
+  deactivate Svc
+  Svc -> DB : find_by_id(), then UPDATE:\nDELETED, is_active false
+  activate DB
+  deactivate DB
+  deactivate Svc
+end
+alt own account, account not found,\nor an id that is not a number
+  V --> B : 302 with the message
+else done
+  V --> B : 302 /admin-panel/users/\n"Account updated\nsuccessfully."
+  deactivate V
+end
+note over V, DB : A suspended or deleted user is refused on the next\nrequest: the web session ends, log-in says "Account\nis suspended or deleted.", the app's token is refused
+deactivate B
+deactivate A
+@enduml

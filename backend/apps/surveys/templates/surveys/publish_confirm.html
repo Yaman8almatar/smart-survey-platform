@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="container">
+        <div class="publish-shell">
+            <div class="page-header">
+                <div>
+                    <div class="page-kicker">Submit for review</div>
+                    <h1>{{ survey.title }}</h1>
+                    <p class="section-subtitle mb-0">Check who will see the survey before you submit it for review.</p>
+                </div>
+            </div>
+
+            <!-- Submit confirmation (W-03, P-19, FR-12): the reach and the targeting before the POST -->
+            <div class="card targeting-card">
+                <div class="card-body">
+                    {% include "surveys/_publish_summary.html" with show_edit_link=True survey_id=survey.id %}
+
+                    <section class="publish-section publish-section--row" aria-labelledby="questions-title">
+                        <h2 id="questions-title" class="publish-title">Questions</h2>
+                        <span>{{ question_count }} question{{ question_count|pluralize }}</span>
+                    </section>
+
+                    <div class="publish-note">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <p class="mb-0">After you submit it, the questions and the targeting can no longer be changed. An admin then publishes the survey or returns it to you with a reason.</p>
+                    </div>
+
+                    {% if reach.state == "few" or reach.state == "none" %}
+                        <div class="publish-warning" role="note">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            <div>
+                                <p><strong>{% if reach.state == "few" %}Fewer than 5 respondents match now.{% else %}No respondent matches these criteria yet.{% endif %}</strong></p>
+                                <p>You can still submit it. People who match later will see the survey.</p>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <form method="post" class="form-actions mt-4">
+                        {% csrf_token %}
+                        <a class="btn btn-outline-secondary" href="{% url 'surveys:survey_list' %}">
+                            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
+                            Back to surveys
+                        </a>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-send me-1" aria-hidden="true"></i>
+                            Submit for review
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

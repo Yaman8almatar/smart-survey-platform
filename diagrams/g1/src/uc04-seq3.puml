@@ -1,0 +1,57 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor Respondent as R
+participant "Flutter app" as App
+participant "SubmitResponseView\n(API)" as API
+participant "ResponseService\nQualityService" as Svc
+database "Repositories\nPostgreSQL" as DB
+activate R
+R -> App : Send answers
+activate App
+App -> API : POST /surveys/{id}/responses/\nanswers, timings, device_id
+activate API
+API -> Svc : submit_response()
+activate Svc
+Svc -> Svc : ensure_can_answer(),\nvalidate answers
+activate Svc
+deactivate Svc
+alt invalid or already answered
+  Svc --> API : ValidationError or\nDuplicateResponse
+  API --> App : 400 or 409
+else valid
+  group transaction.atomic
+    Svc -> DB : lock the survey row
+    activate DB
+    deactivate DB
+    Svc -> Svc : open? under the limit?
+    activate Svc
+    deactivate Svc
+    Svc -> DB : INSERT response, answers,\nsnapshot
+    activate DB
+    deactivate DB
+    Svc -> DB : INSERT quality evidence
+    activate DB
+    deactivate DB
+    Svc -> DB : INSERT PENDING sentiment rows
+    activate DB
+    deactivate DB
+    Svc -> DB : DELETE the draft
+    activate DB
+    deactivate DB
+    opt limit reached (FR-11)
+      Svc -> DB : UPDATE survey to CLOSED
+      activate DB
+      deactivate DB
+    end
+  end
+  API --> App : 201 Created
+  deactivate Svc
+  deactivate API
+  App --> R : Sent screen
+end
+deactivate App
+deactivate R
+@enduml

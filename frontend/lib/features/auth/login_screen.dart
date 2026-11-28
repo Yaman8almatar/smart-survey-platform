@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
 import '../../theme/tokens.dart';
 import '../answer/answer_repository.dart';
@@ -228,6 +229,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(
                     onPressed: _submitting ? null : _openRegister,
                     child: const Text('Create account'),
+                  ),
+                  const SizedBox(height: SsSpace.s4),
+                  SelectableText(
+                    'Forgot your password? Reset it on the website: '
+                    '${ApiConfig.baseUrl.resolve('/users/password-reset/')}',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: SsColors.inkMuted,
+                    ),
                   ),
                 ],
               ),

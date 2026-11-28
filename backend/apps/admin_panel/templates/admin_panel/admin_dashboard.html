@@ -15,7 +15,7 @@
 
         <!-- Admin dashboard cards -->
         <div class="row g-4">
-            <div class="col-lg-6">
+            <div class="col-lg-4">
                 <div class="card table-card h-100">
                     <div class="card-body">
                         <div class="admin-card-icon">
@@ -35,7 +35,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
+            <div class="col-lg-4">
                 <div class="card table-card h-100">
                     <div class="card-body">
                         <div class="admin-card-icon">
@@ -51,6 +51,27 @@
                         >
                             <i class="bi bi-clipboard-data me-1"></i>
                             System reports
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card table-card h-100">
+                    <div class="card-body">
+                        <div class="admin-card-icon">
+                            <i class="bi bi-clipboard-check"></i>
+                        </div>
+                        <h2 class="section-title">Survey review</h2>
+                        <p class="item-subtitle">
+                            Approve or reject surveys before they are published.
+                        </p>
+                        <a
+                            class="btn btn-primary"
+                            href="{% url 'admin_panel:review_queue' %}"
+                        >
+                            <i class="bi bi-clipboard-check me-1"></i>
+                            Review surveys
+                            <span class="badge text-bg-light ms-1">{{ pending_count }}</span>
                         </a>
                     </div>
                 </div>

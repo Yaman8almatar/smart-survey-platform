@@ -1,18 +1,28 @@
-# Sequence diagram: UC-04 Answer a survey, with draft and resume (FR-06)
+# Sequence diagram: UC-04 Answer a survey, with draft, resume, quality evidence, fixed order and lifecycle checks (FR-06, FR-04, FR-16, FR-11) (Increment 2)
 
 ```
-Basis: team convention; diagrams/README.md (layers Presentation / Business / Data Source); planning/API.md (known limit K-02)
+Basis: team convention; diagrams/README.md (layers Presentation / Business / Data Source)
 Source of truth: frontend/lib/features/answer/survey_start_screen.dart, frontend/lib/features/answer/survey_answer_screen.dart,
-  frontend/lib/features/answer/answer_repository.dart, backend/apps/api/urls.py, backend/apps/api/views.py
-  (SurveyDetailView, DraftView, SubmitResponseView), backend/apps/api/exceptions.py, backend/services/question_service.py,
-  backend/services/response_service.py, backend/services/analysis_service.py, backend/repositories/ (survey, question,
-  draft, response, analysis), backend/infrastructure/huggingface_client.py, backend/config/settings.py (CELERY_ENABLED)
-Date / version: 2026-11-13, develop commit d3d2db2
+  frontend/lib/features/answer/answer_repository.dart, frontend/lib/features/answer/active_time.dart,
+  frontend/lib/features/answer/answer_models.dart (SurveyDraft.keptFor), frontend/lib/core/device_id_store.dart,
+  backend/apps/api/views.py (SurveyDetailView, DraftView, SubmitResponseView), backend/services/question_service.py
+  (get_response_form), backend/services/presentation_order.py (respondent_order), backend/services/response_service.py
+  (ensure_can_answer, _ensure_open, submit_response), backend/repositories/survey_repository.py
+  (find_by_id_for_update), backend/services/quality_service.py (clean_timings,
+  clean_device_id, capture), backend/services/analysis_service.py (queue_open_text_answers, process_pending_batch),
+  backend/repositories/analysis_repository.py (create_pending, claim_batch),
+  backend/apps/core/management/commands/run_analysis_worker.py
+Date / version: 2026-11-27, develop commit 59f1957
 ```
 
-The start screen loads the survey and the draft, the answer screen saves the draft each time the respondent moves to
-another question, and Send stores the response in one transaction. Sentiment analysis then runs inside the same
-request, after the commit (K-02, today's behaviour; `USE_CELERY` is false by default).
+The start screen loads the survey and the draft. When no draft exists, the answer screen saves an empty draft first:
+the start mark, which makes the server set `started_at`. The app counts active time per question and sends it with
+every draft save and with the submit, together with its install ID. Send stores the response, the answers, the
+quality evidence and the PENDING sentiment rows in one transaction. The analysis worker reads the PENDING rows later,
+outside the request (T-9). Since the FR-04 version (develop f3c96d4): the questions and choice options come in the
+respondent's own fixed order when the provider switched shuffling on (FR-16), and every request checks that the
+survey is open; the submit checks it again under a row lock and closes the survey when it reaches its response limit
+(FR-11).
 
 ```mermaid
 sequenceDiagram
@@ -20,27 +30,33 @@ sequenceDiagram
     participant SS as SurveyStartScreen (Flutter screen)
     participant AS as SurveyAnswerScreen (Flutter screen)
     participant AR as AnswerRepository (app repository)
+    participant DI as SecureDeviceIdStore (app storage)
     participant V as SurveyDetailView, DraftView, SubmitResponseView (API view, Presentation)
     participant QS as QuestionService (service, Business)
     participant RS as ResponseService (service, Business)
+    participant QL as QualityService (service, Business)
     participant AN as AnalysisService (service, Business)
-    participant DR as Survey, Question, Draft, Response, Analysis repositories (repository, Data Source)
+    participant W as run_analysis_worker (management command, Presentation)
+    participant DR as Survey, Question, Profile, Draft, Response, Quality, Analysis repositories (repository, Data Source)
     participant DB as PostgreSQL
-    participant HF as HuggingFaceClient (gateway, Data Source)
 
     R->>SS: Open a survey from the eligible list
     par Survey
         SS->>AR: survey(id)
         AR->>V: GET /api/v1/surveys/{id}/
         V->>QS: get_response_form(user, id)
-        QS->>DR: SurveyRepository.find_by_id(id)
-        DR->>DB: SELECT FROM surveys
-        DR-->>QS: survey
-        QS->>QS: respondent, survey exists, can_accept_responses, targeting match
+        QS->>RS: ensure_can_answer(user, id)
+        RS->>DR: SurveyRepository.find_by_id, ResponseRepository.has_response_for_survey
+        DR->>DB: SELECT FROM surveys, responses
+        RS->>RS: respondent, survey exists, open (not paused or closed, opening date reached, closing date not passed), targeting match, not answered yet
+        RS-->>QS: survey
         QS->>DR: QuestionRepository.find_by_survey_id_with_options(id)
         DR->>DB: SELECT questions, question_options
         DR-->>QS: questions with options
-        QS-->>V: survey and questions in order_index order
+        opt shuffle_questions or shuffle_options set (FR-16)
+            QS->>QS: respondent_order: sort by SHA-256 of scope, survey, respondent and item, so the order is fixed for this respondent and never stored
+        end
+        QS-->>V: survey and questions in order_index order, or in the respondent's fixed order
         V-->>AR: 200 survey detail
         AR-->>SS: SurveyDetail
     and Draft
@@ -53,20 +69,20 @@ sequenceDiagram
         DB-->>DR: row or no row
         alt Draft exists
             RS-->>V: draft
-            V-->>AR: 200 survey_id, answers, started_at, updated_at
+            V-->>AR: 200 survey_id, answers, timings, started_at, updated_at
             AR-->>SS: SurveyDraft
-        else No draft (normal case)
+        else No draft
             RS-->>V: raise DraftNotFound
             V-->>AR: 404 draft_not_found
             AR-->>SS: null
         end
     end
 
-    alt Draft found
+    alt Draft with answers the survey still accepts (keptFor)
         SS-->>R: Continue or Start over
         alt Continue (resume)
             R->>SS: Continue
-            SS->>AS: open at the first unanswered question (review page when all are answered)
+            SS->>AS: open at the first unanswered question with the draft's timings, draftExists true
         else Start over
             R->>SS: Start over and confirm
             SS->>AR: deleteDraft(id)
@@ -75,30 +91,45 @@ sequenceDiagram
             RS->>DR: DraftRepository.delete(survey_id, respondent_id)
             DR->>DB: DELETE FROM response_drafts
             V-->>AR: 204
-            SS->>AS: open at question 1
+            SS->>AS: open at question 1, draftExists false
         end
-    else No draft
+    else No draft, or a draft with only the start mark
         R->>SS: Start survey
-        SS->>AS: open at question 1
+        SS->>AS: open at question 1, draftExists true only when the server holds a draft
     end
 
-    loop Each move to another question (Next or Back)
+    opt Start mark, when the server holds no draft (draftExists false)
+        AS->>AR: saveDraft(id, no answers, no timings)
+        AR->>V: PUT /api/v1/surveys/{id}/draft/ with empty answers and timings lists
+        V->>RS: save_draft(user, id, answers, timings)
+        RS->>RS: ensure_can_answer(user, id)
+        RS->>DR: DraftRepository.find, then save(new ResponseDraft)
+        DR->>DB: INSERT INTO response_drafts, started_at set by the server
+        V-->>AR: 200 draft
+    end
+    AS->>AS: ActiveTimeTracker.show(question), counts only while shown and in the foreground
+
+    loop Each move to another question (Next, Skip or Back)
         R->>AS: Answer and move
-        opt Answers differ from the last saved ones
-            AS->>AR: saveDraft(id, answers)
-            AR->>V: PUT /api/v1/surveys/{id}/draft/ answers (full replace)
-            V->>RS: save_draft(user, id, answers)
+        AS->>AS: ActiveTimeTracker.show(next question), snapshot()
+        opt Answers or timings differ from the last saved ones
+            AS->>AR: saveDraft(id, answers, timings)
+            AR->>V: PUT /api/v1/surveys/{id}/draft/ answers, timings (full replace)
+            V->>RS: save_draft(user, id, answers, timings)
             RS->>RS: ensure_can_answer, check each answer (nothing required yet)
-            RS->>DR: DraftRepository.find, then save(draft)
-            DR->>DB: INSERT or UPDATE response_drafts
+            RS->>QL: clean_timings(timings, question ids)
+            QL-->>RS: timings, or raise ValidationError
+            RS->>DR: DraftRepository.find, then save(draft) with answers and timings
+            DR->>DB: UPDATE response_drafts
             DB-->>DR: stored row
             V-->>AR: 200 draft
         end
     end
 
     opt Respondent leaves before sending
-        R->>AS: Back
-        AS->>AR: saveDraft(id, answers) with the last answers
+        R->>AS: Leave survey
+        AS->>AS: ActiveTimeTracker.hide()
+        AS->>AR: saveDraft(id, answers, timings) with the last values
         AR->>V: PUT /api/v1/surveys/{id}/draft/
         V-->>AR: 200 draft
         AS-->>SS: close, the start screen loads the survey and the draft again
@@ -106,9 +137,12 @@ sequenceDiagram
     end
 
     R->>AS: Send answers on the review page
-    AS->>AR: submit(id, answers), timeout 60 s
-    AR->>V: POST /api/v1/surveys/{id}/responses/ answers
-    V->>RS: submit_response(user, id, answers)
+    AS->>AS: ActiveTimeTracker.hide(), snapshot()
+    AS->>AR: submit(id, answers, timings)
+    AR->>DI: readOrCreate()
+    DI-->>AR: install ID, or no ID when the store fails
+    AR->>V: POST /api/v1/surveys/{id}/responses/ answers, timings, device_id
+    V->>RS: submit_response(user, id, answers, timings, device_id)
     RS->>RS: ensure_can_answer(user, id)
     RS->>DR: ResponseRepository.has_response_for_survey(survey_id, respondent_id)
     DR->>DB: SELECT EXISTS FROM responses
@@ -119,46 +153,59 @@ sequenceDiagram
         AS-->>R: You already answered this survey (after a lost connection the app shows the sent screen)
     else Not answered yet
         RS->>RS: check required answers and each answer against its question type
-        alt Answer invalid
+        RS->>QL: clean_timings(timings, question ids) when sent, clean_device_id(device_id)
+        alt Answer, timing or device ID invalid
             RS-->>V: raise ValidationError
             V-->>AR: 400 validation_error
             AS-->>R: Mark the questions that need an answer
-        else Answers valid
+        else All valid
             critical transaction.atomic
+                RS->>DR: SurveyRepository.find_by_id_for_update(id)
+                DR->>DB: SELECT FROM surveys FOR UPDATE
+                RS->>RS: _ensure_open again under the lock (paused, closed, not open yet, closing date passed)
+                opt target_responses set (FR-11)
+                    RS->>DR: ResponseRepository.count_submitted_for_survey(id)
+                    DR->>DB: SELECT COUNT FROM responses
+                    RS->>RS: refuse with This survey has closed. when the count has reached the limit
+                end
                 RS->>DR: DraftRepository.find(survey_id, respondent_id)
                 DR->>DB: SELECT FROM response_drafts
-                RS->>DR: ResponseRepository.save(Response with started_at = draft.started_at)
+                RS->>DR: ProfileRepository.find_by_user_id(respondent_id)
+                DR->>DB: SELECT FROM respondent_profiles
+                RS->>DR: ResponseRepository.save(Response with started_at = draft.started_at and the snap_ fields)
                 DR->>DB: INSERT INTO responses
                 loop Each answer with a value
                     RS->>DR: ResponseRepository.save_answer(answer)
                     DR->>DB: INSERT INTO answers
                 end
+                alt The submit carries timings
+                    RS->>RS: the submit's own timings count
+                else No timings in the submit
+                    RS->>RS: the draft's last saved timings count, none without a draft
+                end
+                RS->>QL: capture(response, questions, answers, timings, device_id, draft.started_at)
+                QL->>QL: active_ms, attention_total, attention_failed, rating_count, rating_all_same
+                QL->>QL: device_hash = HMAC-SHA256 of device_id with DEVICE_HASH_KEY
+                QL->>QL: signals_ok = timings, device_id and started_at present and active_ms within the wall time plus 10 s
+                QL->>DR: QualityRepository.save(ResponseQuality)
+                DR->>DB: INSERT INTO response_quality
+                RS->>AN: queue_open_text_answers(saved answers)
+                AN->>DR: AnalysisRepository.create_pending(open-text answers with text)
+                DR->>DB: INSERT INTO sentiment_analysis_results, status PENDING
                 RS->>DR: DraftRepository.delete(survey_id, respondent_id)
                 DR->>DB: DELETE FROM response_drafts
-                RS->>RS: on_commit(_dispatch_sentiment_analysis) when there is an open-text answer
+                opt this response reaches target_responses (FR-11)
+                    RS->>DR: SurveyRepository.update(survey after close())
+                    DR->>DB: UPDATE surveys SET status CLOSED, closed_at
+                end
                 DB-->>RS: COMMIT
             option Parallel submit hits unique_response_per_survey_respondent
                 DB-->>RS: IntegrityError, ROLLBACK
                 RS-->>V: raise DuplicateResponse
                 V-->>AR: 409 duplicate_response
-            end
-            opt Open-text answers (after COMMIT, inside the same request)
-                RS->>AN: analyze_open_text_answers(response_id)
-                loop Each open-text answer
-                    AN->>DR: AnalysisRepository save result with status PENDING
-                    DR->>DB: INSERT INTO sentiment_analysis_results
-                    AN->>HF: analyze_sentiment(answer_value)
-                    HF->>HF: POST to the Hugging Face model URL
-                    alt HTTP 200 with a known label
-                        HF-->>AN: label, score
-                        AN->>AN: mark_completed(label, score), status COMPLETED
-                    else HTTP 402 or other failure
-                        HF-->>AN: raise ExternalAnalysisServiceError
-                        AN->>AN: mark_failed(), status FAILED
-                    end
-                    AN->>DR: AnalysisRepository.update(result)
-                    DR->>DB: UPDATE sentiment_analysis_results
-                end
+            option The survey was paused, closed or filled meanwhile
+                RS-->>V: raise NotEditable, ROLLBACK
+                V-->>AR: 409 not_editable with the reason
             end
             RS-->>V: response
             V-->>AR: 201 id, survey_id, submitted_at
@@ -166,19 +213,42 @@ sequenceDiagram
             AS-->>R: Sent screen
         end
     end
+
+    loop Later, in its own process: each batch of the analysis worker
+        W->>AN: process_pending_batch(limit)
+        AN->>DR: AnalysisRepository.claim_batch
+        DR->>DB: SELECT due PENDING and stale RUNNING rows FOR UPDATE SKIP LOCKED, UPDATE them to RUNNING
+        DR-->>AN: claimed results
+        AN->>AN: analyse each text, then mark_completed, mark_skipped, mark_failed or schedule_retry
+        AN->>DR: AnalysisRepository.update(result)
+        DR->>DB: UPDATE sentiment_analysis_results
+    end
 ```
 
 Notes from the code:
 
 - `ensure_can_answer` checks, in order: respondent (403 `unauthorized_action`), survey exists (404 `survey_not_found`),
-  published (409 `not_editable`), targeting match (403 `unauthorized_action`), not answered yet (409
-  `duplicate_response`). The draft requests run all five checks. The survey detail request runs the first four only
-  (`QuestionService._ensure_respondent_can_answer`).
-- The answer screen sends at most one draft request at a time; newer answers wait and follow it.
-- The on-commit callback is registered with `robust=True`: an error inside the analysis is logged and the response
-  stays stored. A Hugging Face failure never changes the 201 answer; it only stores FAILED.
-- With `USE_CELERY=true` the callback sends the work to a Celery task instead and the request does not wait. This is
-  not the default and is not drawn.
+  open (409 `not_editable` with "This survey is paused.", "This survey has closed.", "Responses are allowed only for
+  published surveys." or "This survey is not open yet."), targeting match (403 `unauthorized_action`), not answered
+  yet (409 `duplicate_response`). The survey detail request and the three draft requests run all five checks.
+- The submit locks the survey row (`select_for_update`) before it checks the state again and counts the responses, so
+  two respondents sending at the same moment cannot both take the last place of the limit. Every submitted response
+  counts, excluded ones too (P-08).
+- The fixed order of FR-16 is computed on every request from the survey, the respondent and each item; nothing about
+  it is stored. Rating scales and open questions keep their options; only multiple-choice options are shuffled.
+- The answer screen sends at most one draft request at a time; newer answers and timings wait and follow it. It also
+  saves when the app is hidden (best effort). A failed save that lost only timings is not an error: they go again
+  with the next save.
+- Active time (`ActiveTimeTracker`) counts only while a question is on screen and the app is in the foreground, over
+  every visit, never on the review page; each value is at most 3,600,000 ms.
+- The install ID is 128 random bits kept in the platform keystore; logout does not delete it. The server stores only
+  its keyed hash in `response_quality.device_hash`, never the raw ID.
+- Missing or inconsistent evidence never rejects a response: it only sets `signals_ok` to false. A malformed timing or
+  device ID is a 400; a timing for a question of another survey raises `QuestionNotFound`.
+- The draft's `started_at` is set by the first save, which is the start mark when the app opens a survey with no
+  draft; `capture` compares the active time with the wall time from that start to the submit.
+- The worker's analysis call goes to the analyzer built by `infrastructure/sentiment_analyzer.build_analyzer`; the
+  submit request makes no analysis call and never waits for one.
 
 ## Legend
 
@@ -196,4 +266,3 @@ Notes from the code:
 | `critical` / `option` frame | Database transaction (`transaction.atomic`): all steps commit together; the `option` part is the failure that rolls everything back. |
 | Note | Comment over the lifelines it names. |
 | `200`, `201`, `204`, `400`, `404`, `409` | HTTP status code; the word after it is the `error.code` of the shared error body. |
-| HTTP 402 | Status code returned by Hugging Face (payment required) when the account cannot run the model. |

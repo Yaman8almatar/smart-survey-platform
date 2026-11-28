@@ -1,0 +1,43 @@
+@startuml
+!include style.iuml
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+skinparam nodesep 20
+skinparam ranksep 40
+package "Client tier" {
+  [Respondent app\n(Flutter)] as APP
+  [Web browser\n(provider, admin)] as BR
+}
+
+package "Application tier: Django 5.2" {
+  package "Web process (runserver)" {
+    [REST API\napps.api\nJWT, throttles] as API
+    [Web pages\nusers, surveys,\nanalysis, admin_panel] as PAGES
+    [Services\n(business rules,\nrole checks)] as SVC
+    [Repositories\n(Django ORM)] as REPO
+    [Domain model\napps.core.models] as DOM
+  }
+  package "Worker process (run_analysis_worker)" {
+    [AnalysisService\nprocess_pending_batch] as WS
+    [Sentiment gateway\nlocal model or\nHugging Face] as GW
+  }
+}
+package "Data tier and outside systems" {
+  database "PostgreSQL" as DB
+  folder "Model files\n(SHA-256 manifest)" as MF
+  cloud "Email backend\n(console or SMTP)" as MAIL
+}
+APP --> API : HTTPS JSON,\nBearer JWT
+BR --> PAGES : HTTPS forms,\nsession, CSRF
+API --> SVC
+PAGES --> SVC
+SVC --> REPO
+SVC ..> DOM
+REPO ..> DOM
+SVC --> MAIL : send_mail
+REPO --> DB : SQL
+WS --> REPO
+WS --> GW : analyze_sentiment
+GW --> MF : load once
+DOM -[hidden]down-> DB
+@enduml

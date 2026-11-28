@@ -1,0 +1,13 @@
+skinparam dpi 150
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam ArrowColor #333333
+skinparam ActivityBorderColor #333333
+skinparam ActivityBackgroundColor #F5F7FA
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam SwimlaneTitleFontStyle bold
+skinparam ParticipantBackgroundColor #F5F7FA
+skinparam SequenceLifeLineBorderColor #888888
+skinparam NoteBackgroundColor #FFFBE6
+skinparam maxMessageSize 160

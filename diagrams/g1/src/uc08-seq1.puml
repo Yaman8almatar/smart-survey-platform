@@ -1,0 +1,74 @@
+@startuml
+!include style.iuml
+!pragma teoz true
+autonumber
+hide footbox
+actor "Service\nprovider" as P
+participant "Browser" as B
+participant "create_survey,\nedit_survey,\ndelete_survey\n(web views)" as V
+participant "SurveyService" as Svc
+database "SurveyRepository\nPostgreSQL" as DB
+activate P
+P -> B : Title, description;\nshuffle questions,\nshuffle options;\nopens on, closes on;\nresponse limit
+activate B
+B -> V : POST /surveys/create/
+activate V
+V -> V : SurveyForm.is_valid()
+activate V
+deactivate V
+V -> Svc : create_survey(user,\ntitle, settings)
+activate Svc
+Svc -> Svc : _ensure_service_provider(),\n_validate_survey_data()
+activate Svc
+deactivate Svc
+alt title empty, opens after closes,\nclosing date past, limit not 5..10,000
+  Svc --> V : ValidationError
+  V --> B : 200 form with\nthe message
+else valid
+  Svc -> DB : INSERT surveys (DRAFT)
+  activate DB
+  deactivate DB
+  V --> B : 302 /surveys/{id}/\nquestions/ "Survey\ncreated successfully."
+  deactivate Svc
+  deactivate V
+end
+P -> B : Edit the settings later
+B -> V : POST /surveys/{id}/\nedit/
+activate V
+V -> Svc : update_survey()
+activate Svc
+Svc -> Svc : _get_owned_survey(),\n_validate_survey_data(),\ncan_edit()
+activate Svc
+deactivate Svc
+alt not the owner, or not a draft
+  Svc --> V : UnauthorizedAction or\nNotEditable ("Only draft\nsurveys can be updated.")
+  V --> B : 200 with the message
+else owner and draft
+  Svc -> DB : UPDATE surveys
+  activate DB
+  deactivate DB
+  V --> B : 302 /surveys/ "Survey\nupdated successfully."
+  deactivate Svc
+  deactivate V
+end
+opt delete the survey
+  B -> V : POST /surveys/{id}/\ndelete/
+  activate V
+  V -> Svc : delete_survey()
+  activate Svc
+  Svc -> DB : survey_has_responses()
+  activate DB
+  deactivate DB
+  Svc -> Svc : draft or closed,\nno responses (P-06)?
+  activate Svc
+  deactivate Svc
+  Svc -> DB : DELETE surveys
+  activate DB
+  deactivate DB
+  V --> B : 302 "Survey deleted\nsuccessfully." or refusal
+  deactivate Svc
+  deactivate V
+end
+deactivate B
+deactivate P
+@enduml

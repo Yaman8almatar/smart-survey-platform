@@ -1,0 +1,47 @@
+@startuml
+!include style.iuml
+|Provider|
+|Browser|
+|Server|
+|Provider|
+start
+:Open Targeting\nfor a draft survey;
+|Server|
+if (Owner and draft?) then ([yes])
+  :Load the saved criteria\nor the open defaults;
+  :Count the reach\nand band it;
+else ([no])
+  |Browser|
+  :Show the error on\nthe survey list;
+  stop
+endif
+|Browser|
+:Show the form and\nthe reach card;
+repeat
+  |Provider|
+  :Change a criterion;
+  |Browser|
+  :Send the unsaved values\n400 ms after the last change;
+  |Server|
+  if (Values valid?) then ([yes])
+    :Count the matching active\nprofiles; band the count:\nnone, fewer than 5, number;
+  else ([no])
+    :Return the\nfield error;
+  endif
+  |Browser|
+  :Update the reach\nring and sentence;
+  |Provider|
+repeat while (More changes?) is ([yes]) not ([no])
+:Press Save;
+|Server|
+if (Minimum age not\nabove maximum?) then ([yes])
+  :Store the criteria;
+  |Browser|
+  :Show the survey list\nwith "saved";
+  stop
+else ([no])
+  |Browser|
+  :Show the message\nby the age field;
+  stop
+endif
+@enduml

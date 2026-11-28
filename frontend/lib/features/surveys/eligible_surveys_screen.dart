@@ -25,6 +25,7 @@ class EligibleSurveysScreen extends StatefulWidget {
     required this.profileRepository,
     required this.answerRepository,
     required this.user,
+    this.today,
   });
 
   final AuthRepository authRepository;
@@ -33,18 +34,81 @@ class EligibleSurveysScreen extends StatefulWidget {
   final AnswerRepository answerRepository;
   final AppUser user;
 
+  /// The current date for "New this week"; tests fix it, the app uses the device's.
+  final DateTime Function()? today;
+
   @override
   State<EligibleSurveysScreen> createState() => _EligibleSurveysScreenState();
 }
 
+/// The FR-08 chips; exactly one is selected.
+enum _ListFilter {
+  all('All'),
+  underFive('Under 5 min'),
+  newThisWeek('New this week');
+
+  const _ListFilter(this.label);
+
+  final String label;
+}
+
 class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
+  static const int _shortMinutes = 5;
+  static const int _weekDays = 7;
+
   late Future<List<EligibleSurvey>> _surveys;
   bool _loggingOut = false;
+  final TextEditingController _search = TextEditingController();
+  _ListFilter _filter = _ListFilter.all;
 
   @override
   void initState() {
     super.initState();
     _surveys = _fetch();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// The surveys passing the search text and the chip, in the server's order.
+  List<EligibleSurvey> _visible(List<EligibleSurvey> surveys) {
+    final query = _search.text.trim().toLowerCase();
+    final now = (widget.today ?? DateTime.now)();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekStart = DateTime(now.year, now.month, now.day - (_weekDays - 1));
+
+    bool passesChip(EligibleSurvey survey) {
+      switch (_filter) {
+        case _ListFilter.all:
+          return true;
+        case _ListFilter.underFive:
+          return survey.expectedMinutes < _shortMinutes;
+        case _ListFilter.newThisWeek:
+          final published = survey.publishedOn;
+          return published != null &&
+              !published.isBefore(weekStart) &&
+              !published.isAfter(today);
+      }
+    }
+
+    return [
+      for (final survey in surveys)
+        if ((query.isEmpty ||
+                survey.title.toLowerCase().contains(query) ||
+                survey.description.toLowerCase().contains(query)) &&
+            passesChip(survey))
+          survey,
+    ];
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _search.clear();
+      _filter = _ListFilter.all;
+    });
   }
 
   Future<List<EligibleSurvey>> _fetch() async {
@@ -225,6 +289,7 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                   ],
                 );
               }
+              final visible = _visible(surveys);
               return RefreshableList(
                 onRefresh: _refresh,
                 children: [
@@ -233,7 +298,41 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
                     style: Theme.of(context).textTheme.displaySmall,
                   ),
                   const SizedBox(height: SsSpace.s6),
-                  for (final survey in surveys) ...[
+                  TextField(
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    textInputAction: TextInputAction.search,
+                    decoration: const InputDecoration(
+                      hintText: 'Search surveys',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                  const SizedBox(height: SsSpace.s3),
+                  Wrap(
+                    spacing: SsSpace.s2,
+                    runSpacing: SsSpace.s2,
+                    children: [
+                      for (final filter in _ListFilter.values)
+                        ChoiceChip(
+                          label: Text(filter.label),
+                          selected: _filter == filter,
+                          onSelected: (_) => setState(() => _filter = filter),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: SsSpace.s6),
+                  if (visible.isEmpty)
+                    StateMessage(
+                      title: 'No surveys match your search.',
+                      action: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: OutlinedButton(
+                          onPressed: _clearSearch,
+                          child: const Text('Clear search'),
+                        ),
+                      ),
+                    ),
+                  for (final survey in visible) ...[
                     _SurveyCard(
                       survey: survey,
                       onTap: () => _openSurvey(survey),
@@ -262,8 +361,18 @@ class _EligibleSurveysScreenState extends State<EligibleSurveysScreen> {
 class _SurveyCard extends StatelessWidget {
   const _SurveyCard({required this.survey, required this.onTap});
 
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
   final EligibleSurvey survey;
   final VoidCallback onTap;
+
+  /// " · Closes 30 Nov" when the survey has a closing date (FR-11), else ''.
+  static String _closesSuffix(DateTime? closesOn) => closesOn == null
+      ? ''
+      : ' · Closes ${closesOn.day} ${_months[closesOn.month - 1]}';
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +407,9 @@ class _SurveyCard extends StatelessWidget {
                       ],
                       const SizedBox(height: SsSpace.s2),
                       Text(
-                        count == 1 ? '1 question' : '$count questions',
+                        '${count == 1 ? '1 question' : '$count questions'}'
+                        ' · About ${survey.expectedMinutes} min'
+                        '${_closesSuffix(survey.closesOn)}',
                         style: textTheme.bodySmall?.copyWith(
                           color: SsColors.inkMuted,
                         ),

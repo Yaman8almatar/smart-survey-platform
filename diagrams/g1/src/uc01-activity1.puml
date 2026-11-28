@@ -1,0 +1,36 @@
+@startuml
+!include style.iuml
+|Respondent|
+|App or browser|
+|Server|
+|Respondent|
+start
+:Fill in name, email, password,\nage, gender, governorate,\ninterests;
+|App or browser|
+:Send the registration\n(app);
+|Server|
+if (Fields valid and\nemail not registered?) then ([yes])
+  :Store the account (email\nnot confirmed) and the\nprofile in one transaction;
+  :Email the confirmation\nlink (valid 3 days);
+else ([no])
+  |App or browser|
+  :Mark the fields;
+  stop
+endif
+|App or browser|
+:Show log-in with\n"Account created...";
+|Respondent|
+:Open the link\nin a browser;
+|Server|
+if (Link valid?) then ([yes])
+  :Mark the email\nconfirmed;
+else ([no])
+  |Respondent|
+  :Ask for a new link\non the resend page;
+  |Server|
+  :Send it to an unconfirmed\naccount, once in 5 min;
+endif
+|App or browser|
+:Show "Email confirmed..."\nor "If an unconfirmed\naccount uses this email...";
+stop
+@enduml

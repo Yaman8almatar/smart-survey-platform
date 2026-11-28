@@ -13,7 +13,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("admin-panel/", include("apps.admin_panel.urls")),
     path("analysis/", include("apps.analysis.urls")),
-    path("responses/", include("apps.responses.urls")),
+    path("respondent/", include("apps.responses.urls")),
     path("surveys/", include("apps.surveys.urls")),
     path("users/", include("apps.users.urls")),
 ]

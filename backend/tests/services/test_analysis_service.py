@@ -25,7 +25,7 @@ from core.exceptions import (
     SurveyNotFound,
     UnauthorizedAction,
 )
-from infrastructure.huggingface_client import HuggingFaceClient
+from infrastructure.huggingface_analyzer import HuggingFaceClient
 from repositories.analysis_repository import AnalysisRepository
 from repositories.question_repository import QuestionRepository
 from repositories.response_repository import ResponseRepository
@@ -55,6 +55,16 @@ class FakeHuggingFaceResponse:
 
     def raise_for_status(self):
         return None
+
+
+@pytest.fixture(autouse=True)
+def results_open_for_counting_tests(monkeypatch):
+    """These tests predate P-20 and read results of surveys with 1 to 4 responses.
+
+    They test counting, so the lock is opened here; it is tested at the real value
+    in test_results_lock.py.
+    """
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 0)
 
 
 @pytest.fixture
@@ -136,121 +146,12 @@ def mock_hugging_face_response(monkeypatch, payload):
 
     monkeypatch.setenv("HF_API_TOKEN", "test-token")
     monkeypatch.setenv("HF_SENTIMENT_MODEL_URL", "https://example.com/model")
-    monkeypatch.setattr("infrastructure.huggingface_client.requests.post", fake_post)
+    monkeypatch.setattr("infrastructure.huggingface_analyzer.requests.post", fake_post)
     return calls
 
 
 def fail_if_hugging_face_is_called(*args, **kwargs):
     raise AssertionError("The real Hugging Face API must not be called in tests.")
-
-
-@pytest.mark.django_db
-def test_analyze_open_text_answers_analyzes_only_open_text_answers():
-    survey, response = create_survey_response()
-    open_question = create_question(survey, QuestionType.OPEN_TEXT)
-    choice_question = create_question(survey, QuestionType.MULTIPLE_CHOICE)
-    rating_question = create_question(survey, QuestionType.RATING_SCALE)
-    option = QuestionRepository().save_option(
-        QuestionOption(question=choice_question, option_text="Good", order_index=0)
-    )
-    create_answer(response, open_question, answer_value="Great service")
-    create_answer(response, choice_question, selected_option=option)
-    create_answer(response, rating_question, rating_value=5)
-    fake_client = FakeHuggingFaceClient()
-    service = AnalysisService(huggingface_client=fake_client)
-
-    results = service.analyze_open_text_answers(response.response_id)
-
-    assert len(results) == 1
-    assert fake_client.calls == ["Great service"]
-
-
-@pytest.mark.django_db
-def test_multiple_choice_answers_are_not_sent_to_huggingface_client():
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.MULTIPLE_CHOICE)
-    option = QuestionRepository().save_option(
-        QuestionOption(question=question, option_text="Good", order_index=0)
-    )
-    create_answer(response, question, selected_option=option)
-    fake_client = FakeHuggingFaceClient()
-    service = AnalysisService(huggingface_client=fake_client)
-
-    results = service.analyze_open_text_answers(response.response_id)
-
-    assert results == []
-    assert fake_client.calls == []
-
-
-@pytest.mark.django_db
-def test_rating_scale_answers_are_not_sent_to_huggingface_client():
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.RATING_SCALE)
-    create_answer(response, question, rating_value=4)
-    fake_client = FakeHuggingFaceClient()
-    service = AnalysisService(huggingface_client=fake_client)
-
-    results = service.analyze_open_text_answers(response.response_id)
-
-    assert results == []
-    assert fake_client.calls == []
-
-
-@pytest.mark.django_db
-def test_successful_external_analysis_creates_completed_result(analysis_repository):
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-    answer = create_answer(response, question, answer_value="Great service")
-    fake_client = FakeHuggingFaceClient(
-        responses=[{"label": "positive", "score": 0.95}]
-    )
-    service = AnalysisService(huggingface_client=fake_client)
-
-    service.analyze_open_text_answers(response.response_id)
-
-    result = analysis_repository.find_by_answer_id(answer.answer_id)
-    assert result.status == AnalysisStatus.COMPLETED
-    assert result.sentiment_label == SentimentLabel.POSITIVE
-    assert result.sentiment_score == 0.95
-    assert result.analyzed_at is not None
-
-
-@pytest.mark.django_db
-def test_failed_external_analysis_creates_failed_result(analysis_repository):
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-    answer = create_answer(response, question, answer_value="Great service")
-    fake_client = FakeHuggingFaceClient(
-        error=ExternalAnalysisServiceError("External service failed.")
-    )
-    service = AnalysisService(huggingface_client=fake_client)
-
-    service.analyze_open_text_answers(response.response_id)
-
-    result = analysis_repository.find_by_answer_id(answer.answer_id)
-    assert result.status == AnalysisStatus.FAILED
-    assert result.sentiment_label is None
-    assert result.sentiment_score is None
-
-
-@pytest.mark.django_db
-def test_analysis_service_maps_normalized_client_result_to_sentiment_label(
-    analysis_repository,
-):
-    survey, response = create_survey_response()
-    question = create_question(survey, QuestionType.OPEN_TEXT)
-    answer = create_answer(response, question, answer_value="Bad service")
-    fake_client = FakeHuggingFaceClient(
-        responses=[{"label": "NEGATIVE", "score": 0.88}]
-    )
-    service = AnalysisService(huggingface_client=fake_client)
-
-    service.analyze_open_text_answers(response.response_id)
-
-    result = analysis_repository.find_by_answer_id(answer.answer_id)
-    assert result.status == AnalysisStatus.COMPLETED
-    assert result.sentiment_label == SentimentLabel.NEGATIVE
-    assert result.sentiment_score == 0.88
 
 
 def test_single_label_hugging_face_response_is_normalized(monkeypatch):
@@ -331,7 +232,7 @@ def test_missing_hugging_face_token_raises_external_analysis_service_error(monke
     monkeypatch.delenv("HF_API_TOKEN", raising=False)
     monkeypatch.setenv("HF_SENTIMENT_MODEL_URL", "https://example.com/model")
     monkeypatch.setattr(
-        "infrastructure.huggingface_client.requests.post",
+        "infrastructure.huggingface_analyzer.requests.post",
         fail_if_hugging_face_is_called,
     )
     client = HuggingFaceClient()
@@ -344,7 +245,7 @@ def test_missing_hugging_face_url_raises_external_analysis_service_error(monkeyp
     monkeypatch.setenv("HF_API_TOKEN", "test-token")
     monkeypatch.delenv("HF_SENTIMENT_MODEL_URL", raising=False)
     monkeypatch.setattr(
-        "infrastructure.huggingface_client.requests.post",
+        "infrastructure.huggingface_analyzer.requests.post",
         fail_if_hugging_face_is_called,
     )
     client = HuggingFaceClient()
@@ -357,7 +258,7 @@ def test_empty_text_raises_external_analysis_service_error(monkeypatch):
     monkeypatch.setenv("HF_API_TOKEN", "test-token")
     monkeypatch.setenv("HF_SENTIMENT_MODEL_URL", "https://example.com/model")
     monkeypatch.setattr(
-        "infrastructure.huggingface_client.requests.post",
+        "infrastructure.huggingface_analyzer.requests.post",
         fail_if_hugging_face_is_called,
     )
     client = HuggingFaceClient()
@@ -374,7 +275,7 @@ def test_hugging_face_request_failure_raises_external_analysis_service_error(
 
     monkeypatch.setenv("HF_API_TOKEN", "test-token")
     monkeypatch.setenv("HF_SENTIMENT_MODEL_URL", "https://example.com/model")
-    monkeypatch.setattr("infrastructure.huggingface_client.requests.post", fake_post)
+    monkeypatch.setattr("infrastructure.huggingface_analyzer.requests.post", fake_post)
     client = HuggingFaceClient()
 
     with pytest.raises(ExternalAnalysisServiceError):
@@ -385,20 +286,32 @@ def test_hugging_face_request_failure_raises_external_analysis_service_error(
 def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
     provider = create_user("provider-empty-summary@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
     assert summary == {
         "survey_id": survey.survey_id,
         "response_count": 0,
+        "included_count": 0,
+        "locked": False,
+        "min_responses": 0,
         "positive_count": 0,
         "neutral_count": 0,
         "negative_count": 0,
         "failed_count": 0,
+        "waiting_count": 0,
+        "skipped_count": 0,
+        "failed_reasons": [],
+        "analysis_overdue": False,
         "positive_rate": 0,
         "neutral_rate": 0,
         "negative_rate": 0,
+        "group_by": None,
+        "filter_options": [],
+        "filter": None,
+        "filter_unavailable": False,
+        "responses_over_time": [],
         "question_summaries": [],
     }
 
@@ -406,7 +319,7 @@ def test_get_survey_results_returns_zero_counts_for_survey_with_no_responses():
 @pytest.mark.django_db
 def test_get_survey_results_calculates_positive_neutral_and_negative_counts():
     survey = create_completed_sentiment_results()
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -426,7 +339,7 @@ def test_get_survey_results_counts_failed_results():
     )
     create_sentiment_result(failed_answer, None, status=AnalysisStatus.FAILED)
     create_sentiment_result(completed_answer, SentimentLabel.POSITIVE)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -437,7 +350,7 @@ def test_get_survey_results_counts_failed_results():
 @pytest.mark.django_db
 def test_get_survey_results_calculates_sentiment_rates_correctly():
     survey = create_completed_sentiment_results()
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -452,7 +365,7 @@ def test_positive_sentiment_result_linked_to_survey_is_counted():
     question = create_question(survey, QuestionType.OPEN_TEXT)
     answer = create_answer(response, question, answer_value="Great service")
     create_sentiment_result(answer, SentimentLabel.POSITIVE)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -467,7 +380,7 @@ def test_neutral_sentiment_result_linked_to_survey_is_counted():
     question = create_question(survey, QuestionType.OPEN_TEXT)
     answer = create_answer(response, question, answer_value="Average service")
     create_sentiment_result(answer, SentimentLabel.NEUTRAL)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -482,7 +395,7 @@ def test_negative_sentiment_result_linked_to_survey_is_counted():
     question = create_question(survey, QuestionType.OPEN_TEXT)
     answer = create_answer(response, question, answer_value="Bad service")
     create_sentiment_result(answer, SentimentLabel.NEGATIVE)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -511,7 +424,7 @@ def test_sentiment_labels_are_counted_when_stored_as_mixed_case_strings():
         answer = create_answer(response, question, answer_value=f"Answer {index}")
         create_sentiment_result(answer, label)
 
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -530,7 +443,7 @@ def test_completed_status_enum_style_string_is_counted():
         "POSITIVE",
         status="AnalysisStatus.COMPLETED",
     )
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -559,7 +472,7 @@ def test_multiple_choice_question_summary_returns_option_selection_counts():
         response = create_response(survey, respondent)
         create_answer(response, question, selected_option=option)
 
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
@@ -583,7 +496,7 @@ def test_rating_scale_question_summary_returns_rating_counts():
         response = create_response(survey, respondent)
         create_answer(response, question, rating_value=rating)
 
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
@@ -607,7 +520,7 @@ def test_open_text_question_summary_returns_submitted_text_answers():
         response = create_response(survey, respondent)
         create_answer(response, question, answer_value=text)
 
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
@@ -634,7 +547,7 @@ def test_open_text_summary_counts_all_non_blank_answers_before_the_cap(monkeypat
         )
         create_answer(create_response(survey, respondent), question, answer_value=text)
 
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(provider, survey.survey_id)
     question_summary = summary["question_summaries"][0]
@@ -648,7 +561,7 @@ def test_non_text_question_summary_has_zero_text_answer_total():
     provider = create_user("provider-rating-total@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
     create_question(survey, QuestionType.RATING_SCALE)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(provider, survey.survey_id)
 
@@ -660,7 +573,7 @@ def test_get_survey_results_returns_question_summaries():
     provider = create_user("provider-question-summary@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
     question = create_question(survey, QuestionType.OPEN_TEXT)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     summary = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -696,7 +609,7 @@ def test_single_completed_positive_result_with_score_is_counted():
             analyzed_at=timezone.now(),
         )
     )
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     result = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -728,7 +641,7 @@ def test_single_completed_neutral_result_with_score_is_counted():
             analyzed_at=timezone.now(),
         )
     )
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     result = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -760,7 +673,7 @@ def test_single_completed_negative_result_with_score_is_counted():
             analyzed_at=timezone.now(),
         )
     )
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     result = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -793,7 +706,7 @@ def test_pending_sentiment_result_is_not_counted():
             analyzed_at=None,
         )
     )
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     result = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -826,7 +739,7 @@ def test_failed_sentiment_result_is_not_counted():
             analyzed_at=timezone.now(),
         )
     )
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     result = service.get_survey_results(survey.provider, survey.survey_id)
 
@@ -839,68 +752,26 @@ def test_failed_sentiment_result_is_not_counted():
 def create_completed_sentiment_results():
     provider = create_user("provider-summary@example.com", UserType.SERVICE_PROVIDER)
     survey = create_survey(provider)
-    labels = [
-        {"label": "positive", "score": 0.9},
-        {"label": "neutral", "score": 0.7},
-        {"label": "negative", "score": 0.8},
-    ]
-    fake_client = FakeHuggingFaceClient(responses=labels)
-    service = AnalysisService(huggingface_client=fake_client)
+    labels = [SentimentLabel.POSITIVE, SentimentLabel.NEUTRAL, SentimentLabel.NEGATIVE]
 
-    for index in range(3):
+    for index, label in enumerate(labels):
         respondent = create_user(
             f"respondent-summary-{index}@example.com",
             UserType.RESPONDENT,
         )
         response = create_response(survey, respondent)
         question = create_question(survey, QuestionType.OPEN_TEXT, text=f"Question {index}?")
-        create_answer(response, question, answer_value=f"Answer {index}")
-        service.analyze_open_text_answers(response.response_id)
+        answer = create_answer(response, question, answer_value=f"Answer {index}")
+        create_sentiment_result(answer, label)
 
     return survey
-
-
-class FailingSecondUpdateAnalysisRepository(AnalysisRepository):
-    def __init__(self):
-        self.update_calls = 0
-
-    def update(self, result):
-        self.update_calls += 1
-        if self.update_calls == 2:
-            raise RuntimeError("Result storage failed.")
-        return super().update(result)
-
-
-@pytest.mark.django_db
-def test_analyze_open_text_answers_rolls_back_all_results_when_a_write_fails():
-    survey, response = create_survey_response()
-    first_question = create_question(survey, QuestionType.OPEN_TEXT)
-    second_question = create_question(survey, QuestionType.OPEN_TEXT)
-    create_answer(response, first_question, answer_value="Great service")
-    create_answer(response, second_question, answer_value="Slow delivery")
-    service = AnalysisService(
-        analysis_repository=FailingSecondUpdateAnalysisRepository(),
-        huggingface_client=FakeHuggingFaceClient(
-            responses=[
-                {"label": "positive", "score": 0.9},
-                {"label": "negative", "score": 0.8},
-            ]
-        ),
-    )
-
-    with pytest.raises(RuntimeError):
-        service.analyze_open_text_answers(response.response_id)
-
-    assert not SentimentAnalysisResult.objects.filter(
-        answer__response=response,
-    ).exists()
 
 
 @pytest.mark.django_db
 def test_get_survey_results_rejects_provider_who_does_not_own_survey():
     survey, _ = create_survey_response()
     other_provider = create_user("other-provider@example.com", UserType.SERVICE_PROVIDER)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     with pytest.raises(UnauthorizedAction):
         service.get_survey_results(other_provider, survey.survey_id)
@@ -909,7 +780,7 @@ def test_get_survey_results_rejects_provider_who_does_not_own_survey():
 @pytest.mark.django_db
 def test_get_survey_results_rejects_non_provider():
     survey, response = create_survey_response()
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     with pytest.raises(UnauthorizedAction):
         service.get_survey_results(response.respondent, survey.survey_id)
@@ -918,10 +789,288 @@ def test_get_survey_results_rejects_non_provider():
 @pytest.mark.django_db
 def test_get_survey_results_rejects_missing_survey():
     provider = create_user("provider-missing-results@example.com", UserType.SERVICE_PROVIDER)
-    service = AnalysisService(huggingface_client=FakeHuggingFaceClient())
+    service = AnalysisService(analyzer=FakeHuggingFaceClient())
 
     with pytest.raises(SurveyNotFound):
         service.get_survey_results(provider, 999999)
+
+
+# ---------------------------------------------------------------------------
+# FR-05 (board W-05b): sentiment per open question and per group, small groups pooled
+# ---------------------------------------------------------------------------
+
+COMPLETED_POSITIVE = (AnalysisStatus.COMPLETED, SentimentLabel.POSITIVE)
+COMPLETED_NEUTRAL = (AnalysisStatus.COMPLETED, SentimentLabel.NEUTRAL)
+COMPLETED_NEGATIVE = (AnalysisStatus.COMPLETED, SentimentLabel.NEGATIVE)
+
+
+def create_grouped_survey(prefix, entries):
+    """Create a survey with one open-text question; each entry is (response fields, result).
+
+    result is (status, label), or None for an answer with no sentiment result.
+    """
+    provider = create_user(f"provider-{prefix}@example.com", UserType.SERVICE_PROVIDER)
+    survey = create_survey(provider)
+    question = create_question(survey, QuestionType.OPEN_TEXT, text="Any comments?")
+    for index, (fields, result) in enumerate(entries):
+        respondent = create_user(f"respondent-{prefix}-{index}@example.com", UserType.RESPONDENT)
+        response = ResponseRepository().save(
+            Response(survey=survey, respondent=respondent, **fields)
+        )
+        answer = create_answer(response, question, answer_value=f"Answer {index}")
+        if result is not None:
+            status, label = result
+            create_sentiment_result(answer, label, status=status)
+    return provider, survey
+
+
+def open_text_summary(provider, survey, group_by=None):
+    results = AnalysisService(analyzer=FakeHuggingFaceClient()).get_survey_results(
+        provider, survey.survey_id, group_by=group_by
+    )
+    return results, results["question_summaries"][0]
+
+
+def analysed_by_label(breakdown):
+    return {row["label"]: row["analysed"] for row in breakdown["rows"]}
+
+
+@pytest.mark.django_db
+def test_open_text_sentiment_counts_waiting_and_failed_and_leaves_skipped_out():
+    provider, survey = create_grouped_survey(
+        "fr05-counts",
+        [
+            ({}, COMPLETED_POSITIVE),
+            ({}, COMPLETED_POSITIVE),
+            ({}, COMPLETED_NEUTRAL),
+            ({}, COMPLETED_NEGATIVE),
+            ({}, (AnalysisStatus.PENDING, None)),
+            ({}, (AnalysisStatus.RUNNING, None)),
+            ({}, (AnalysisStatus.FAILED, None)),
+            ({}, (AnalysisStatus.SKIPPED, None)),
+            ({}, None),
+        ],
+    )
+    create_question(survey, QuestionType.RATING_SCALE, text="Rate us")
+
+    results, summary = open_text_summary(provider, survey)
+
+    assert summary["sentiment"] == {
+        "analysed": 4,
+        "total": 7,
+        "positive": 2,
+        "neutral": 1,
+        "negative": 1,
+    }
+    assert summary["breakdown"] is None
+    assert results["group_by"] is None
+    rating_summary = results["question_summaries"][1]
+    assert "sentiment" not in rating_summary
+    assert "breakdown" not in rating_summary
+
+
+@pytest.mark.django_db
+def test_open_text_sentiment_is_counted_per_question():
+    provider, survey = create_grouped_survey("fr05-per-question", [({}, COMPLETED_POSITIVE)])
+    other_question = create_question(survey, QuestionType.OPEN_TEXT, text="Anything else?")
+    response = Response.objects.get(survey=survey)
+    answer = create_answer(response, other_question, answer_value="Slow")
+    create_sentiment_result(answer, SentimentLabel.NEGATIVE)
+
+    results = AnalysisService(analyzer=FakeHuggingFaceClient()).get_survey_results(
+        provider, survey.survey_id
+    )
+    first, second = results["question_summaries"]
+
+    assert first["sentiment"]["positive"] == 1
+    assert first["sentiment"]["negative"] == 0
+    assert second["sentiment"]["positive"] == 0
+    assert second["sentiment"]["negative"] == 1
+
+
+@pytest.mark.django_db
+def test_excluded_response_counts_nowhere_in_question_sentiment_or_breakdown():
+    provider, survey = create_grouped_survey(
+        "fr05-excluded",
+        [
+            ({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "MALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "MALE", "is_excluded": True}, COMPLETED_NEGATIVE),
+            ({"snap_gender": "MALE", "is_excluded": True}, (AnalysisStatus.PENDING, None)),
+        ],
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="gender")
+
+    assert summary["sentiment"] == {
+        "analysed": 3,
+        "total": 3,
+        "positive": 3,
+        "neutral": 0,
+        "negative": 0,
+    }
+    assert summary["breakdown"]["rows"] == [
+        {"label": "Female", "analysed": 2, "positive": 2, "neutral": 0, "negative": 0,
+         "pooled": False},
+        {"label": "Male", "analysed": 1, "positive": 1, "neutral": 0, "negative": 0,
+         "pooled": False},
+    ]
+
+
+@pytest.mark.django_db
+def test_gender_breakdown_uses_gender_labels_and_not_stated():
+    provider, survey = create_grouped_survey(
+        "fr05-gender",
+        [
+            ({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE),
+            ({"snap_gender": "FEMALE"}, COMPLETED_NEGATIVE),
+            ({"snap_gender": "MALE"}, COMPLETED_NEUTRAL),
+            ({"snap_gender": ""}, COMPLETED_POSITIVE),
+            ({"snap_gender": "UNKNOWN"}, COMPLETED_POSITIVE),
+        ],
+    )
+
+    results, summary = open_text_summary(provider, survey, group_by="gender")
+
+    assert results["group_by"] == "gender"
+    assert summary["breakdown"]["dimension"] == "gender"
+    assert summary["breakdown"]["enough"] is True
+    assert [row["label"] for row in summary["breakdown"]["rows"]] == [
+        "Female",
+        "Not stated",
+        "Male",
+    ]
+    assert analysed_by_label(summary["breakdown"]) == {"Female": 2, "Not stated": 2, "Male": 1}
+
+
+@pytest.mark.django_db
+def test_age_breakdown_uses_the_age_groups():
+    ages = [16, 17, 18, 24, 25, 34, 35, 44, 45, 54, 55, 80, None]
+    provider, survey = create_grouped_survey(
+        "fr05-age", [({"snap_age": age}, COMPLETED_POSITIVE) for age in ages]
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="age")
+
+    assert analysed_by_label(summary["breakdown"]) == {
+        "Under 18": 2,
+        "18 to 24": 2,
+        "25 to 34": 2,
+        "35 to 44": 2,
+        "45 to 54": 2,
+        "55 and over": 2,
+        "Not stated": 1,
+    }
+
+
+@pytest.mark.django_db
+def test_governorate_breakdown_uses_governorate_labels():
+    provider, survey = create_grouped_survey(
+        "fr05-region",
+        [
+            ({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE),
+            ({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE),
+            ({"snap_region": "RIF_DIMASHQ"}, COMPLETED_NEGATIVE),
+            ({"snap_region": ""}, COMPLETED_NEUTRAL),
+            ({"snap_region": "Old free text"}, COMPLETED_NEUTRAL),
+        ],
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="governorate")
+
+    assert analysed_by_label(summary["breakdown"]) == {
+        "Damascus": 2,
+        "Not stated": 2,
+        "Rif Dimashq": 1,
+    }
+
+
+@pytest.mark.django_db
+def test_breakdown_pools_groups_under_five_analysed_answers(monkeypatch):
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 5)
+    entries = (
+        [({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE)] * 12
+        + [({"snap_region": "ALEPPO"}, COMPLETED_NEUTRAL)] * 7
+        + [({"snap_region": "HOMS"}, COMPLETED_POSITIVE)] * 3
+        + [({"snap_region": "HAMA"}, COMPLETED_NEGATIVE)] * 2
+        # Waiting answers are not analysed, so Hama stays a group of 2 and is pooled.
+        + [({"snap_region": "HAMA"}, (AnalysisStatus.PENDING, None))] * 3
+    )
+    provider, survey = create_grouped_survey("fr05-pooled", entries)
+
+    _, summary = open_text_summary(provider, survey, group_by="governorate")
+
+    assert summary["breakdown"] == {
+        "dimension": "governorate",
+        "enough": True,
+        "rows": [
+            {"label": "Damascus", "analysed": 12, "positive": 12, "neutral": 0, "negative": 0,
+             "pooled": False},
+            {"label": "Aleppo", "analysed": 7, "positive": 0, "neutral": 7, "negative": 0,
+             "pooled": False},
+            {"label": "Other groups (combined)", "analysed": 5, "positive": 3, "neutral": 0,
+             "negative": 2, "pooled": True},
+        ],
+    }
+
+
+@pytest.mark.django_db
+def test_breakdown_is_not_enough_when_only_one_row_would_remain(monkeypatch):
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 5)
+    entries = (
+        [({"snap_region": "DAMASCUS"}, COMPLETED_POSITIVE)] * 6
+        + [({"snap_region": "HOMS"}, COMPLETED_NEGATIVE)] * 2
+    )
+    provider, survey = create_grouped_survey("fr05-not-enough", entries)
+
+    _, summary = open_text_summary(provider, survey, group_by="governorate")
+
+    assert summary["breakdown"] == {"dimension": "governorate", "enough": False, "rows": []}
+    assert summary["sentiment"]["analysed"] == 8
+
+
+@pytest.mark.django_db
+def test_breakdown_without_analysed_answers_is_not_enough():
+    provider, survey = create_grouped_survey(
+        "fr05-none-analysed",
+        [({"snap_gender": "FEMALE"}, (AnalysisStatus.PENDING, None))] * 3,
+    )
+
+    _, summary = open_text_summary(provider, survey, group_by="gender")
+
+    assert summary["breakdown"] == {"dimension": "gender", "enough": False, "rows": []}
+
+
+@pytest.mark.django_db
+def test_unknown_group_by_is_treated_as_no_breakdown():
+    provider, survey = create_grouped_survey(
+        "fr05-unknown", [({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE)]
+    )
+
+    results, summary = open_text_summary(provider, survey, group_by="email")
+
+    assert results["group_by"] is None
+    assert summary["breakdown"] is None
+
+
+@pytest.mark.django_db
+def test_locked_survey_result_is_unchanged_with_a_group_by(monkeypatch):
+    monkeypatch.setattr("services.disclosure.MIN_GROUP_SIZE", 5)
+    provider, survey = create_grouped_survey(
+        "fr05-locked", [({"snap_gender": "FEMALE"}, COMPLETED_POSITIVE)] * 4
+    )
+
+    results = AnalysisService(analyzer=FakeHuggingFaceClient()).get_survey_results(
+        provider, survey.survey_id, group_by="gender"
+    )
+
+    assert results == {
+        "survey_id": survey.survey_id,
+        "response_count": 4,
+        "locked": True,
+        "min_responses": 5,
+    }
 
 
 class FakeHttpErrorResponse:
@@ -931,9 +1080,9 @@ class FakeHttpErrorResponse:
         raise requests.HTTPError("402 Client Error: Payment Required", response=self)
 
 
-def test_huggingface_client_reports_http_status_code(monkeypatch, caplog):
+def test_huggingface_analyzer_reports_http_status_code(monkeypatch, caplog):
     monkeypatch.setattr(
-        "infrastructure.huggingface_client.requests.post",
+        "infrastructure.huggingface_analyzer.requests.post",
         lambda *args, **kwargs: FakeHttpErrorResponse(),
     )
     client = HuggingFaceClient(
@@ -941,7 +1090,7 @@ def test_huggingface_client_reports_http_status_code(monkeypatch, caplog):
         model_url="https://example.com/model",
     )
 
-    with caplog.at_level(logging.WARNING, logger="infrastructure.huggingface_client"):
+    with caplog.at_level(logging.WARNING, logger="infrastructure.huggingface_analyzer"):
         with pytest.raises(ExternalAnalysisServiceError) as error:
             client.analyze_sentiment("The service was excellent")
 
